@@ -130,7 +130,23 @@ export function solvePlayerSlotCandidates(
   const ocrConfidence=chosen.map(cell=>cell.ocr);
   const ocrText=chosen.map(cell=>cell.text);
   const ocrVariant=chosen.map(cell=>cell.variant);
+  // Near-identical roster IDs (e.g. "Pemain 1"…"Pemain 5") cannot be
+  // disambiguated by matching the shared prefix. A full five-player bijection
+  // must not turn missing/blurred suffixes into confident automatic identities.
+  const discriminativeEvidence=best.order.map((playerIndex,slot)=>{
+    const chosenText=normalizePlayerText(ocrText[slot]||'');
+    const target=normalizePlayerText(players[playerIndex]);
+    if(!chosenText)return false;
+    const rivals=players.filter((_,i)=>i!==playerIndex).map(normalizePlayerText);
+    // For similar names require an exact distinguishing token, including
+    // numeric suffixes. Confusion-folded OCR is not conclusive evidence.
+    if(rivals.some(other=>normalizedSimilarity(target,other)>=.65)){
+      return chosenText===target || chosenText.split(/[^\\p{L}\\p{N}]+/u).includes(target);
+    }
+    return true;
+  });
   const anomalies=best.confidence.flatMap((score,index)=>{
+    if(!discriminativeEvidence[index])return [index];
     if(!ocrText[index])return [index];
     if(score<.80)return [index];
     // Extremely weak OCR is acceptable only when the normalized text exactly
