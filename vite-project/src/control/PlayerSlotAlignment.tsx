@@ -1,3 +1,4 @@
+import {playerIdCropSize} from './playerIdCropSize.js';
 import {mergeVerification} from '../shared/playerSlotVerification.js';
 import type {VerificationEvidence} from '../shared/playerSlotVerification.js';
 import { useEffect, useRef, useState } from 'react';
@@ -207,8 +208,9 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           const cropRegion=wide?fallbackIdRegion(regions,side,index):idRegion(regions,side,index);
           const pixels=regionToPixels(cropRegion,frame.width,frame.height);
           const crop=document.createElement('canvas');
-          crop.width=Math.min(760,pixels.width*2);
-          crop.height=Math.min(180,pixels.height*2);
+          const size=playerIdCropSize(pixels.width,pixels.height);
+          crop.width=size.width;
+          crop.height=size.height;
           crop.getContext('2d')!.drawImage(frame,pixels.x,pixels.y,pixels.width,pixels.height,0,0,crop.width,crop.height);
           return crop.toDataURL('image/png');
         }));
@@ -431,8 +433,9 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       const cropRegion=idRegion(slots,selectedSide,selectedIndex);
       const pixels=regionToPixels(cropRegion,source.videoWidth,source.videoHeight);
       const canvas=document.createElement('canvas');
-      canvas.width=Math.min(640,pixels.width*2);
-      canvas.height=Math.min(128,pixels.height*2);
+      const size=playerIdCropSize(pixels.width,pixels.height);
+      canvas.width=size.width;
+      canvas.height=size.height;
       canvas.getContext('2d')!.drawImage(source,pixels.x,pixels.y,pixels.width,pixels.height,0,0,canvas.width,canvas.height);
       setPreview(canvas.toDataURL('image/png'));
     };
@@ -442,7 +445,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   },[calibrationOpen,ready,selectedIndex,selectedSide,slots]);
 
   const confirmedSides=(['blue','red'] as const).filter(side=>scan?.[side]&&(!auto||scan[side]!.automatic)&&sameOrder(state[`${side}PlayerSlotOrder`],scan[side]!.order)).length;
-  const recognizedSlots=(['blue','red'] as const).reduce((sum,side)=>sum+(scan?.[side]?.confidence.filter(value=>value>=.8).length??0),0);
+  const recognizedSlots=(['blue','red'] as const).reduce((sum,side)=>sum+(scan?.[side]?.confidence.filter((value,index)=>value>=.8&&!scan[side]!.anomalies.includes(index)).length??0),0);
 
   function renderTeam(side:Side) {
     const team=state[`${side}Team`];
@@ -642,6 +645,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         <figure className="player-slot-crop-preview">
           <figcaption>{zh?'实际 OCR 裁剪预览':'Actual OCR crop'}</figcaption>
           {preview?<img src={preview} alt={zh?'实际选手 ID 裁剪':'Actual player ID crop'}/>:<div>{zh?'等待采集画面':'Waiting for capture'}</div>}
+          <figcaption>{zh?'上次匹配文字：':'Last matched text: '}{scan?.[selectedSide]?.ocrText?.[selectedIndex]|| (zh?'尚无文字结果':'No text result yet')}</figcaption>
         </figure>
       </div>
     </details>}

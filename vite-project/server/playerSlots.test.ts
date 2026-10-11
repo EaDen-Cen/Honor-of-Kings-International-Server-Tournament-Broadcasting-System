@@ -150,3 +150,18 @@ test('near-identical broadcast placeholder IDs require distinguishing suffix bef
   withLostDigit[2]=[{text:'Pemain',confidence:.96,variant:'soft'}];
   assert.equal(solvePlayerSlotCandidates(withLostDigit,players)!.automatic,false);
 });
+
+test('complete spaced IDs survive boundary punctuation and adjacent OCR noise without losing suffix guards',()=>{
+  const players=['Pemain 4','Pemain 2','Pemain 5','Pemain 1','Pemain 3'];
+  const crops=['Pemain 1,','Pemain 2,','Pemain 3','Pemain 4,','Pemain 5,'];
+  const exact=solvePlayerSlotCandidates(crops.map(text=>[{text,confidence:.9}]),players)!;
+  assert.deepEqual(exact.order,[3,1,4,0,2]);
+  assert.equal(exact.automatic,true);
+  const noisy=solvePlayerSlotCandidates(crops.map(text=>[{text:'| '+text+' badge',confidence:.9}]),players)!;
+  assert.deepEqual(noisy.order,[3,1,4,0,2]);
+  assert.equal(noisy.automatic,true);
+  for(const bad of ['Pemain','Pemain ?','Pemain 10','Pemain I']){
+    const rows=crops.map(text=>[{text,confidence:.9}]);rows[0]=[{text:bad,confidence:.99}];
+    assert.equal(solvePlayerSlotCandidates(rows,players)!.automatic,false,bad);
+  }
+});
