@@ -87,10 +87,10 @@ test('Simulator renders detectable Pick and Ban marks at each supported size bou
     await page.evaluate(value=>localStorage.setItem('hok-bp-simulator-state-v3',JSON.stringify(value)),state);
     await page.reload();
     await page.locator('[data-slot="bluePick1"] img').waitFor();
-    for(const [slot,kind,avatar] of [['blueBan1','padlock','sim-ban-avatar'],['bluePick1','checkmark','sim-pick-avatar'],['redPick1','checkmark','sim-pick-avatar']] as const) {
+    for(const [slot,kind,avatar] of [['blueBan1','padlock','sim-ban-avatar'],['redBan1','padlock','sim-ban-avatar'],['bluePick1','checkmark','sim-pick-avatar'],['redPick1','checkmark','sim-pick-avatar']] as const) {
       const box=(await page.locator(`[data-slot="${slot}"] .${avatar}`).boundingBox())!;
       const buffer=await page.screenshot({clip:{x:box.x,y:box.y,width:box.width,height:box.height*(kind==='checkmark'?1.3:1)}});
-      expect(await detectDraftLockCue(buffer),`${slot} ${banSize}/${pickSize}`).toBe(kind);
+      expect(await detectDraftLockCue(buffer,kind==='padlock'),`${slot} ${banSize}/${pickSize}`).toBe(kind);
     }
   }
 });

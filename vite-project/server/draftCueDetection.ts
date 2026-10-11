@@ -4,7 +4,7 @@ export type DraftLockCue = 'checkmark' | 'padlock' | 'none';
 
 // Positive shape evidence, never an arbitrary change in portrait brightness or
 // hash. Connected components keep a white frame/hair mass out of the matcher.
-export async function detectDraftLockCue(source:Buffer):Promise<DraftLockCue> {
+export async function detectDraftLockCue(source:Buffer,banPortrait=false):Promise<DraftLockCue> {
   const {data,info}=await sharp(source).removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
   const {width,height,channels}=info;
   if(width<16||height<16) return 'none';
@@ -45,6 +45,7 @@ export async function detectDraftLockCue(source:Buffer):Promise<DraftLockCue> {
         return blue>=4||red>=4;
       })();
       for(const kind of ['checkmark','padlock'] as const) {
+        if(banPortrait&&kind==='checkmark') continue;
         if(kind==='checkmark'&&(!teamBackdrop||bottom<height*.70)) continue;
         if(kind==='padlock'&&(left<width*.45||bottom<height*.70)) continue;
         for(const extraTop of (kind==='padlock'?[0,.4,.65,.85]:[0])) {
@@ -85,5 +86,36 @@ export async function detectDraftLockCue(source:Buffer):Promise<DraftLockCue> {
       }
     }
   }
-  return 'none';
+  return banPortrait&&(await detectBlendedBanLock(source))?'padlock':'none';
+}
+
+
+// A small Ban lock can touch pale hair and merge into a much larger connected
+// component. Search bounded local windows only for Ban, independently of that
+// component. Require the arch/body silhouette AND a darker central keyhole.
+// The body threshold follows its white rim so blurred holes remain visible.
+async function detectBlendedBanLock(source:Buffer):Promise<boolean> {
+  const {data,info}=await sharp(source).resize(64,64,{fit:'fill'}).removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
+  const luma=(x:number,y:number)=>{const i=(Math.round(y)*64+Math.round(x))*info.channels;return (data[i]+data[i+1]+data[i+2])/3;};
+  for(let w=12;w<=25;w+=1) for(let h=16;h<=28;h+=1) {
+    if(w/h<.65||w/h>1.15) continue;
+    for(let left=26;left+w<=64;left++) for(let top=28;top+h<=64;top++) {
+      if(top+h<45) continue;
+      const sample=(nx:number,ny:number)=>luma(left+nx*(w-1),top+ny*(h-1));
+      const rim=(sample(.2,.73)+sample(.8,.73))/2;
+      const hole=Math.min(sample(.5,.65),sample(.5,.73),sample(.5,.8));
+
+      if(rim<150||hole>rim*.85) continue;
+      let hit=0,expectedCount=0,actualCount=0;
+      for(let y=0;y<16;y++) for(let x=0;x<16;x++) {
+        const nx=x/15,ny=y/15;
+        const keyhole=Math.abs(nx-.5)<.12&&ny>.59&&ny<.88;
+        const expected=!keyhole&&((ny>=.43&&nx>=.07&&nx<=.93)||(ny<.55&&Math.abs(Math.hypot((nx-.5)/.34,(ny-.32)/.32)-1)<.29));
+        const occupied=sample(nx,ny)>=(ny>=.43?rim*.88:150);
+        if(expected)expectedCount++;if(occupied)actualCount++;if(expected&&occupied)hit++;
+      }
+      if(hit/expectedCount>=.85&&hit/actualCount>=.74) return true;
+    }
+  }
+  return false;
 }
