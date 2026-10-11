@@ -13,6 +13,7 @@ import {
   getSharedWindowCaptureStream,
   setSharedWindowCaptureStream,
   subscribeSharedWindowCapture,
+  requestWindowCapture,
 } from './sharedWindowCapture';
 
 interface Candidate { heroId:number; confidence:number }
@@ -177,7 +178,7 @@ export function LineupAssignments({
       return;
     }
     try {
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+      const stream=await requestWindowCapture();
       if(!mounted.current){stream.getTracks().forEach(track=>track.stop());return;}
       setSharedWindowCaptureStream(stream);
       const track=stream.getVideoTracks()[0];

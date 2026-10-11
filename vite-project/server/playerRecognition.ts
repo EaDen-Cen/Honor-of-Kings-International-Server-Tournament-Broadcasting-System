@@ -15,7 +15,7 @@ function dirnameOfModel(code:string){
 export interface PlayerOcrCandidate {
   text:string;
   confidence:number;
-  variant:'soft'|'threshold170'|'threshold190';
+  variant:'soft'|'threshold170'|'threshold190'|'yellow';
 }
 
 interface DecodedCrop {
@@ -125,7 +125,7 @@ export class PlayerRecognitionProvider {
     const contrast=await sharp(crop.input).flatten({background:'#fff'})
       .greyscale().normalize().png().toBuffer();
     let ink=sharp(contrast);
-    if(variant!=='soft')ink=ink.threshold(variant==='threshold170'?170:190);
+    if(variant!=='soft'&&variant!=='yellow')ink=ink.threshold(variant==='threshold170'?170:190);
     if(crop.darkBackground)ink=ink.negate({alpha:false});
     const prepared=await ink.png().toBuffer();
     return sharp(prepared).resize(width-32,40,{fit:'contain',background:'#fff'})
@@ -164,6 +164,48 @@ export class PlayerRecognitionProvider {
     right=Math.min(info.width-1,right+2);bottom=Math.min(info.height-1,bottom+2);
     return {...crop,input:await sharp(crop.input)
       .extract({left,top,width:right-left+1,height:bottom-top+1}).png().toBuffer()};
+  }
+
+  /** Separate gold player labels from flags and multicolored hero artwork. */
+  private async isolateYellowText(crop:DecodedCrop):Promise<DecodedCrop|undefined>{
+    const {data,info}=await sharp(crop.input).flatten({background:'#fff'})
+      .removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
+    const mask=Buffer.alloc(info.width*info.height);
+    let ink=0;
+    for(let index=0;index<mask.length;index++){
+      const r=data[index*3],g=data[index*3+1],b=data[index*3+2];
+      if(r>70&&g>65&&b<Math.min(r,g)*.9&&Math.abs(r-g)<90){
+        mask[index]=Math.min(255,Math.max(0,Math.min(r,g)-b-25)*3);
+        if(mask[index]>100)ink++;
+      }
+    }
+    if(ink<12||ink>mask.length*.4)return;
+    // Select the strongest horizontal band, so isolated gold artwork above
+    // or below the label cannot shrink its glyphs during the 40px OCR resize.
+    let bestTop=0,bestBottom=info.height-1,bestInk=0;
+    let bandTop=-1,bandInk=0;
+    for(let y=0;y<=info.height;y++){
+      let rowInk=0;
+      if(y<info.height)for(let x=0;x<info.width;x++)if(mask[y*info.width+x]>100)rowInk++;
+      if(rowInk>=Math.max(3,info.width*.01)){
+        if(bandTop<0)bandTop=y;
+        bandInk+=rowInk;
+      }else if(bandTop>=0){
+        if(bandInk>bestInk){bestInk=bandInk;bestTop=bandTop;bestBottom=y-1;}
+        bandTop=-1;bandInk=0;
+      }
+    }
+    if(!bestInk)return;
+    let left=info.width,right=-1;
+    for(let y=bestTop;y<=bestBottom;y++)for(let x=0;x<info.width;x++){
+      if(mask[y*info.width+x]>100){left=Math.min(left,x);right=Math.max(right,x);}
+    }
+    if(right-left<3)return;
+    const top=Math.max(0,bestTop-2),bottom=Math.min(info.height-1,bestBottom+2);
+    left=Math.max(0,left-2);right=Math.min(info.width-1,right+2);
+    // Use color to locate the line, but keep the original antialiased strokes.
+    const input=await sharp(crop.input).extract({left,top,width:right-left+1,height:bottom-top+1}).png().toBuffer();
+    return {...crop,input};
   }
 
   private async readPage(crops:Buffer[],rowHeight=64,worker=this.worker) {
@@ -216,16 +258,19 @@ export class PlayerRecognitionProvider {
     const start=performance.now();
     try{
       const decoded=await Promise.all((await this.decode(source)).map(crop=>this.localizePlayerInk(crop)));
-      const variants:PlayerOcrCandidate['variant'][]=['soft','threshold170','threshold190'];
+      const variants:PlayerOcrCandidate['variant'][]=['soft','threshold170','threshold190','yellow'];
       const candidates=Array.from({length:10},()=>[] as PlayerOcrCandidate[]);
       // Production fast path: read ten soft crops first. Only retry unresolved
       // teams, instead of paying for thirty OCR rows on every opening frame.
       const batches=players?[variants.slice(0,1),variants.slice(1)]:[variants];
+      let yellow:(DecodedCrop|undefined)[]|undefined;
       let slots=Array.from({length:10},(_,index)=>index);
       for(const batch of batches){
         if(!slots.length)break;
-        const jobs=batch.flatMap(variant=>slots.map(slot=>({slot,variant})));
-        const crops=await Promise.all(jobs.map(({slot,variant})=>this.preparePlayerVariant(decoded[slot],640,variant)));
+        if(batch.includes('yellow'))yellow=await Promise.all(decoded.map(crop=>this.isolateYellowText(crop)));
+        const jobs=batch.flatMap(variant=>slots.filter(slot=>variant!=='yellow'||yellow?.[slot]).map(slot=>({slot,variant})));
+        if(!jobs.length)continue;
+        const crops=await Promise.all(jobs.map(({slot,variant})=>this.preparePlayerVariant(variant==='yellow'?yellow![slot]!:decoded[slot],640,variant)));
         const results=await Promise.all(this.workers.map(worker=>this.readPage(crops,64,worker)));
         for(const result of results){
           for(let index=0;index<jobs.length;index++){

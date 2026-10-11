@@ -74,3 +74,13 @@ test('wide dim right-aligned ID strips retain ink and real Chinese screenshot te
     assert.equal(solvePlayerSlotCandidates(empty.candidates.slice(0,5),names.slice(0,5))!.automatic,false);
   }finally{await provider.close();}
 });
+
+test('gold ID text is isolated from flags and hero background without moving calibrated bounds',async()=>{
+  const provider=new PlayerRecognitionProvider(undefined,'chi_sim+eng');
+  try{
+    await provider.prepare();assert.equal(provider.status,'ready',provider.error);
+    const fixture=JSON.parse(readFileSync(new URL('./fixtures/player-id-gold-background.json',import.meta.url),'utf8'));
+    const result=await provider.recognizePlayerIds(Array(10).fill(fixture.image));
+    assert.ok(result.candidates.every(row=>row.some(candidate=>candidate.variant==='yellow'&&candidate.text.replace(/\s/g,'')==='DMT.Tamirana')),JSON.stringify(result.candidates));
+  }finally{await provider.close();}
+});
