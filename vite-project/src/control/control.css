@@ -492,6 +492,7 @@
   line-height:1.2;
   white-space:nowrap;
 }
+.capture-explicit-slot.ban { border-radius:50%; }
 .capture-explicit-slot.blue { border-color:#5fc6ff88; }
 .capture-explicit-slot.red { border-color:#ff6f8a88; }
 .capture-explicit-slot.blue > span { background:#5fc6ff; }

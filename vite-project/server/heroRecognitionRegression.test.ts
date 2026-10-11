@@ -37,3 +37,19 @@ test('private annotated real-game crops reproduce identity and lock evidence', {
   }
   assert.ok(assertions>0,'Annotate expectedHeroId and/or expectedCue before running this private regression.');
 });
+
+test('elliptical Ban portraits preserve identity in rectangular calibration boxes',async()=>{
+  for(const id of [15,88,100,109,111,113,116]) {
+    const hero=heroes.find(h=>h.id===id)!;
+    const source=await readFile(new URL(`../public${hero.imageLink}`,import.meta.url));
+    const mask=Buffer.from('<svg width="64" height="64"><ellipse cx="32" cy="32" rx="32" ry="32" fill="white"/></svg>');
+    const circular=await sharp(source).resize(64,64).composite([{input:mask,blend:'dest-in'}]).png().toBuffer();
+    const base=await sharp(circular).flatten({background:'#153b69'}).png().toBuffer();
+    for(const [width,height] of [[96,64],[64,96]]) {
+      const frame=await sharp(base).resize(width,height,{fit:'fill'}).jpeg({quality:65}).toBuffer();
+      const matches=await recognizeImage(frame,undefined,'circle');
+      assert.equal(matches[0].heroId,id,`${hero.englishName} ${width}x${height}`);
+      assert.ok(matches[0].confidence-(matches[1]?.confidence??0)>=.06);
+    }
+  }
+});

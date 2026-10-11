@@ -105,6 +105,12 @@ async function captureFeatureVariants(source: string | Buffer, shape:MatchShape=
     }
   }
   const variants:{values:Float64Array;penalty:number}[]=[];
+  // A rectangular Ban calibration describes an ellipse in source pixels.
+  // Keep a full-frame view before square zoom views; otherwise minSide crops
+  // discard the sides of a horizontally stretched portrait (or its top/bottom).
+  if(shape==='circle'&&!template&&width!==height) {
+    variants.push({values:await features(source,shape),penalty:0});
+  }
   const seen=new Set<string>();
   for(const spec of specs){
     const side=Math.max(8,Math.min(minSide,Math.floor(minSide*spec.scale)));
@@ -295,10 +301,10 @@ export async function recognizeClientFrame(value: unknown, allowedHeroIds?: unkn
         const cueMeta=await sharp(cueBuffer).metadata();
         if(!cueMeta.width||!cueMeta.height||cueMeta.width*cueMeta.height>4_000_000) throw new Error('Lock frame dimensions too large');
         const cueEvidence=async()=>{
-          const extended=await detectDraftLockCue(cueBuffer);
+          const extended=await detectDraftLockCue(cueBuffer,matchShape==='circle');
           // Existing calibrations may already include the projecting checkmark.
           // Check the original too rather than forcing users to recrop them.
-          return extended!=='none'||cueBuffer===buffer?extended:detectDraftLockCue(buffer);
+          return extended!=='none'||cueBuffer===buffer?extended:detectDraftLockCue(buffer,matchShape==='circle');
         };
         const [fingerprint,lockFingerprint,meanLuma,lockCue,candidates]=await Promise.all([
           frameFingerprint(buffer),lockCueFingerprint(buffer),frameMeanLuma(buffer),cueEvidence(),recognizeImage(buffer,allowed,matchShape),
