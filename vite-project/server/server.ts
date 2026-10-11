@@ -19,7 +19,7 @@ import { Store } from './store.js';
 import { uploadPortrait, servePortrait } from './portraits.js';
 import { captureRegion, captureRegions, localCaptureRequest, recognizeClientFrame, recognizeLineup, recognizeScreen } from './capture.js';
 
-const recognitionProvider:HeroRecognitionProvider={id:'local-template-v1',recognize:input=>recognizeClientFrame(input.image,input.allowedHeroIds,input.shape)};
+const recognitionProvider:HeroRecognitionProvider={id:'local-template-v2',recognize:input=>recognizeClientFrame(input.image,input.allowedHeroIds,input.shape,input.lockImage)};
 const playerRecognition = new PlayerRecognitionProvider(process.env.HOK_OCR_MODEL_DIR, process.env.HOK_OCR_LANGUAGES || 'chi_sim+eng');
 void playerRecognition.prepare();
 const production = process.env.NODE_ENV === 'production';

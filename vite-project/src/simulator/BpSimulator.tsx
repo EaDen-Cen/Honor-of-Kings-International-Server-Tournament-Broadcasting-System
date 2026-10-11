@@ -17,8 +17,12 @@ function heroImage(id:number|undefined) {
   return heroes.find(item=>item.id===id)?.imageLink||'';
 }
 
+function PickLockCue() {
+  return <svg className="sim-pick-checkmark" viewBox="0 0 32 32" aria-label="pick locked"><path d="M 16 0 L 32 16 L 16 32 L 0 16 Z" fill="currentColor"/><path d="M 7 16 L 13 23 L 25 10" stroke="#b9eaff" strokeWidth="4" fill="none"/></svg>;
+}
+
 function LockCue() {
-  return <span className="sim-lock-cue" aria-label="locked"><span /></span>;
+  return <svg className="sim-lock-cue" viewBox="0 0 24 26" aria-label="locked"><path d="M 5 12 V 7 A 7 7 0 0 1 19 7 V 12" stroke="white" strokeWidth="4" fill="none"/><path d="M 1 10 H 23 V 24 H 1 Z M 10 16 V 21 H 14 V 16 Z" fill="white" fillRule="evenodd"/></svg>;
 }
 
 export function BpSimulator() {
@@ -148,6 +152,7 @@ export function BpSimulator() {
     >
       <div className="sim-pick-avatar" style={{width:state.pickSize,height:state.pickSize}}>
         {stateForSlot.visible&&<img src={heroImage(id)} alt={heroName(id)} />}
+        {stateForSlot.isLocked&&<PickLockCue />}
         {!stateForSlot.visible&&<span className="sim-player-placeholder">{index+1}</span>}
       </div>
       <div className="sim-player-copy">

@@ -21,17 +21,15 @@ test('high-confidence hero review requires two stable scans',()=>{
   assert.equal(second.stability.count,2);
 });
 
-test('persistent imperfect crops can stabilize at lower confidence instead of resetting forever',()=>{
-  let state:HeroRecognitionStability=fresh;
-  for(let scan=1;scan<=4;scan++){
-    const result=updateHeroRecognitionStability(state,'g1:p4',[
-      {heroId:26,confidence:.37},
-      {heroId:10,confidence:.27},
-    ]);
-    state=result.stability;
-    assert.equal(result.requiredScans,4);
-    assert.equal(result.stability.count,scan);
-    assert.equal(result.accepted,scan===4);
+test('persistent low-confidence mistakes never stabilize through repetition',()=>{
+  for(const confidence of [.28,.37,.48,.54]) {
+    let state:HeroRecognitionStability=fresh;
+    for(let scan=0;scan<20;scan++) {
+      const result=updateHeroRecognitionStability(state,'g1:p4',[{heroId:26,confidence},{heroId:10,confidence:.20}]);
+      state=result.stability;
+      assert.equal(result.accepted,false);
+      assert.equal(result.requiredScans,0);
+    }
   }
 });
 
@@ -39,8 +37,8 @@ test('medium-confidence separated candidates require three scans',()=>{
   let state:HeroRecognitionStability=fresh;
   for(let scan=1;scan<=3;scan++){
     const result=updateHeroRecognitionStability(state,'g1:p4',[
-      {heroId:26,confidence:.47},
-      {heroId:10,confidence:.36},
+      {heroId:26,confidence:.58},
+      {heroId:10,confidence:.48},
     ]);
     state=result.stability;
     assert.equal(result.requiredScans,3);

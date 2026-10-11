@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { IncomingMessage } from 'node:http';
 import heroes from '../src/components/HeroList.js';
 import sharp from 'sharp';
+import { detectDraftLockCue } from './draftCueDetection.js';
 
 type MatchShape = 'square' | 'circle';
 
@@ -13,19 +14,21 @@ async function features(source: string | Buffer, shape:MatchShape='square', regi
   if(region) image=image.extract(region);
   const pixels: Buffer = await image.resize(size,size,{fit:'fill'}).toColourspace('srgb').removeAlpha().raw().toBuffer();
   const included:number[]=[];
+  const insidePortrait=(x:number,y:number)=>{
+    const dx=(x+.5-size/2)/(size/2),dy=(y+.5-size/2)/(size/2);
+    // The live Ban padlock covers artwork, unlike the clean roster template.
+    // Exclude that overlay from identity evidence on both sides of comparison.
+    return shape!=='circle'||(dx*dx+dy*dy<=1&&!(x>=size*.58&&y>=size*.58));
+  };
   for(let y=0;y<size;y++) for(let x=0;x<size;x++) {
-    const dx=(x+.5-size/2)/(size/2);
-    const dy=(y+.5-size/2)/(size/2);
-    if(shape==='circle' && dx*dx+dy*dy>1) continue;
+    if(!insidePortrait(x,y)) continue;
     const base=(y*size+x)*3;
     included.push(pixels[base],pixels[base+1],pixels[base+2]);
   }
   const mean=included.reduce((sum,n)=>sum+n,0)/Math.max(included.length,1);
   const values:number[]=[];
   for(let y=0;y<size;y++) for(let x=0;x<size;x++) {
-    const dx=(x+.5-size/2)/(size/2);
-    const dy=(y+.5-size/2)/(size/2);
-    const inside=shape!=='circle'||dx*dx+dy*dy<=1;
+    const inside=insidePortrait(x,y);
     const base=(y*size+x)*3;
     for(let channel=0;channel<3;channel++) {
       values.push(inside ? pixels[base+channel]-mean : 0);
@@ -58,9 +61,8 @@ export async function lockCueFingerprint(source: Buffer) {
   const meta=await sharp(source).metadata();
   const width=meta.width||0, height=meta.height||0;
   if(width<8||height<8) return '';
-  // In the live HOK draft UI the locked/confirmed marker sits in the lower-right
-  // corner of a Ban portrait. Use a compact cue crop so empty-ban detection does
-  // not depend on the hero matcher accidentally returning a low-confidence hero.
+  // Legacy API diagnostic only. A hash change is never proof of a lock or an
+  // empty Ban; active recognition uses positive lockCue shape evidence.
   const cueWidth=Math.max(8,Math.floor(width*.42));
   const cueHeight=Math.max(8,Math.floor(height*.42));
   return perceptualFingerprint(source,{
@@ -71,10 +73,10 @@ export async function lockCueFingerprint(source: Buffer) {
   });
 }
 
-async function captureFeatureVariants(source: Buffer, shape:MatchShape='square') {
+async function captureFeatureVariants(source: string | Buffer, shape:MatchShape='square', template=false) {
   const meta=await sharp(source).metadata();
   const width=meta.width||0, height=meta.height||0;
-  if(width<8||height<8) return [await features(source,shape)];
+  if(width<8||height<8) return [{values:await features(source,shape),penalty:0}];
 
   const minSide=Math.min(width,height);
   const specs:{scale:number;dx:number;dy:number}[]=[
@@ -91,7 +93,18 @@ async function captureFeatureVariants(source: Buffer, shape:MatchShape='square')
     {scale:.74,dx:-.14,dy:.08},
     {scale:.74,dx:.14,dy:.08},
   ];
-  const variants:Float64Array[]=[];
+  // Game portraits zoom the artwork before placing it inside a square/circle.
+  // Cropping only the captured image cannot undo that zoom. Match corresponding
+  // views of the template too, without changing the broadcast artwork.
+  if(template) {
+    specs.splice(4);
+    for(const scale of [.60,.50]) {
+      for(const dx of [-.35,0,.35]) {
+        for(const dy of [0,.35]) specs.push({scale,dx,dy});
+      }
+    }
+  }
+  const variants:{values:Float64Array;penalty:number}[]=[];
   const seen=new Set<string>();
   for(const spec of specs){
     const side=Math.max(8,Math.min(minSide,Math.floor(minSide*spec.scale)));
@@ -102,7 +115,12 @@ async function captureFeatureVariants(source: Buffer, shape:MatchShape='square')
     const key=`${left}:${top}:${side}`;
     if(seen.has(key)) continue;
     seen.add(key);
-    variants.push(await features(source,shape,{left,top,width:side,height:side}));
+    variants.push({
+      values:await features(source,shape,{left,top,width:side,height:side}),
+      // A small facial fragment contains less identity evidence than a full
+      // portrait. Penalize aggressive zoom so it cannot win by color alone.
+      penalty:template&&spec.scale<.7?.08+(.6-spec.scale)*.5:0,
+    });
   }
   return variants;
 }
@@ -142,13 +160,13 @@ async function heroTemplateSource(imageLink:string) {
   }
 }
 
-let templates: Promise<{heroId:number; square:Float64Array; circle:Float64Array}[]> | undefined;
+let templates: Promise<{heroId:number; square:{values:Float64Array;penalty:number}[]; circle:{values:Float64Array;penalty:number}[]}[]> | undefined;
 export async function recognizeImage(buffer: Buffer, allowedHeroIds?: number[], shape:MatchShape='square') {
   templates ??= Promise.all(heroes.map(async h=>{
     try {
       const templateLink=h.recognitionImageLink || h.imageLink;
       const source=await heroTemplateSource(templateLink);
-      const [square,circle]=await Promise.all([features(source,'square'),features(source,'circle')]);
+      const [square,circle]=await Promise.all([captureFeatureVariants(source,'square',true),captureFeatureVariants(source,'circle',true)]);
       return {heroId:h.id,square,circle};
     } catch(error) {
       // Existing local portraits are a release invariant and must still fail
@@ -168,11 +186,11 @@ export async function recognizeImage(buffer: Buffer, allowedHeroIds?: number[], 
     .filter(hero => !allowed || allowed.has(hero.heroId))
     .map(hero=>{
       let confidence=0;
-      const template=shape==='circle'?hero.circle:hero.square;
-      for(const values of variants){
+      const views=shape==='circle'?hero.circle:hero.square;
+      for(const {values:template,penalty} of views) for(const {values} of variants){
         let score=0;
         for(let i=0;i<template.length;i++) score+=template[i]*values[i];
-        if(score>confidence) confidence=score;
+        if(score-penalty>confidence) confidence=score-penalty;
       }
       return {heroId:hero.heroId,confidence:Math.max(0,Math.min(1,confidence))};
     })
@@ -254,16 +272,17 @@ export function decodeClientCapture(value: unknown) {
 }
 
 const heroIDs=new Set(heroes.map(hero=>hero.id));
-type Evidence = {fingerprint:string;lockFingerprint:string;meanLuma:number;candidates:{heroId:number;confidence:number}[]};
+type Evidence = {fingerprint:string;lockFingerprint:string;meanLuma:number;lockCue:'checkmark'|'padlock'|'none';candidates:{heroId:number;confidence:number}[]};
 const evidenceCache=new Map<string,Promise<Evidence>>();
 let activeRecognitions=0;
-export async function recognizeClientFrame(value: unknown, allowedHeroIds?: unknown, shape:unknown='square') {
+export async function recognizeClientFrame(value: unknown, allowedHeroIds?: unknown, shape:unknown='square', lockImage?:unknown) {
   const buffer=decodeClientCapture(value);
+  const cueBuffer=lockImage===undefined?buffer:decodeClientCapture(lockImage);
   const allowed=Array.isArray(allowedHeroIds)
     ? allowedHeroIds.filter((id):id is number=>Number.isInteger(id)&&heroIDs.has(id)).slice(0,heroes.length)
     : undefined;
   const matchShape:MatchShape=shape==='circle'?'circle':'square';
-  const key=createHash('sha256').update(buffer).update(JSON.stringify([matchShape,allowed?.slice().sort((a,b)=>a-b)])).digest('hex');
+  const key=createHash('sha256').update(buffer).update(cueBuffer).update(JSON.stringify([matchShape,allowed?.slice().sort((a,b)=>a-b)])).digest('hex');
   let evidence=evidenceCache.get(key);
   if(evidence) { evidenceCache.delete(key); evidenceCache.set(key,evidence); }
   else {
@@ -273,10 +292,18 @@ export async function recognizeClientFrame(value: unknown, allowedHeroIds?: unkn
       try {
         const meta=await sharp(buffer).metadata();
         if(!meta.width||!meta.height||meta.width*meta.height>4_000_000) throw new Error('Frame dimensions too large');
-        const [fingerprint,lockFingerprint,meanLuma,candidates]=await Promise.all([
-          frameFingerprint(buffer),lockCueFingerprint(buffer),frameMeanLuma(buffer),recognizeImage(buffer,allowed,matchShape),
+        const cueMeta=await sharp(cueBuffer).metadata();
+        if(!cueMeta.width||!cueMeta.height||cueMeta.width*cueMeta.height>4_000_000) throw new Error('Lock frame dimensions too large');
+        const cueEvidence=async()=>{
+          const extended=await detectDraftLockCue(cueBuffer);
+          // Existing calibrations may already include the projecting checkmark.
+          // Check the original too rather than forcing users to recrop them.
+          return extended!=='none'||cueBuffer===buffer?extended:detectDraftLockCue(buffer);
+        };
+        const [fingerprint,lockFingerprint,meanLuma,lockCue,candidates]=await Promise.all([
+          frameFingerprint(buffer),lockCueFingerprint(buffer),frameMeanLuma(buffer),cueEvidence(),recognizeImage(buffer,allowed,matchShape),
         ]);
-        return {fingerprint,lockFingerprint,meanLuma,candidates};
+        return {fingerprint,lockFingerprint,meanLuma,lockCue,candidates};
       } finally {activeRecognitions--;}
     })();
     evidenceCache.set(key,evidence);

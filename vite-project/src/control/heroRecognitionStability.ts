@@ -17,14 +17,12 @@ export interface StableHeroResult {
   requiredScans:number;
 }
 
-export const HERO_HIGH_CONFIDENCE=.55;
-export const HERO_MEDIUM_CONFIDENCE=.40;
-export const HERO_LOW_CONFIDENCE=.28;
+export const HERO_HIGH_CONFIDENCE=.65;
+export const HERO_MEDIUM_CONFIDENCE=.55;
 
 function requiredScans(confidence:number, margin:number) {
-  if(confidence>=HERO_HIGH_CONFIDENCE && margin>=.035) return 2;
-  if(confidence>=HERO_MEDIUM_CONFIDENCE && margin>=.050) return 3;
-  if(confidence>=HERO_LOW_CONFIDENCE && margin>=.080) return 4;
+  if(confidence>=HERO_HIGH_CONFIDENCE && margin>=.060) return 2;
+  if(confidence>=HERO_MEDIUM_CONFIDENCE && margin>=.060) return 3;
   return 0;
 }
 
