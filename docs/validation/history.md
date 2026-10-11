@@ -1,4 +1,35 @@
-> [文档索引](../README.md) · 除特别注明外，文件路径以仓库根目录为基准，npm 命令在 `vite-project/` 中执行。
+# 验证记录
+
+[文档索引](../README.md) · [当前发布说明](../releases/v1.0.0.md)
+
+本文按批次保存实际结果，不是当前功能或操作指南。旧测试计数、旧英雄 ID、旧限制和本机截图仅适用于该记录当时；同日多次检查须结合基线读取。历史失败不会因后续 CI 通过而被删除。当前 Caster 的队伍/赛事资料实时更新，旧文中的“所有元数据延迟”只描述旧版本。
+
+
+## 2026-10-10：Release 前全量文档审计
+
+基线：main `089fbf0d8b38ec7bfecb60e62f50849f34ab3ae3`。环境：Windows，Node.js 24.14.1，npm 11.11.0。阅读全部 28 份已跟踪 Markdown（含 7 份历史原文）、Hero Sync 文档生成器与自动 PR 文件范围，并核对当前 Store、启动器、Simulator 与测试代码。
+
+- 统一 v1.0.0 RC / Experimental / 未实现 / 待实机验收的边界；重写面向用户的 release notes 和当前里程碑，保留历史验证结果。
+- 修正 Caster 说明：BP、比分与比赛进度延迟，队伍/选手/赛事资料与展示配置实时更新。修正旧英雄名单路径、旧编号叙述、Simulator 顺序及启动器后台日志位置。
+- 英雄名单保持独立。使用本地有效数据离线重生成受管区块；保留最后远端检查日期 2026-10-08，不冒充本次联网同步。119 个有效条目。生成前后根 README 未被生成器修改；自动 PR 文件范围补入 hero-roster.md。
+- 内部 Markdown 链接与标题锚点：全部 28 份文件、182 个内部链接/锚点检查通过，无缺失目标；归档旧源码路径与本机 artifacts 是历史叙述，不作为可下载附件。
+- `npm run hero:validate`、`npm run build`、`npm run lint`：通过。
+- Windows `npm test`：161 项，159 通过、2 失败、0 跳过。失败均在 `server/playerRecognition.test.ts`：合成数字 0/100 被读为 [¢]/160；易混 ID 的排列正确但 margin 约 .04，未达到 .06 自动采用阈值。测试使用 DejaVu Sans 合成 SVG，本机渲染/字体与 Linux CI 环境不同；本次未改变字体、OCR 算法或阈值，不能将本机结果写为全绿。
+- 额外启动全量 Playwright：前 3 项通过，旧识别用例仍查找已移除的 Read region 和 /api/capture；运行未完成并停止，未宣称全量 E2E 通过。此失败路径与 2026-10-08 记录一致。标准 PR CI 不包含 Playwright。
+- 初次沙箱测试另有临时文件 rename EPERM；离开沙箱重跑后上述 2 个 OCR 断言失败仍存在，不能混同为权限问题。
+- `npm audit` 报告 9 项：7 high、2 moderate，包括运行时 sharp <0.35.5 的 [librsvg 告警](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)，以及 braces、source-map-js、PostCSS/Tailwind 开发依赖链。告警不等同于已证明可利用；本次未升级依赖或锁文件。这是独立的软件维护风险，不是“待实机验收”。
+
+本次只修改文档、文档生成文案及 Hero Sync 候选文档收集范围，不修改业务逻辑、英雄数据、裁切参数或依赖。标准 PR CI 的 hero validate/build/tests/lint 结果以该 PR 对应提交的 GitHub Actions 为准；本地失败与依赖告警即使 CI 通过也保留。
+
+尚未执行：真实游戏房间、OBS 录制/推流、赛事机并发负载、实际远程解说/Quick Tunnel 链路、物理断电恢复以及实际结算页/HUD 彩排。自动 HUD、赛后自动判页与安装包是未实现的后续范围，不列为只等设备即可验收的功能。
+
+## 2026-10-08：Simulator 换英雄测试与 Control → Simulator 同步
+
+- 修复 release-order Hero ID 迁移后旧 `hok-bp-simulator-state-v2` 仍保存旧 hero ID 的问题：新版使用 v3 storage，首次读取 v2 时把全部 slotHeroes 一次迁移到新 ID。
+- Simulator Control 新增“从 Control 同步模拟器数据”只读按钮：BP 读取当前 Ban/Pick/phase；Lineup 读取最终 assignments；Player ID 读取队伍名单和 P1–P5 顺序。
+- 换英雄测试现在可以直接以 Control 当前已完成且未提交的 Draft 为 Ground Truth，不必先重置 Control 重建 fixture；原 Simulator → Control 基线同步仍保留。
+- 一轮换英雄计时未完成时，队伍、P1/P2 和再次交换按钮被锁定，防止识别过程中 Ground Truth 被二次修改。
+- 新增 unit / E2E 覆盖 Control 状态映射、旧 Simulator ID migration、非 Pick-order assignments 的反向同步和单轮 swap completion。
 
 ## 2026-10-08：119 位英雄 Release-order ID 迁移
 

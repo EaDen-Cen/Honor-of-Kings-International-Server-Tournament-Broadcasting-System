@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { phases } from '../src/shared/types.js';
-import { completedSimulatorSlots, simulatorBanVisualKeys, simulatorNextTurnPhase, simulatorPlayerOrdersMatch, simulatorPlayerTestRoster, simulatorPreviousTurnPhase, simulatorPreselectSwitchMoments, simulatorRandomDelayMs, simulatorRandomPlayerOrder, simulatorSlotForPhase, simulatorSlotKey, simulatorSlotsForTurn, swapSimulatorPickHeroes } from '../src/simulator/bpSimulatorModel.js';
+import { initialState, phases } from '../src/shared/types.js';
+import { completedSimulatorSlots, migrateLegacySimulatorSlotHeroes, simulatorBanVisualKeys, simulatorControlSync, simulatorNextTurnPhase, simulatorPlayerOrdersMatch, simulatorPlayerTestRoster, simulatorPreviousTurnPhase, simulatorPreselectSwitchMoments, simulatorRandomDelayMs, simulatorRandomPlayerOrder, simulatorSlotForPhase, simulatorSlotKey, simulatorSlotsForTurn, swapSimulatorPickHeroes } from '../src/simulator/bpSimulatorModel.js';
 
 test('simulator match mode follows the production 18-phase HOK draft order', () => {
   const sequence=phases('match','blue');
@@ -108,4 +108,60 @@ test('player-order simulator creates ten unique multilingual IDs without crossin
 test('player-order comparison requires the exact P1-P5 permutation',()=>{
   assert.equal(simulatorPlayerOrdersMatch([2,0,4,1,3],[2,0,4,1,3]),true);
   assert.equal(simulatorPlayerOrdersMatch([2,0,4,3,1],[2,0,4,1,3]),false);
+});
+
+
+test('simulator can mirror Control draft history or final lineup without changing authoritative state',()=>{
+  const state=initialState();
+  state.draftMode='normal';
+  state.firstPickSide='blue';
+  state.blueBans=[11,22];
+  state.redBans=[33,null];
+  state.bluePicks=[41,42,43,44,45];
+  state.redPicks=[51,52,53,54,55];
+  state.blueAssignments=[43,42,41,44,45];
+  state.redAssignments=[51,55,53,54,52];
+  state.currentPhase=phases('normal','blue').length;
+  state.draftComplete=true;
+  state.blueTeam.players=['B1','B2','B3','B4','B5'];
+  state.redTeam.players=['R1','R2','R3','R4','R5'];
+  state.bluePlayerSlotOrder=[2,0,1,4,3];
+  state.redPlayerSlotOrder=[1,0,4,3,2];
+
+  const bp=simulatorControlSync(state,{},false);
+  assert.equal(bp.slotHeroes.bluePick1,41);
+  assert.equal(bp.slotHeroes.bluePick3,43);
+  assert.equal(bp.slotHeroes.redPick2,52);
+  assert.equal(bp.slotHeroes.blueBan1,11);
+  assert.ok(bp.emptyBans.includes('redBan2'));
+  assert.equal(bp.locked.length,phases('normal','blue').length);
+
+  const lineup=simulatorControlSync(state,{},true);
+  assert.deepEqual(
+    [1,2,3,4,5].map(index=>lineup.slotHeroes[`bluePick${index}`]),
+    state.blueAssignments,
+  );
+  assert.deepEqual(
+    [1,2,3,4,5].map(index=>lineup.slotHeroes[`redPick${index}`]),
+    state.redAssignments,
+  );
+  assert.deepEqual(lineup.bluePlayers,state.blueTeam.players);
+  assert.deepEqual(lineup.bluePlayerOrder,state.bluePlayerSlotOrder);
+});
+
+test('simulator v2 local state hero IDs migrate to canonical release-order IDs once',()=>{
+  assert.deepEqual(
+    migrateLegacySimulatorSlotHeroes({
+      bluePick1:1,
+      bluePick2:54,
+      redPick1:120,
+      redBan1:85,
+    }),
+    {
+      bluePick1:72,
+      bluePick2:88,
+      redPick1:119,
+      redBan1:1,
+    },
+  );
 });

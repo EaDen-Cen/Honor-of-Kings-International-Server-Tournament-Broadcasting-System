@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md)
 
-> **v1.0.0 发布准备状态（2026-10-08）**：核心 BP / Auto BP / Player ID / 换英雄链路已进入 Release Candidate。局内 HUD `/overlay/game-hud` 仍为 **Experimental / 测试阶段**，可用于彩排和 OBS 预览，但真实比赛长时间稳定性、自动 HUD 数据识别与正式比分兜底尚未完成。
+> **v1.0.0 发布准备状态（2026-10-10）**：核心 BP / Auto BP / Player ID / 换英雄链路已进入 Release Candidate。局内 HUD `/overlay/game-hud` 仍为 **Experimental / 测试阶段**，可用于彩排和 OBS 预览。自动 HUD 识别尚未实现，真实比赛长时间稳定性待实机验收；正式比赛保留官方/人工比分兜底。
 
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
@@ -10,8 +10,14 @@
 | 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md) | 代码职责、状态流与存储边界 |
 | 发布说明 | [v1.0.0](releases/v1.0.0.md) | Release Candidate 功能、发布检查、升级和已知边界 |
 | 验证记录 | [历次验证](validation/history.md) | 按日期/版本保留结果和未验收范围 |
-| 研究资料 | [研究索引](research/README.md)、[英雄自动同步](research/hero-sync.md) | 英雄核查、Wang Wei 等新英雄同步、Panel/Side 公共裁切发布与原始 JSON 证据 |
+| 研究资料 | [研究索引](research/README.md)、[英雄名单](research/hero-roster.md)、[英雄自动同步](research/hero-sync.md) | 当前英雄池、release-order ID、英雄核查、Panel/Side 公共裁切发布与原始 JSON 证据 |
 | 历史交接 | [归档索引](archive/README.md) | 版本交接、旧计划与原始说明 |
+
+## 按使用角色阅读
+
+- **首次使用**：[新手教程](guides/beginner-guide.md) → [运行指南](guides/getting-started.md) → Simulator：选手 ID 排序 → BP 模拟 → 角色交换。
+- **现场导播**：[操作指南](guides/operator-guide.md) → [屏幕识别](guides/screen-recognition.md) → [恢复与 MVP](guides/player-alignment-recovery-hud.md) → [发布边界](releases/v1.0.0.md)。
+- **开发者/维护者**：[应用命令](../vite-project/README.md) → [架构](design/architecture.md) → [API](design/api.md) → [Hero Sync](research/hero-sync.md) → [验证记录](validation/history.md)。
 
 ## 命名和维护规则
 

@@ -6,6 +6,7 @@ import { initialState, phases, type Action, type MatchSettings, type MatchState,
 import {
   simulatorAllSlotKeys,
   randomizeSimulatorSlots,
+  simulatorControlSync,
   simulatorPlayerOrdersMatch,
   simulatorPlayerTestRoster,
   type SimulatorPlayerProfile,
@@ -255,6 +256,65 @@ export function BpSimulatorControl() {
     return {...current,slotHeroes,testMode:'lineup',scene:'draft',autoPlay:false};
   });
 
+
+  const syncSimulatorFromControl=()=>{
+    if(!snapshot||controlStatus!=='Connected'){
+      setIntegrationMessage('Control 尚未连接，无法读取当前数据。');
+      return;
+    }
+
+    const control=snapshot.state;
+    if(state.testMode==='lineup'){
+      if(!control.draftComplete){
+        setIntegrationMessage('Control 的 BP 尚未完成；换英雄测试需要先有 10 个最终英雄。');
+        return;
+      }
+      if(control.committedGameId){
+        setIntegrationMessage('当前 Control 本局已经提交，无法继续写入换英雄结果；请进入下一局后再测试。');
+        return;
+      }
+    }
+
+    const synced=simulatorControlSync(control,state.slotHeroes,state.testMode==='lineup');
+    update(current=>({
+      ...current,
+      mode:synced.mode,
+      firstPickSide:synced.firstPickSide,
+      phaseIndex:synced.phaseIndex,
+      slotHeroes:synced.slotHeroes,
+      emptyBans:state.testMode==='lineup'?[]:synced.emptyBans,
+      locked:synced.locked,
+      autoPlay:false,
+      scene:state.testMode==='player-order'?current.scene:'draft',
+      bluePlayers:synced.bluePlayers,
+      redPlayers:synced.redPlayers,
+      bluePlayerOrder:synced.bluePlayerOrder,
+      redPlayerOrder:synced.redPlayerOrder,
+      playerRosterPrepared:state.testMode==='player-order'?true:current.playerRosterPrepared,
+      playerOrderTestStartedAt:null,
+      playerOrderTestCompletedAt:null,
+    }));
+
+    setDraftSync(undefined);
+    setSwapStartedAt(null);
+    setSwapCompletedAt(null);
+    if(state.testMode==='lineup'){
+      if(synced.lineupBlue.length!==5||synced.lineupRed.length!==5){
+        setLineupBaseline(undefined);
+        setIntegrationMessage('Control 最终阵容不完整，无法建立换英雄测试基线。');
+        return;
+      }
+      setLineupBaseline({blue:synced.lineupBlue,red:synced.lineupRed});
+      setIntegrationMessage('✓ 已从 Control 读取当前最终阵容；现在可直接交换 Simulator 英雄测试自动同步。');
+    }else if(state.testMode==='player-order'){
+      setLineupBaseline(undefined);
+      setIntegrationMessage('✓ 已从 Control 同步双方 Player ID 与当前 P1–P5 顺序。');
+    }else{
+      setLineupBaseline(undefined);
+      setIntegrationMessage('✓ 已从 Control 同步当前 BP 模式、先手方、已完成 Ban/Pick 与进度。');
+    }
+  };
+
   const preparePlayerOrderTest=()=>{
     const roster=simulatorPlayerTestRoster(state.playerProfile);
     update(current=>({...current,testMode:'player-order',scene:'lobby',bluePlayers:roster.blue,redPlayers:roster.red,bluePlayerOrder:[0,1,2,3,4],redPlayerOrder:[0,1,2,3,4],playerRosterPrepared:!controlLink,playerOrderTestStartedAt:null,playerOrderTestCompletedAt:null,phaseIndex:0,locked:[],emptyBans:[],autoPlay:false}));
@@ -288,7 +348,8 @@ export function BpSimulatorControl() {
   };
 
   const swapPicks=()=>{
-    if(!baselineMatched){setIntegrationMessage('请先点击“同步英雄配置到 Control”，确认两边基线一致。');return;}
+    if(swapStartedAt&&!swapCompletedAt){setIntegrationMessage('上一轮换英雄仍在识别中，请等待 Control 同步完成。');return;}
+    if(!baselineMatched){setIntegrationMessage('请先建立一致基线：可“从 Control 同步模拟器数据”，或把 Simulator 配置同步到 Control。');return;}
     update(current=>({...current,testMode:'lineup',scene:'draft',slotHeroes:swapSimulatorPickHeroes(current.slotHeroes,swapSide,swapA,swapB)}));
     setSwapStartedAt(Date.now());
     setSwapCompletedAt(null);
@@ -462,7 +523,7 @@ export function BpSimulatorControl() {
     <header className="sim-control-page-header">
       <div>
         <h1>HOK Broadcast Simulator</h1>
-        <p>三个测试完全独立：BP 测 Draft 识别；换英雄只测最终英雄归属；选手 ID 只测 P1–P5 排序。</p>
+        <p>三个测试完全独立：选手 ID 只测 P1–P5 排序；BP 模拟只测 Draft 识别；角色交换只测最终英雄归属。</p>
       </div>
       <div className="sim-control-page-links">
         <button onClick={()=>window.open('/tools/bp-simulator','hok-bp-simulator-stage')}>打开 / 聚焦采集画面</button>
@@ -472,9 +533,9 @@ export function BpSimulatorControl() {
 
     <section className="sim-test-suite">
       <div className="sim-test-tabs" role="tablist" aria-label="Simulator test mode">
-        <button className={state.testMode==='bp'?'active':''} onClick={()=>setTestMode('bp')}><b>1</b> BP 识别</button>
-        <button className={state.testMode==='lineup'?'active':''} onClick={()=>setTestMode('lineup')}><b>2</b> 换英雄同步</button>
-        <button className={state.testMode==='player-order'?'active':''} onClick={()=>setTestMode('player-order')}><b>3</b> 选手 ID 排序</button>
+        <button className={state.testMode==='player-order'?'active':''} onClick={()=>setTestMode('player-order')}><b>1</b> 选手 ID 排序</button>
+        <button className={state.testMode==='bp'?'active':''} onClick={()=>setTestMode('bp')}><b>2</b> BP 模拟</button>
+        <button className={state.testMode==='lineup'?'active':''} onClick={()=>setTestMode('lineup')}><b>3</b> 角色交换</button>
       </div>
       <div className="sim-integration-bar">
         <label><input type="checkbox" checked={controlLink} onChange={event=>{
@@ -484,7 +545,8 @@ export function BpSimulatorControl() {
           setIntegrationMessage(enabled?'已启用 Control 联动测试。':'已关闭 Control 联动；Simulator 不会主动修改 Control。');
         }}/> Control 联动测试</label>
         <span className={controlStatus==='Connected'?'ok':'warn'}>{controlStatus}</span>
-        <small>只有测试前置状态会直接同步；真正要测的 BP、换英雄和 P1–P5 结果仍由 Control 从采集画面识别。</small>
+        <button className="secondary" disabled={!snapshot||controlStatus!=='Connected'} onClick={syncSimulatorFromControl}>从 Control 同步模拟器数据</button>
+        <small>“从 Control 同步”只读取当前比赛状态，不会修改 Control；需要反向写入测试基线时再开启联动。</small>
       </div>
       {(integrationMessage||controlError)&&<p className="sim-integration-message" role="status">{integrationMessage||controlError}</p>}
     </section>
@@ -613,8 +675,8 @@ export function BpSimulatorControl() {
 
       <section className="sim-control-panel sim-lineup-sync-panel">
         <div>
-          <h2>② 同步英雄配置到 Control</h2>
-          <p className="sim-control-note">这是测试准备步骤，不计入换英雄识别时间，也不经过 BP OCR。Control 会被重置为 Normal BP fixture，并得到与 Simulator 完全相同的 10 个最终英雄。</p>
+          <h2>② 建立一致基线</h2>
+          <p className="sim-control-note">推荐直接点顶部“从 Control 同步模拟器数据”，复用当前已完成的真实/测试 Draft；也可以用下方按钮反向把 Simulator 的 10 个英雄装载到 Control。两种方式都不计入换英雄识别时间。</p>
         </div>
         <button className="sim-primary-action" disabled={!controlLink||controlStatus!=='Connected'||controlPending||!!draftSync} onClick={syncLineupToControl}>{draftSync?'正在同步…':'同步 Simulator 英雄配置到 Control'}</button>
         <div className={`sim-test-result ${baselineMatched?'success':''}`}>
@@ -627,11 +689,11 @@ export function BpSimulatorControl() {
       <section className="sim-control-panel">
         <h2>③ 只测试换英雄</h2>
         <div className="sim-swap-row">
-          <label>队伍<select value={swapSide} onChange={event=>setSwapSide(event.target.value as Side)}><option value="blue">蓝方</option><option value="red">红方</option></select></label>
-          <label>选手 A<select value={swapA} onChange={event=>setSwapA(Number(event.target.value))}>{[0,1,2,3,4].map(index=><option key={index} value={index}>P{index+1} · {heroName(state.slotHeroes[`${swapSide}Pick${index+1}`])}</option>)}</select></label>
+          <label>队伍<select value={swapSide} disabled={Boolean(swapStartedAt&&!swapCompletedAt)} onChange={event=>setSwapSide(event.target.value as Side)}><option value="blue">蓝方</option><option value="red">红方</option></select></label>
+          <label>选手 A<select value={swapA} disabled={Boolean(swapStartedAt&&!swapCompletedAt)} onChange={event=>setSwapA(Number(event.target.value))}>{[0,1,2,3,4].map(index=><option key={index} value={index}>P{index+1} · {heroName(state.slotHeroes[`${swapSide}Pick${index+1}`])}</option>)}</select></label>
           <span className="sim-swap-arrow">⇄</span>
-          <label>选手 B<select value={swapB} onChange={event=>setSwapB(Number(event.target.value))}>{[0,1,2,3,4].map(index=><option key={index} value={index}>P{index+1} · {heroName(state.slotHeroes[`${swapSide}Pick${index+1}`])}</option>)}</select></label>
-          <button onClick={swapPicks} disabled={swapA===swapB||!baselineMatched}>交换并开始计时</button>
+          <label>选手 B<select value={swapB} disabled={Boolean(swapStartedAt&&!swapCompletedAt)} onChange={event=>setSwapB(Number(event.target.value))}>{[0,1,2,3,4].map(index=><option key={index} value={index}>P{index+1} · {heroName(state.slotHeroes[`${swapSide}Pick${index+1}`])}</option>)}</select></label>
+          <button onClick={swapPicks} disabled={swapA===swapB||!baselineMatched||Boolean(swapStartedAt&&!swapCompletedAt)}>交换并开始计时</button>
         </div>
         <div className={`sim-test-result ${swapCompletedAt?'success':''}`}>
           <strong>{!swapStartedAt?'等待交换':swapCompletedAt?'✓ Control 已识别新英雄归属':'等待 Control 从画面识别…'}</strong>

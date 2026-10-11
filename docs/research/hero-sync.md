@@ -6,12 +6,12 @@
 - 最近同步检查：**2026-10-08**
 - 程序内有效英雄：**119**
 - 本次远端目录条目：**119**
-- README 英雄池、本文状态、研究索引和 M14 状态均由同步器自动刷新。
+- 独立英雄名单、本文状态、研究索引和 M14 状态均由同步器自动刷新。
 
 > 这些数字只描述最近一次成功生成候选更新时的仓库状态；是否允许进入具体赛事房仍需按赛事规则人工确认。
 <!-- HERO-SYNC:STATUS:END -->
 
-[文档索引](../README.md) · [研究索引](README.md)
+[文档索引](../README.md) · [研究索引](README.md) · [程序内英雄名单](hero-roster.md)
 
 ## 目的
 
@@ -24,11 +24,11 @@
 同步器使用两类公开来源：
 
 1. **Honor of Kings 官方 IP 页面 / 官方资源域名**
-   - 英文详情：\`world.honorofkings.com/zlkdatasys/ip/hero/en/{campId}.html\`
-   - 繁中详情：\`world.honorofkings.com/zlkdatasys/ip/hero/zh-Hant/{campId}.html\`
-   - 英雄图片只接受 \`camp.honorofkings.com\` HTTPS 资源。
+   - 英文详情：`world.honorofkings.com/zlkdatasys/ip/hero/en/{campId}.html`
+   - 繁中详情：`world.honorofkings.com/zlkdatasys/ip/hero/zh-Hant/{campId}.html`
+   - 英雄图片只接受 `camp.honorofkings.com` HTTPS 资源。
 2. **BitTopup 国际服英雄目录**
-   - \`https://wiki.bittopup.com/hok\`
+   - `https://wiki.bittopup.com/hok`
    - 用于发现完整名单候选、Camp ID 和推荐分路。
    - 它是辅助目录，不作为赛事资格或版本规则的唯一权威来源。
 
@@ -38,29 +38,29 @@
 
 同步器必须遵守：
 
-- 本项目 \`Hero.id\` 是稳定的本地 ID；绝不拿 Camp ID / 官网 ID 覆盖。
-- 新英雄只会分配 \`max(localId) + 1\` 之后的新 ID。
-- 优先按 \`campId\` 匹配；否则按英文名和 aliases 匹配。
+- 本项目 `Hero.id` 是稳定的本地 ID；绝不拿 Camp ID / 官网 ID 覆盖。
+- 新上线英雄只会分配 `max(localId) + 1` 之后的新 ID；历史补录须人工维护 release-order 基线和迁移，不能直接追加。
+- 优先按 `campId` 匹配；否则按英文名和 aliases 匹配。
 - 名称变化会利用上一份来源快照保持身份，不因改名制造重复英雄。
 - 每次同步都会把**所有已匹配的本地旧英雄**再次与当前远端目录核对，而不只检查“远端自上次以来发生了什么变化”。
 - 全量旧英雄核对当前覆盖 `campId`、英文名和主分路；历史 alias 会被视为合法旧名，不会反复制造改名提示。
 - 缺失的稳定 `campId` 可安全补齐；英文名只有在官方英雄页确认后才自动更新；分路差异只进入人工复核，不自动覆盖。
 - 远端暂时找不到本地英雄时只记录 Warning，**不会自动删除**。
 - 来源数量异常下降时直接失败，避免把半页/故障响应当成完整名单。
-- \`counter\`、\`combo\`、\`beCountered\` 从不自动抓取或覆盖。
-- 新英雄关系字段保持空数组并标记 \`relationshipStatus: "unverified"\`。
+- `counter`、`combo`、`beCountered` 从不自动抓取或覆盖。
+- 新英雄关系字段保持空数组并标记 `relationshipStatus: "unverified"`。
 - 第三方目录的分路变化只进入人工复核，不自动改生产数据。
 - 小尺寸 Hero Icon 下载到本地后检查真实 PNG/JPEG/WebP 文件头、大小并记录 SHA-256。
-- Broadcast Pick Card 另外使用官方英雄详情页识别出的高分辨率 Character / Key Art，记录在 \`Hero.artLink\`。
-- Full Art 不预裁成固定正方形；Overlay 根据卡片实际尺寸用 \`object-fit: cover\` 实时裁切，未来横卡/竖卡/方卡共用同一素材。
-- 默认视觉焦点为 \`50% 28%\`；个别构图可以通过 \`Hero.artPosition\` 单独微调。
-- 官方 Full Art CDN 加载失败时自动退回本地 \`imageLink\` Icon，避免比赛画面出现空卡。
-- 自动任务只开 PR，不自动合并到 \`main\`。
+- Broadcast Pick Card 另外使用官方英雄详情页识别出的高分辨率 Character / Key Art，记录在 `Hero.artLink`。
+- Full Art 不预裁成固定正方形；Overlay 根据卡片实际尺寸用 `object-fit: cover` 实时裁切，未来横卡/竖卡/方卡共用同一素材。
+- 默认视觉焦点为 `50% 28%`；个别构图可以通过 `Hero.artPosition` 单独微调。
+- 官方 Full Art CDN 加载失败时自动退回本地 `imageLink` Icon，避免比赛画面出现空卡。
+- 自动任务只开 PR，不自动合并到 `main`。
 
 
 ## Release-order Hero ID
 
-v1.0.0 前将全部 119 位英雄改为按国际服 **Launch Time 从旧到新连续编号**。当前编号范围为 `1..119`，ID 越大代表越晚上架；Control 的“上线时间（新→旧）”因此直接按 ID 降序，不再依赖缺失的 releaseDate 元数据。
+v1.0.0 前将当前基线的 119 个英雄/形态条目改为按国际服 **Launch Time 从旧到新连续编号**。当前编号范围为 `1..119`，ID 越大代表越晚上架；Control 的“上线时间（新→旧）”因此直接按 ID 降序，不再依赖缺失的 releaseDate 元数据。
 
 完整规则、Flowborn 多形态、Plus 2.0 AoV 英雄同批处理和旧存档迁移见 [hero-id-order.md](hero-id-order.md)。头像资产路径与 hero ID 已解耦，不会因为重新编号再次重命名你已经整理好的 `public/heroesImg/`。
 
@@ -121,56 +121,56 @@ Control 调好英雄构图
 
 ## 本地命令
 
-在 \`vite-project/\` 中：
+在 `vite-project/` 中：
 
-\`\`\`powershell
+```powershell
 npm run hero:check
-\`\`\`
+```
 
 只访问来源并打印差异，不修改仓库文件。
 
 机器可读模式：
 
-\`\`\`powershell
+```powershell
 npm --silent run hero:check -- --json
-\`\`\`
+```
 
 准备候选更新：
 
-\`\`\`powershell
+```powershell
 npm run hero:sync
-\`\`\`
+```
 
 这一步可能更新：
 
-\`\`\`text
+```text
 src/data/autoSyncedHeroes.ts
 src/data/heroSyncOverrides.ts
 public/heroesImg/
 ../research/hero-sync/catalog-snapshot.json
 ../research/hero-sync/YYYY-MM-DD.json
-../README.md
+../docs/research/hero-roster.md
 ../MILESTONES.md
 ../docs/research/README.md
 ../docs/research/hero-sync.md
-\`\`\`
+```
 
 完成后执行：
 
-\`\`\`powershell
+```powershell
 npm run hero:validate
 npm run build
 npm test
 npm run lint
-\`\`\`
+```
 
 ## 自动任务
 
-\`.github/workflows/hero-data-sync.yml\` 每周运行一次，也可以在 GitHub Actions 中手动触发。
+`.github/workflows/hero-data-sync.yml` 每周运行一次，也可以在 GitHub Actions 中手动触发。
 
 流程：
 
-\`\`\`text
+```text
 Fetch catalog
     ↓
 Compare with local roster + previous source snapshot
@@ -188,15 +188,15 @@ Open/update automation/hero-data-sync PR
 Human review
     ↓
 Merge
-\`\`\`
+```
 
-第一次运行如果还没有 \`catalog-snapshot.json\`，会把建立来源基线本身视为一次变化并创建 PR。合并该基线后，后续任务才能准确识别目录中的改名、分路和图片变化。
+第一次运行如果还没有 `catalog-snapshot.json`，会把建立来源基线本身视为一次变化并创建 PR。合并该基线后，后续任务才能准确识别目录中的改名、分路和图片变化。
 
 ## Icon 与 Full Art 的分工
 
 英雄视觉资源拆成两层：
 
-\`\`\`text
+```text
 imageLink
 → 小尺寸本地 Icon
 → Hero Picker / Ban / Draft History / Full Art fallback
@@ -204,26 +204,26 @@ imageLink
 artLink
 → 官方高分辨率 Character / Key Art
 → Broadcast Pick Card
-\`\`\`
+```
 
 Overlay 不再假设“正方形头像就是最终素材”。卡片只负责定义自己的尺寸，浏览器自动按容器比例裁切完整角色封面：
 
-\`\`\`css
+```css
 width: 100%;
 height: 100%;
 object-fit: cover;
 object-position: 50% 28%;
-\`\`\`
+```
 
 因此以后 Side、Panel 或新的赛事 UI 改成长横卡、窄竖卡或方卡时，不需要重新抓取对应比例的英雄头像。同步器会优先从官方英雄详情页中、皮肤展示区域之前的 Hero / Cover / Character / Key Visual 候选寻找主角色图，并排除 skin、skill、icon、logo、QR code、avatar 等小图。
 
 ## 生成文件的职责
 
-- \`additionalHeroes.ts\`：保留 2026-09-16 人工核验过的历史新增记录。
-- \`autoSyncedHeroes.ts\`：今后同步器发现并加入的新英雄。
-- \`heroSyncOverrides.ts\`：对既有英雄进行安全的名称/图片等显示元数据覆盖。
-- \`HeroList.tsx\`：组合历史英雄、人工新增英雄、自动新增英雄与安全 override。
-- \`research/hero-sync/*.json\`：来源快照和每次候选更新的审计证据。
+- `additionalHeroes.ts`：保留 2026-09-16 人工核验过的历史新增记录。
+- `autoSyncedHeroes.ts`：今后同步器发现并加入的新英雄。
+- `heroSyncOverrides.ts`：对既有英雄进行安全的名称/图片等显示元数据覆盖。
+- `HeroList.tsx`：组合历史英雄、人工新增英雄、自动新增英雄与安全 override。
+- `research/hero-sync/*.json`：来源快照和每次候选更新的审计证据。
 
 即使 override 更新了英雄名称或图片，人工维护的关系数组仍由原记录提供，不被自动同步器替换。
 

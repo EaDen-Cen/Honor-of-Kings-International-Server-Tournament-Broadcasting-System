@@ -56,7 +56,7 @@ https://www.levelinfinite.com/news/hok-plus-2-0-update/
 | 118 | Devara |
 | 119 | Wang Wei |
 
-完整 `1..119` 顺序以 `vite-project/src/data/heroIdOrder.ts` 和 README 自动生成英雄池为准。
+完整 `1..119` 顺序以 `vite-project/src/data/heroIdOrder.ts` 和 [独立英雄名单](hero-roster.md)为准。
 
 ## 旧 ID 与本地数据
 
@@ -77,4 +77,4 @@ https://www.levelinfinite.com/news/hok-plus-2-0-update/
 - `imageLink` 是稳定资产路径；
 - 两者不要求文件名数字相等。
 
-例如 Wang Wei 的程序 ID 是 `119`，但当前已整理好的图标仍可以继续使用 `/heroesImg/120.png`。这样避免为了逻辑编号迁移再次破坏已经核对好的图标。
+例如 Wang Wei 的程序 ID 是 `119`，但当前已整理好的 UI 图标使用 `/heroesImg/120.png`。这样避免为了逻辑编号迁移再次破坏已经核对好的图标。

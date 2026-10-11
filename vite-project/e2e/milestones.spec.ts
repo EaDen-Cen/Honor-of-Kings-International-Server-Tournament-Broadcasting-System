@@ -152,3 +152,38 @@ test('shared capture auto-aligns both teams once and manual correction remains a
     await expect(page.getByRole('combobox',{name:'red P1 player',exact:true})).toHaveCount(0);
   }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
 });
+
+
+test('Simulator can pull the current Control lineup, then time one isolated hero swap',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  try{
+    await h.send({type:'reset_match'});
+    await h.fill();
+
+    // Start from a non-pick-order final ownership so the reverse-sync path is
+    // proven to use assignments rather than immutable draft pick history.
+    await h.send({type:'swap_assignments',team:'blue',from:0,to:2});
+    const baselineBlue=[...h.state().blueAssignments] as number[];
+    const baselineRed=[...h.state().redAssignments] as number[];
+
+    await page.goto('/tools/bp-simulator-control#token=e2e-control');
+    await page.getByRole('button',{name:/换英雄同步/}).click();
+    await page.getByRole('button',{name:'从 Control 同步模拟器数据',exact:true}).click();
+    await expect(page.getByRole('status')).toContainText('已从 Control 读取当前最终阵容');
+
+    const synced=await page.evaluate(()=>JSON.parse(localStorage.getItem('hok-bp-simulator-state-v3')||'null'));
+    expect([1,2,3,4,5].map(index=>synced.slotHeroes[`bluePick${index}`])).toEqual(baselineBlue);
+    expect([1,2,3,4,5].map(index=>synced.slotHeroes[`redPick${index}`])).toEqual(baselineRed);
+
+    await page.getByRole('button',{name:'交换并开始计时',exact:true}).click();
+    const targetBlue=[...baselineBlue];
+    [targetBlue[0],targetBlue[1]]=[targetBlue[1],targetBlue[0]];
+    await h.send({type:'set_lineup_assignments',blue:targetBlue,red:baselineRed});
+
+    await expect(page.locator('.sim-test-result').filter({hasText:'Control 已识别新英雄归属'})).toBeVisible();
+    await expect(page.getByRole('button',{name:'交换并开始计时',exact:true})).toBeEnabled();
+  }finally{
+    await h.send({type:'reset_match'});
+    h.close();
+  }
+});

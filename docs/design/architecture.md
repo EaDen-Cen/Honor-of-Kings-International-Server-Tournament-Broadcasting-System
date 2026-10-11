@@ -17,7 +17,7 @@
 | `deploy/`、`vite-project/Dockerfile` | Compose、Caddy、容器构建 |
 | `research/` | 研究证据 JSON，不是运行时英雄数据库 |
 
-操作台经共享连接提交带修订号的操作，由服务器验证和持久化后确认并广播。Control 与 Overlay 使用实时状态，Caster 从事件时间轴读取延迟快照；延迟的是数据，不是视频。
+操作台经共享连接提交带修订号的操作，由服务器验证和持久化后确认并广播。Control 与 Overlay 使用实时状态，Caster 从事件时间轴读取延迟比赛进度，再叠加实时队伍/赛事资料和展示配置；延迟的是数据，不是视频。
 
 服务器默认读取 `vite-project/data/match.json`，同级保存 `access.json`、`team-presets.json` 与 `uploads/player-portraits/`。`DATA_FILE` 可改变数据基准位置，`UPLOAD_DIR` 可另指定照片目录；迁移应覆盖全部数据。队伍资料载入比赛时复制阵容并保留稳定身份，现场修改不会自动覆盖资料库。
 

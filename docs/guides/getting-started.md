@@ -2,11 +2,11 @@
 
 # 安装、运行与部署指南
 
-> v1.0.0 Release Candidate 状态：核心 BP / Auto BP / Player ID / 换英雄链路已完成软件验证。**局内 HUD 仍是测试功能**，自动数据读取与真实 OBS 长时间运行尚未完成正式验收。
+> v1.0.0 Release Candidate 状态：核心 BP / Auto BP / Player ID / 换英雄链路已完成软件验证。**局内 HUD 仍是测试功能**，自动 HUD 数据读取尚未实现，真实 OBS 长时间运行待实机验收。
 
 第一次使用建议先看 [新手上手教程](beginner-guide.md)。当前比赛操作以 [操作指南](operator-guide.md) 为准；Auto BP 见 [屏幕识别指南](screen-recognition.md)；版本交接与旧实施计划见 [历史归档](../archive/README.md)。
 
-基于 `qiqi47/HOK_Ban_Pick`，保留原英雄 ID、名称、图片、位置与关系数据和 MIT 许可。
+基于 `qiqi47/HOK_Ban_Pick`，沿用原英雄资料与 MIT 许可；当前英雄 ID 已迁移为 release-order ID，图片资产文件名保持独立。
 源码与执行目录：`vite-project/`。原单机组件保留在仓库中，新入口为 `src/BroadcastApp.tsx`。
 
 ## 本机运行
@@ -14,7 +14,7 @@
 要求 Node.js 24（开发验证版本 24.14.1）。在 PowerShell 中进入 `vite-project`：
 
 ```powershell
-npm install
+npm ci
 npm run build
 npm run server
 ```
@@ -49,7 +49,7 @@ Vite 转发 `/api` 与 `/ws` 到 3001 端口。浏览器通过 `/api/access` 获
 
 ### /caster
 
-只读。包含同一延迟时间轴上的队名、Logo、比分、局数、阶段和完整 BP；分析从该状态计算。
+只读。Ban/Pick、比分、当前局进度与有效局历史使用延迟时间轴；队名、Logo、选手资料、Stage、BO、语言、规则和展示配置实时更新。分析使用该组合快照。
 Synergy、Counter、Be Countered 和克制敌方推荐使用原仓库数据，显示关系来源英雄。
 已 Ban 的英雄从分析隐藏，已 Pick 的相关英雄标记 ✓。关系数据未经当前游戏版本核验，供人工参考。
 
@@ -69,7 +69,7 @@ Logo 支持 HTTPS URL 或 `/teamLogo/xxx.png`，本地图片放 `public/teamLogo
 
 每个比赛操作保存 `timestamp + resultingState`。每 200ms 取
 `timestamp <= serverNow - casterDelaySeconds` 的最新事件，作为解说状态。
-初始无可见事件时显示空白默认比赛。比分、下一局、结束、重置和 Undo 全部经过同一事件时间轴。
+初始无可见事件时，比赛进度使用默认值，但队伍/赛事资料与展示配置仍实时可见。比分、BP、下一局、有效局历史和 Undo 的比赛进度经过同一时间轴。
 REST 和 WS 都使用同一选择函数，重连不会回落到实时状态。
 
 调大延迟会回退到相应历史状态；调小会前进。已经看过的信息无法撤回。
@@ -140,18 +140,20 @@ token 经 Authorization 头和 WS 初始认证消息发送，分享链接使用 
 
 屏幕识别模式会复用 Auto BP 的采集窗口，在开局并行识别双方 10 个 Player ID，并把游戏画面的 P1–P5 映射到赛前 roster。ID 区域可以独立保存命名预设；手动修正后可以用“恢复自动识别”重新交给 OCR。当前 Simulator 最佳完整核查约 1.8 秒，边缘帧会在不降低原阈值的前提下做两帧一致性复核。
 
-`/overlay/game-hud` 已支持队伍身份、系列赛进度、人头、推塔和中立资源，但**仍处于测试阶段**。当前局内统计主要由 Control 人工维护，自动读取真实游戏 HUD、赛事机长期运行和 OBS 遮挡/缩放仍需实机验收。正式比赛应继续保留官方观战 UI 或人工比分兜底。
+`/overlay/game-hud` 已支持队伍身份、系列赛进度、人头、推塔和中立资源，但**仍处于测试阶段**。当前局内统计主要由 Control 人工维护，自动读取真实游戏 HUD 尚未实现；赛事机长期运行和 OBS 遮挡/缩放仍需实机验收。正式比赛应继续保留官方观战 UI 或人工比分兜底。
 
-`/overlay/mvp` 与赛后报告基础链路已接入，可在投票确定 MVP 后展示结构化数据卡；自动判页和全部真实结算页面识别仍属于后续验收。
+`/overlay/mvp` 与赛后报告基础链路已接入，可在投票确定 MVP 后展示结构化数据卡；自动判页尚未实现；手动指定页的真实结算画面识别仍需实机验收。
 
 ## 验证
 
 比赛设置中的“界面语言”控制整套界面和英雄名称。选择中文或英文并保存后，按钮、设置、状态、错误、阵容分析与直播画面统一切换，每处只显示当前语言；搜索始终支持中英文。
-语言由服务器随比赛状态保存，刷新后保留；控制台和直播画面实时更新，解说页继续使用延迟时间轴上的语言设置。自定义队名与选手名保留原文。
-解说页的两组关系分析分别标注蓝方、红方、实际队名和对手，队名与队徽同样遵守解说延迟。
+语言由服务器随比赛状态保存，刷新后保留；控制台和直播画面实时更新，解说页实时更新语言设置，BP/比分仍使用延迟时间轴。自定义队名与选手名保留原文。
+解说页的两组关系分析分别标注蓝方、红方、实际队名和对手，队名与队徽实时更新，BP 分析使用延迟的选禁数据。
 
 ```powershell
+npm run hero:validate
 npm test
+npm run lint
 npm run build
 npm run test:e2e
 ```
@@ -165,11 +167,11 @@ Auto BP 已支持浏览器窗口采集、18 槽位校准/预设、Pick/Ban 识�
 
 实现参考：[ws 官方文档](https://github.com/websockets/ws/blob/master/README.md)、[Vite 代理文档](https://vite.dev/config/server-options.html#server-proxy)。
 
-## 最后一步已完成：英雄名单与头像补齐
+## 英雄名单与素材维护
 
 默认采用每队 4 Ban / 5 Pick 的赛事模式。英雄名单与本地头像由同步器维护，
-当前英雄名单以根 README 自动生成的英雄池和 Hero Sync 校验结果为准，保留旧有效 ID 与旧名搜索别名。图标显示不依赖外部网站。
+当前名单以独立的 [hero-roster.md](../research/hero-roster.md) 和 Hero Sync 校验结果为准。ID 按国际服上架顺序编号，旧存档自动迁移，旧名保留搜索别名。当前 UI 图标使用本地资产；官方 Full Art 和部分识别模板仍可能依赖官方 CDN。
 未核实的新英雄关系保持“暂无数据”；Flowborn 形态及联动英雄以实际比赛房间为准。
-顺序和原则见 [WORKFLOW.md](../archive/planning/workflow-2026-09-17.md)，
-同步内容与来源见 [HERO-DATA-AUDIT.md](../research/hero-data-audit-2026-09-16.md)、
+当前编号与迁移原则见 [ID 规则](../research/hero-id-order.md)，
+同步内容与来源见 [历史英雄数据核查](../research/hero-data-audit-2026-09-16.md)、
 [图标来源清单](../../research/new-hero-assets.json)。

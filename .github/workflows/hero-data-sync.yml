@@ -11,6 +11,7 @@ on:
       - 'MILESTONES.md'
       - 'docs/research/README.md'
       - 'docs/research/hero-sync.md'
+      - 'docs/research/hero-roster.md'
       - 'docs/validation/history.md'
       - 'vite-project/src/data/autoSyncedHeroes.ts'
       - 'vite-project/src/data/heroSyncOverrides.ts'
@@ -209,7 +210,7 @@ jobs:
             vite-project/src/data/heroSyncOverrides.ts
             vite-project/public/heroesImg/
             research/hero-sync/
-            README.md
+            docs/research/hero-roster.md
             MILESTONES.md
             docs/research/README.md
             docs/research/hero-sync.md

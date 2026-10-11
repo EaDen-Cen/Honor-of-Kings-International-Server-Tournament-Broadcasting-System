@@ -9,8 +9,8 @@ From `vite-project`, double-click `start-broadcast.bat`.
 首次使用或更新源码后可以直接运行启动器：它会根据 `package-lock.json` 检查依赖并执行生产构建。下文 `artifacts/` 路径均相对于 `vite-project/`。
 
 It will:
-1. stop any old process listening on port 3001 and any old `cloudflared.exe`;
-2. verify Node/npm/cloudflared;
+1. verify Node/npm/cloudflared, prepare dependencies and build;
+2. stop any old process listening on port 3001 and any old `cloudflared.exe`;
 3. start `npm run server`;
 4. wait until the local Control page responds;
 5. start a Cloudflare Quick Tunnel;
@@ -18,11 +18,11 @@ It will:
 7. save the public, Control, Caster, and Overlay URLs to `artifacts/current-public-url.txt`;
 8. open the local Control in a dedicated Director app window (Edge/Chrome app mode with its own local profile).
 
-Keep the server and tunnel windows running during the event. Double-click `stop-broadcast.bat` when finished.
+The server runs in the background and writes `artifacts/server.log`; keep the tunnel running during the event. Double-click `stop-broadcast.bat` when finished.
 
 The local operator intentionally uses `http://127.0.0.1:3001/control`; remote Caster/Overlay clients use the generated HTTPS URL.
 
-If startup fails, inspect `artifacts/cloudflared.log` and the `HOK Broadcast Server` window.
+If startup fails, inspect `artifacts/cloudflared.log` and the `artifacts/server.log`.
 
 
 ## BP Simulator 一键启动
@@ -33,7 +33,7 @@ If startup fails, inspect `artifacts/cloudflared.log` and the `HOK Broadcast Ser
 start-bp-simulator.bat
 ```
 
-启动器会检查 Node/npm、准备依赖、清理旧的 5173 端口进程，然后通过隐藏 PowerShell 后台启动 Vite Simulator。页面就绪后自动打开 Simulator Control，启动命令窗口随后关闭。Simulator Control 目前提供 BP 识别、换英雄同步、选手 ID 排序三个独立测试模式，并可调 Pick/Ban 尺寸、自动脚本等待与锁定 cue。
+启动器会检查 Node/npm、准备依赖、清理旧的 5173 端口进程，然后通过隐藏 PowerShell 后台启动 Vite Simulator。页面就绪后自动打开 Simulator Control，启动命令窗口随后关闭。Simulator Control 目前提供 **选手 ID 排序 → BP 模拟 → 角色交换** 三个独立测试模式，并可调 Pick/Ban 尺寸、自动脚本等待与锁定 cue。
 
 后台日志：
 

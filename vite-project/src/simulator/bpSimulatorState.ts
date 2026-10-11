@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import heroes from '../components/HeroList';
-import type { MatchState, Side } from '../shared/types';
-import { simulatorAllSlotKeys, type SimulatorPlayerProfile, type SimulatorScene, type SimulatorTestMode } from './bpSimulatorModel';
+import heroes from '../components/HeroList.js';
+import type { MatchState, Side } from '../shared/types.js';
+import { migrateLegacySimulatorSlotHeroes, simulatorAllSlotKeys, type SimulatorPlayerProfile, type SimulatorScene, type SimulatorTestMode } from './bpSimulatorModel.js';
 
 export type SimulatorSlotMap = Record<string,number>;
 
@@ -31,7 +31,8 @@ export interface BpSimulatorState {
   playerOrderTestCompletedAt: number | null;
 }
 
-const STORAGE_KEY='hok-bp-simulator-state-v2';
+const STORAGE_KEY='hok-bp-simulator-state-v3';
+const LEGACY_STORAGE_KEY='hok-bp-simulator-state-v2';
 
 function defaultAssignments():SimulatorSlotMap {
   const ids=heroes.slice(0,simulatorAllSlotKeys.length).map(hero=>hero.id);
@@ -73,10 +74,15 @@ function clamp(value:number,min:number,max:number) {
   return Math.max(min,Math.min(max,value));
 }
 
-function normalizeState(value:Partial<BpSimulatorState>|undefined):BpSimulatorState {
+
+function normalizeState(value:Partial<BpSimulatorState>|undefined,migrateLegacyIds=false):BpSimulatorState {
   const defaults=createDefaultBpSimulatorState();
   const source=value??{};
-  const slotHeroes={...defaults.slotHeroes,...(source.slotHeroes??{})};
+  const incoming={...(source.slotHeroes??{})};
+  const migratedIncoming=migrateLegacyIds
+    ? migrateLegacySimulatorSlotHeroes(incoming)
+    : incoming;
+  const slotHeroes={...defaults.slotHeroes,...migratedIncoming};
   const rawMin=clamp(Number(source.intervalMinMs)||Number((source as {intervalMs?:number}).intervalMs)||defaults.intervalMinMs,300,15000);
   const rawMax=clamp(Number(source.intervalMaxMs)||Number((source as {intervalMs?:number}).intervalMs)||defaults.intervalMaxMs,300,15000);
   const intervalMinMs=Math.min(rawMin,rawMax);
@@ -119,7 +125,16 @@ function normalizeState(value:Partial<BpSimulatorState>|undefined):BpSimulatorSt
 function readState() {
   if(typeof window==='undefined') return createDefaultBpSimulatorState();
   try {
-    return normalizeState(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')??undefined);
+    const current=localStorage.getItem(STORAGE_KEY);
+    if(current) return normalizeState(JSON.parse(current)??undefined);
+
+    const legacy=localStorage.getItem(LEGACY_STORAGE_KEY);
+    if(legacy){
+      const migrated=normalizeState(JSON.parse(legacy)??undefined,true);
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(migrated));
+      return migrated;
+    }
+    return createDefaultBpSimulatorState();
   } catch {
     return createDefaultBpSimulatorState();
   }

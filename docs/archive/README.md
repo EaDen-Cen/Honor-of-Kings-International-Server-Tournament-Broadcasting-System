@@ -15,3 +15,7 @@
 | 模板 | [Vite 模板 README](legacy/vite-template-readme.md) | 原开发模板说明 |
 
 未来交接按版本归入 `handoffs/`，阶段记录按日期归入 `planning/`。历史通过项与未完成项须结合日期阅读，不能据此宣称本机或现场现状。
+
+## 与当前版本的边界
+
+归档中的旧 Hero ID、116 条名单、无上传、名单锁定、旧采集入口、旧站点与 npm 安装方式仅描述当时版本。当前名单见 [hero-roster](../research/hero-roster.md)，升级见 [v1.0.0](../releases/v1.0.0.md)。研究快照见 [研究索引](../research/README.md)。归档中的本机 artifacts 路径不保证存在，不是 Release 附件。

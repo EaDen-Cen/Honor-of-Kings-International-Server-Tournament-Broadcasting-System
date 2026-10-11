@@ -18,7 +18,7 @@ npm run server
 npm run hero:crop-sync
 ```
 
-开发时保持后端运行，在另一个终端执行 `npm run dev`。验证命令为 `npm test`、`npm run lint`、`npm run build`、`npm run test:e2e`；浏览器测试需要 Chrome，可通过 `CHROME_PATH` 指定路径。
+开发时保持后端运行，在另一个终端执行 `npm run dev`。验证命令为 `npm run hero:validate`、`npm test`、`npm run lint`、`npm run build`、`npm run test:e2e`；浏览器测试需要 Chrome，可通过 `CHROME_PATH` 指定路径。
 
 - [第一次使用教程](../docs/guides/beginner-guide.md)
 - [运行、部署与备份](../docs/guides/getting-started.md)
@@ -36,6 +36,6 @@ npm run hero:crop-sync
 
 - `start-broadcast.bat`：准备依赖、构建、启动 Broadcast 和 Quick Tunnel。
 - `stop-broadcast.bat`：停止 Broadcast 与 tunnel。
-- `start-bp-simulator.bat`：后台启动 BP Simulator，启动窗口完成后自动关闭；控制页提供 BP 识别、换英雄同步、Player ID 排序三种独立测试。
+- `start-bp-simulator.bat`：后台启动 BP Simulator，启动窗口完成后自动关闭；控制页提供 **选手 ID 排序 → BP 模拟 → 角色交换** 三种独立测试，并可用“从 Control 同步模拟器数据”快速复用当前比赛状态。
 - `stop-bp-simulator.bat`：停止 BP Simulator。
 - `sync-hero-crops.bat`：把当前 `data/match.json` 中的 Panel / Side 英雄裁切提升到 Git 跟踪的 `src/data/heroArtFocusOverrides.ts`；只生成本地 diff，不自动 push。

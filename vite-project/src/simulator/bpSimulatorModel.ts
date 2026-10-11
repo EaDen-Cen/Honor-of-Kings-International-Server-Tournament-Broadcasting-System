@@ -2,6 +2,7 @@ import heroes from '../components/HeroList.js';
 import { draftHeroUsed, draftRestriction } from '../shared/draftRules.js';
 import { phases, type MatchState, type Side } from '../shared/types.js';
 import { draftTurnAtPhase, previousDraftTurnStart } from '../shared/draftTurns.js';
+import { migrateLegacyHeroId } from '../data/heroIdOrder.js';
 
 export interface SimulatorPhaseSlot {
   side: Side;
@@ -16,6 +17,13 @@ export const simulatorAllSlotKeys = [
   'bluePick1','bluePick2','bluePick3','bluePick4','bluePick5',
   'redPick1','redPick2','redPick3','redPick4','redPick5',
 ] as const;
+
+
+export function migrateLegacySimulatorSlotHeroes(slotHeroes:Record<string,number>|undefined) {
+  return Object.fromEntries(
+    Object.entries(slotHeroes??{}).map(([key,id])=>[key,migrateLegacyHeroId(Number(id)) as number]),
+  ) as Record<string,number>;
+}
 
 export type SimulatorTestMode = 'bp' | 'lineup' | 'player-order';
 export type SimulatorScene = 'lobby' | 'draft';
@@ -177,6 +185,82 @@ export function swapSimulatorPickHeroes(
     ...assignments,
     [firstKey]:assignments[secondKey],
     [secondKey]:assignments[firstKey],
+  };
+}
+
+
+export interface SimulatorControlSync {
+  mode: MatchState['draftMode'];
+  firstPickSide: Side;
+  phaseIndex: number;
+  slotHeroes: Record<string,number>;
+  emptyBans: string[];
+  locked: string[];
+  bluePlayers: string[];
+  redPlayers: string[];
+  bluePlayerOrder: number[];
+  redPlayerOrder: number[];
+  lineupBlue: number[];
+  lineupRed: number[];
+}
+
+/**
+ * Convert authoritative Control state into Simulator screen state.
+ *
+ * BP mode copies immutable Ban/Pick history. Lineup mode asks for
+ * useFinalAssignments=true so P1-P5 show the current post-swap ownership
+ * instead of the original pick order.
+ */
+export function simulatorControlSync(
+  state: MatchState,
+  currentSlots: Record<string,number> = {},
+  useFinalAssignments = false,
+): SimulatorControlSync {
+  const slotHeroes={...currentSlots};
+  const emptyBans:string[]=[];
+  const locked:string[]=[];
+  const sequence=phases(state.draftMode,state.firstPickSide);
+  const finalFor=(side:Side)=>{
+    const assignments=state[`${side}Assignments`] as Array<number|null>;
+    const picks=state[`${side}Picks`] as number[];
+    return assignments.length===5&&assignments.every((hero):hero is number=>Number.isInteger(hero))
+      ? [...assignments] : [...picks];
+  };
+  const lineupBlue=finalFor('blue');
+  const lineupRed=finalFor('red');
+
+  sequence.forEach((phase,index)=>{
+    const slot=simulatorSlotForPhase(state.draftMode,state.firstPickSide,index);
+    if(!slot) return;
+    const key=simulatorSlotKey(slot);
+    if(phase.action==='ban'){
+      const bans=state[`${phase.team}Bans`] as Array<number|null>;
+      const heroId=bans[slot.slotIndex];
+      if(heroId===null) emptyBans.push(key);
+      else if(Number.isInteger(heroId)) slotHeroes[key]=heroId as number;
+    }else{
+      const source=useFinalAssignments&&state.draftComplete
+        ? (phase.team==='blue'?lineupBlue:lineupRed)
+        : state[`${phase.team}Picks`] as number[];
+      const heroId=source[slot.slotIndex];
+      if(Number.isInteger(heroId)) slotHeroes[key]=heroId;
+    }
+    if(index<state.currentPhase||state.draftComplete) locked.push(key);
+  });
+
+  return {
+    mode:state.draftMode,
+    firstPickSide:state.firstPickSide,
+    phaseIndex:Math.min(state.currentPhase,sequence.length),
+    slotHeroes,
+    emptyBans,
+    locked,
+    bluePlayers:[...state.blueTeam.players],
+    redPlayers:[...state.redTeam.players],
+    bluePlayerOrder:[...state.bluePlayerSlotOrder],
+    redPlayerOrder:[...state.redPlayerSlotOrder],
+    lineupBlue,
+    lineupRed,
   };
 }
 
