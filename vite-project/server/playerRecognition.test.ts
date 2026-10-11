@@ -90,3 +90,25 @@ test('gold ID text is isolated from flags and hero background without moving cal
     assert.ok(result.candidates.every(row=>row.some(candidate=>candidate.variant==='yellow'&&candidate.text.replace(/\s/g,'')==='DMT.Tamirana')),JSON.stringify(result.candidates));
   }finally{await provider.close();}
 });
+
+test('actual ten calibrated game crops retain flags, busy backgrounds and exact player orders',{skip:!process.env.HOK_PLAYER_OCR_SAMPLE},async()=>{
+  const provider=new PlayerRecognitionProvider(undefined,'chi_sim+eng');
+  try{
+    await provider.prepare();assert.equal(provider.status,'ready',provider.error);
+    const sample=JSON.parse(readFileSync(process.env.HOK_PLAYER_OCR_SAMPLE!,'utf8'));
+    const fixture={...sample.attempts[0],blueOrder:[0,1,4,3,2],redOrder:[3,1,4,0,2]};
+    for(let scan=0;scan<2;scan++){
+      const result=await provider.recognizePlayerIds(fixture.images,fixture.players);
+      for(const [side,offset] of [['blue',0],['red',5]] as const){
+        const solution=solvePlayerSlotCandidates(result.candidates.slice(offset,offset+5),fixture.players[offset/5])!;
+        assert.deepEqual(solution.order,fixture[side+'Order']);
+        assert.equal(solution.automatic,true,JSON.stringify({scan,side,solution}));
+        assert.deepEqual(solution.anomalies,[]);
+      }
+    }
+    // A changed similar-name roster must never reinterpret suffix 1 as 10.
+    const changed:[string[],string[]]=[fixture.players[0],['Pemain 4','Pemain 2','Pemain 5','Pemain 10','Pemain 3']];
+    const result=await provider.recognizePlayerIds(fixture.images,changed);
+    assert.equal(solvePlayerSlotCandidates(result.candidates.slice(5),changed[1])!.automatic,false);
+  }finally{await provider.close();}
+});

@@ -1,3 +1,4 @@
+import {locateBadgeLabel} from './playerLabelRegion.js';
 import sharp from 'sharp';
 import { createWorker, OEM, PSM, type Worker } from 'tesseract.js';
 import { resolve } from 'node:path';
@@ -15,7 +16,7 @@ function dirnameOfModel(code:string){
 export interface PlayerOcrCandidate {
   text:string;
   confidence:number;
-  variant:'soft'|'threshold170'|'threshold190'|'yellow';
+  variant:'soft'|'threshold170'|'threshold190'|'yellow'|'label'|'label170'|'label190';
 }
 
 interface DecodedCrop {
@@ -25,7 +26,7 @@ interface DecodedCrop {
 
 /** Resident offline language workers; ID crops are batched into OCR pages. */
 export class PlayerRecognitionProvider {
-  readonly id='local-tesseract-player-v4';
+  readonly id='local-tesseract-player-v5';
   status:'disabled'|'loading'|'ready'|'error'='disabled';
   error='';
   private worker?:Worker;
@@ -125,7 +126,7 @@ export class PlayerRecognitionProvider {
     const contrast=await sharp(crop.input).flatten({background:'#fff'})
       .greyscale().normalize().png().toBuffer();
     let ink=sharp(contrast);
-    if(variant!=='soft'&&variant!=='yellow')ink=ink.threshold(variant==='threshold170'?170:190);
+    if(variant!=='soft'&&variant!=='yellow'&&variant!=='label')ink=ink.threshold(variant==='threshold170'||variant==='label170'?170:190);
     if(crop.darkBackground)ink=ink.negate({alpha:false});
     const prepared=await ink.png().toBuffer();
     return sharp(prepared).resize(width-32,40,{fit:'contain',background:'#fff'})
@@ -208,6 +209,13 @@ export class PlayerRecognitionProvider {
     return {...crop,input};
   }
 
+  private async isolateBadgeLabel(crop:DecodedCrop):Promise<DecodedCrop|undefined>{
+    const {data,info}=await sharp(crop.input).flatten({background:'#fff'}).removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
+    const region=locateBadgeLabel(data,info.width,info.height);
+    if(!region)return;
+    return {input:await sharp(crop.input).extract(region).png().toBuffer(),darkBackground:true};
+  }
+
   private async readPage(crops:Buffer[],rowHeight=64,worker=this.worker) {
     const width=640;
     const page=await sharp({
@@ -257,20 +265,28 @@ export class PlayerRecognitionProvider {
     this.busy=true;
     const start=performance.now();
     try{
-      const decoded=await Promise.all((await this.decode(source)).map(crop=>this.localizePlayerInk(crop)));
-      const variants:PlayerOcrCandidate['variant'][]=['soft','threshold170','threshold190','yellow'];
+      const original=await this.decode(source);
+      const decoded=await Promise.all(original.map(crop=>this.localizePlayerInk(crop)));
       const candidates=Array.from({length:10},()=>[] as PlayerOcrCandidate[]);
       // Production fast path: read ten soft crops first. Only retry unresolved
-      // teams, instead of paying for thirty OCR rows on every opening frame.
-      const batches=players?[variants.slice(0,1),variants.slice(1)]:[variants];
+      // teams. Badge-assisted crops are separate batches so noisy originals
+      // cannot influence the small suffixes on the cleaned text rows.
+      const batches:PlayerOcrCandidate['variant'][][]=players
+        ? [['soft'],['threshold170','threshold190','yellow'],['label'],['label170','label190']]
+        : [['soft','threshold170','threshold190','yellow'],['label'],['label170','label190']];
       let yellow:(DecodedCrop|undefined)[]|undefined;
+      let labels:(DecodedCrop|undefined)[]|undefined;
       let slots=Array.from({length:10},(_,index)=>index);
       for(const batch of batches){
         if(!slots.length)break;
         if(batch.includes('yellow'))yellow=await Promise.all(decoded.map(crop=>this.isolateYellowText(crop)));
-        const jobs=batch.flatMap(variant=>slots.filter(slot=>variant!=='yellow'||yellow?.[slot]).map(slot=>({slot,variant})));
+        if(batch.includes('label'))labels=await Promise.all(original.map(crop=>this.isolateBadgeLabel(crop)));
+        const jobs=batch.flatMap(variant=>slots.filter(slot=>(variant!=='yellow'||yellow?.[slot])&&(!variant.startsWith('label')||labels?.[slot])).map(slot=>({slot,variant})));
         if(!jobs.length)continue;
-        const crops=await Promise.all(jobs.map(({slot,variant})=>this.preparePlayerVariant(variant==='yellow'?yellow![slot]!:decoded[slot],640,variant)));
+        const crops=await Promise.all(jobs.map(({slot,variant})=>{
+          const crop=variant==='yellow'?yellow![slot]!:variant.startsWith('label')?labels![slot]!:decoded[slot];
+          return this.preparePlayerVariant(crop,640,variant);
+        }));
         const results=await Promise.all(this.workers.map(worker=>this.readPage(crops,64,worker)));
         for(const result of results){
           for(let index=0;index<jobs.length;index++){
