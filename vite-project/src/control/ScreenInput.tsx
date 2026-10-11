@@ -1,8 +1,7 @@
 import { shouldAutoAcceptRecognition } from './recognitionAcceptance';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { heroForState } from '../shared/heroData';
+import { heroForState, heroesForState } from '../shared/heroData';
 import {
-  captureProbeForNextOpponentPick,
   captureSlotKeys,
   captureTargetForState,
   captureTargetsForCurrentTurn,
@@ -14,12 +13,9 @@ import {
   type CaptureSlots,
   type LegacyCaptureZones,
 } from './bpCaptureLayout';
-import { detectEmptyBan, EMPTY_BAN_GRACE_MS, EMPTY_BAN_MAX_HERO_CONFIDENCE, fingerprintDistance, type EmptyBanStability } from './emptyBanDetection';
 import { updateHeroRecognitionStability, type HeroRecognitionStability } from './heroRecognitionStability';
 import { freshHeroLockStability, updateHeroLockStability, type HeroLockStability } from './heroLockDetection';
-import { freshPickSlotActivationState, updatePickSlotActivation, type PickSlotActivationState } from './pickSlotActivation';
 import { getSharedWindowCaptureStream, requestWindowCapture, setSharedWindowCaptureStream } from './sharedWindowCapture';
-import { freshPickTurnDimState, updatePickTurnDimState, type PickTurnDimState } from './pickTurnDimDetection';
 import { regionFromDrag, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { nextCaptureSlotKey, nudgeCaptureRegion, type CalibrationDelta } from './precisionCalibration';
 import {
@@ -32,12 +28,11 @@ import {
 import { phaseName } from '../shared/display';
 import { translator } from '../shared/i18n';
 import { phases, type Action, type MatchState } from '../shared/types';
-import { immediateNextTurnIsBan } from '../shared/draftTurns';
 
 type HeroCandidate = { heroId:number; confidence:number };
 
 type SingleCaptureResult = {
-  kind: 'hero' | 'empty-ban';
+  kind: 'hero';
   candidates: HeroCandidate[];
   preview: string;
   at: number;
@@ -69,9 +64,9 @@ type RecognitionResponse = {
   fingerprint?:string;
   lockFingerprint?:string;
   meanLuma?:number;
+  lockCue?:'checkmark'|'padlock'|'none';
 };
 
-const freshEmptyStability = (): EmptyBanStability => ({ phaseKey:'', fingerprint:'', count:0 });
 const freshHeroStability = (): HeroRecognitionStability => ({ phaseKey:'', heroId:null, count:0 });
 const SLOTS_STORAGE='hok-window-capture-slots-v3';
 const LEGACY_ZONES_STORAGE='hok-window-capture-zones-v2';
@@ -137,25 +132,19 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const precisionWorkspace=useRef<HTMLDivElement>(null);
   const streamRef=useRef<MediaStream>();
   const mounted=useRef(true);
+  const samples=useRef<Array<{phaseKey:string;region:NormalizedCaptureRegion;shape:string;image:string;lockImage:string;result:RecognitionResponse}>>([]);
+
   const busyRef=useRef(false);
   const dragStart=useRef<{x:number;y:number}|null>(null);
-  const emptyStability=useRef<EmptyBanStability>(freshEmptyStability());
   const heroStability=useRef<HeroRecognitionStability>(freshHeroStability());
   const heroLockStability=useRef<HeroLockStability>(freshHeroLockStability());
+  const pickLocks=useRef<Record<string,HeroLockStability>>({});
   const pickSlotStability=useRef<Record<string,HeroRecognitionStability>>({});
-  const nextPickActivation=useRef<PickSlotActivationState>(freshPickSlotActivationState());
-  const pickTurnDimState=useRef<PickTurnDimState>(freshPickTurnDimState());
-  const phaseStartedAt=useRef(Date.now());
-  const emptyPromptedPhase=useRef('');
-  const lockBaseline=useRef<{phaseKey:string;fingerprint:string}>({phaseKey:'',fingerprint:''});
 
   const phase=phases(state.draftMode,state.firstPickSide)[state.currentPhase];
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
   const target=useMemo(()=>captureTargetForState(state,slots),[state,slots]);
   const turnTargets=useMemo(()=>captureTargetsForCurrentTurn(state,slots),[state,slots]);
-  const nextOpponentPickProbe=useMemo(()=>captureProbeForNextOpponentPick(state,slots),[state,slots]);
-  const pickToBanBoundary=phase?.action==='pick'&&immediateNextTurnIsBan(state.draftMode,state.firstPickSide,state.currentPhase);
-  const useHighlightRelease=phase?.action==='pick'&&(pickToBanBoundary||!nextOpponentPickProbe);
   const activeTargetKeys=useMemo(()=>new Set(turnTargets.map(item=>item.key)),[turnTargets]);
   const selectedCapturePreset=useMemo(()=>capturePresets.find(item=>item.id===selectedCapturePresetId),[capturePresets,selectedCapturePresetId]);
 
@@ -417,15 +406,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
 
   useEffect(()=>{
-    emptyStability.current=freshEmptyStability();
     heroStability.current=freshHeroStability();
     heroLockStability.current=freshHeroLockStability();
     pickSlotStability.current={};
-    nextPickActivation.current=freshPickSlotActivationState();
-    pickTurnDimState.current=freshPickTurnDimState();
-    phaseStartedAt.current=Date.now();
-    emptyPromptedPhase.current='';
-    lockBaseline.current={phaseKey,fingerprint:''};
+    pickLocks.current={};
     setResult(undefined);
     setManualResult(undefined);
     setGroupSelected({});
@@ -500,8 +484,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     const maxSide=384;
     const scale=Math.min(1,maxSide/Math.max(pixels.width,pixels.height));
     const canvas=document.createElement('canvas');
-    canvas.width=Math.max(32,Math.round(pixels.width*scale));
-    canvas.height=Math.max(32,Math.round(pixels.height*scale));
+    canvas.width=Math.max(1,Math.round(pixels.width*scale));
+    canvas.height=Math.max(1,Math.round(pixels.height*scale));
     const context=canvas.getContext('2d');
     if(!context) throw new Error('Canvas unavailable');
     context.imageSmoothingEnabled=true;
@@ -519,11 +503,16 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     options?:{allowedHeroIds?:number[];shape?:'square'|'circle'},
   )=>{
     const image=captureWindowFrame(region);
+    // Keep the portrait matcher on the calibrated artwork. The separate cue
+    // crop includes the checkmark that projects below the Pick portrait.
+    const cueRegion=options?.shape==='circle'?region:{...region,height:Math.min(1-region.y,region.height*1.30)};
+    const lockImage=captureWindowFrame(cueRegion);
     const response=await fetch('/api/recognize-frame',{
       method:'POST',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
       body:JSON.stringify({
         image,
+        lockImage,
         revision,
         allowedHeroIds:options?.allowedHeroIds,
         shape:options?.shape??'square',
@@ -532,8 +521,9 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     });
     const data:RecognitionResponse=await response.json();
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
+    samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage,result:data}];
     return data;
-  },[captureWindowFrame,revision,t,token]);
+  },[captureWindowFrame,phaseKey,revision,t,token]);
 
   const capture=useCallback(async()=>{
     if(busyRef.current||disabled||!phase||state.committedGameId) return;
@@ -545,21 +535,6 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         const responses=await Promise.all(turnTargets.map(item=>recognizeWindowRegion(item.region,{shape:'square'})));
         if(!mounted.current) return;
 
-        let probeData:RecognitionResponse|undefined;
-        let probeActivation;
-        if(!useHighlightRelease&&nextOpponentPickProbe){
-          probeData=await recognizeWindowRegion(nextOpponentPickProbe.region,{shape:'square'});
-          const probeTop=probeData.candidates?.[0];
-          probeActivation=updatePickSlotActivation(nextPickActivation.current,{
-            phaseKey,
-            slotKey:nextOpponentPickProbe.key,
-            fingerprint:probeData.fingerprint,
-            heroId:probeTop?.heroId,
-            confidence:probeTop?.confidence,
-          });
-          nextPickActivation.current=probeActivation.state;
-        }
-
         const scanned=turnTargets.map((item,index)=>{
           const data=responses[index];
           const candidates=data.candidates??[];
@@ -570,13 +545,17 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             candidates,
           );
           pickSlotStability.current[item.key]=evidence.stability;
-          return {item,data,candidates,evidence};
+          const lock=updateHeroLockStability(pickLocks.current[item.key]??freshHeroLockStability(),{
+            phaseKey:stabilityKey,heroId:evidence.top?.heroId,candidateReady:evidence.accepted,
+            action:'pick',lockCue:data.lockCue,
+          });
+          pickLocks.current[item.key]=lock.stability;
+          return {item,data,candidates,evidence,lock};
         });
 
         const allStable=scanned.length>0&&scanned.every(entry=>entry.evidence.accepted&&entry.evidence.top);
         const heroIds=scanned.map(entry=>entry.evidence.top?.heroId).filter((id):id is number=>id!==undefined);
         const distinctHeroes=heroIds.length===scanned.length&&new Set(heroIds).size===heroIds.length;
-        const lumas=scanned.map(entry=>entry.data.meanLuma??0);
         if(scanned.length>0&&scanned.every(entry=>entry.candidates[0])) {
           setManualResult({
             kind:'pick-group',
@@ -589,14 +568,6 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             at:Date.now(),
           });
         }
-
-        const highlightRelease=updatePickTurnDimState(pickTurnDimState.current,{
-          phaseKey,
-          meanLumas:lumas,
-          candidatesStable:allStable&&distinctHeroes,
-          dropRatio:.08,
-        });
-        pickTurnDimState.current=highlightRelease.state;
 
         const status=scanned.map(entry=>{
           const top=entry.evidence.top;
@@ -619,21 +590,9 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           return;
         }
 
-        if(useHighlightRelease){
-          if(!highlightRelease.locked){
-            setMessage(zh
-              ? `当前 Pick 已稳定；${pickToBanBoundary?'下一阶段直接进入 Ban':'已无下一个对手 Pick'}，等待选手行从选角高亮恢复到正常亮度（当前亮度回落 ${Math.round(highlightRelease.dropRatio*100)}%）。`
-              : `Current pick is stable; ${pickToBanBoundary?'the next stage is Ban':'there is no next opponent Pick'}, so waiting for the active-row highlight to return to normal (current luma drop ${Math.round(highlightRelease.dropRatio*100)}%).`);
-            return;
-          }
-        }else{
-          if(!nextOpponentPickProbe||!probeActivation?.active){
-            const nextTop=probeData?.candidates?.[0];
-            setMessage(zh
-              ? `当前 Pick 组已稳定；只等待对手下一个 Pick 位 ${nextOpponentPickProbe?captureSlotLabel(nextOpponentPickProbe.key):'—'} 真正出现预选英雄。空槽的英雄相似匹配不会触发锁定${nextTop?`（当前候选 ${label(nextTop.heroId)} ${Math.round(nextTop.confidence*100)}%）`:''}。`
-              : `Current pick group is stable. Waiting only for the opponent's next Pick slot ${nextOpponentPickProbe?captureSlotLabel(nextOpponentPickProbe.key):'—'} to visibly begin preselecting. Hero-like matches on an empty slot cannot lock the turn${nextTop?` (candidate ${label(nextTop.heroId)} ${Math.round(nextTop.confidence*100)}%)`:''}.`);
-            return;
-          }
+        if(!scanned.every(entry=>entry.lock.locked)) {
+          setMessage(zh?'英雄已稳定，等待每个当前 Pick 头像底部的勾号连续出现两帧。请确保识别框包含勾号。':'Hero stable; waiting for two scans of the bottom checkmark on every current Pick portrait. Include the mark in the capture box.');
+          return;
         }
 
         const selections=Object.fromEntries(scanned.map(entry=>[
@@ -655,9 +614,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           })),
           at:Date.now(),
         });
-        setMessage(zh
-          ? (useHighlightRelease?'检测到选角高亮已经恢复，当前 Pick 组视为锁定。':'检测到对手下一个 Pick 位真正开始预选，当前 Pick 组视为锁定。')
-          : (useHighlightRelease?'Active Pick highlight returned to normal; current Pick group is locked.':'The opponent next Pick slot visibly started preselecting; current Pick group is locked.'));
+        setMessage(zh?'当前 Pick 组的底部勾号已确认。':'Bottom checkmarks confirmed for the current Pick group.');
         return;
       }
 
@@ -672,34 +629,13 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       const heroLock=updateHeroLockStability(heroLockStability.current,{
         phaseKey,
         heroId:top?.heroId,
-        lockFingerprint:data.lockFingerprint,
-        stabilityCount:heroEvidence.stability.count,
-        requiredScans:heroEvidence.requiredScans,
+        lockCue:data.lockCue,
+        candidateReady:heroEvidence.accepted,
+        action:'ban',
       });
       heroLockStability.current=heroLock.stability;
-      const elapsedMs=Date.now()-phaseStartedAt.current;
-
-      if(phase.action==='ban' && data.lockFingerprint && !lockBaseline.current.fingerprint){
-        lockBaseline.current={phaseKey,fingerprint:data.lockFingerprint};
-      }
-      const lockCueDistance=phase.action==='ban' && data.lockFingerprint && lockBaseline.current.fingerprint
-        ? fingerprintDistance(lockBaseline.current.fingerprint,data.lockFingerprint)
-        : undefined;
-
-      const trustedBanHero=(top?.confidence??0)>=.60;
-      if(top&&(top.confidence??0)>=.50) {
-        setManualResult({kind:'hero',candidates,preview:data.preview,at:Date.now()});
-      }
-      const empty=detectEmptyBan(emptyStability.current,{
-        phaseKey,
-        isBan:phase.action==='ban',
-        fingerprint:data.fingerprint,
-        topConfidence:top?.confidence,
-        elapsedMs,
-        suppressed:emptyPromptedPhase.current===phaseKey,
-        lockCueDistance,
-      });
-      emptyStability.current=empty.stability;
+      const trustedBanHero=heroEvidence.requiredScans>0;
+      if(top) setManualResult({kind:'hero',candidates,preview:data.preview,at:Date.now()});
 
       if(heroEvidence.accepted&&top&&trustedBanHero&&heroLock.locked){
         if (shouldAutoAcceptRecognition(state.recognitionAutoAccept,state.recognitionThreshold,[top.confidence])) {
@@ -720,8 +656,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       if(top){
         if(!trustedBanHero){
           setCandidateStatus(zh
-            ? `${label(top.heroId)} · ${Math.round(top.confidence*100)}% · 低相似度，按空 Ban 候选处理`
-            : `${label(top.heroId)} · ${Math.round(top.confidence*100)}% · low similarity; treated as an empty-Ban candidate`);
+            ? `${label(top.heroId)} · ${Math.round(top.confidence*100)}% · 相似度不足，保留为未知英雄，不推断空 Ban`
+            : `${label(top.heroId)} · ${Math.round(top.confidence*100)}% · insufficient similarity; unknown hero, never inferred as an empty Ban`);
         }else if(heroEvidence.accepted&&!heroLock.locked){
           setCandidateStatus(zh
             ? label(top.heroId)+' · '+Math.round(top.confidence*100)+'% · 英雄已稳定，等待锁定'
@@ -738,35 +674,14 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         setCandidateStatus(t('captureNoCandidate'));
       }
 
-      if(empty.suspected){
-        emptyPromptedPhase.current=phaseKey;
-        setResult({kind:'empty-ban',candidates,preview:data.preview,at:Date.now()});
-        setMessage(t('emptyBanSuspected',{count:2}));
-        return;
-      }else if(heroEvidence.accepted&&top&&trustedBanHero&&!heroLock.locked){
-        setMessage(zh?'英雄已稳定，等待游戏内锁定标记。':'Hero stable; waiting for the in-game lock cue.');
-        return;
-      }
-
-      if(phase.action==='ban'&&empty.waitingForGracePeriod){
-        const remaining=Math.max(0,Math.ceil((EMPTY_BAN_GRACE_MS-elapsedMs)/1000));
-        setMessage(t('emptyBanGraceWaiting',{seconds:remaining}));
-      }else if(phase.action==='ban'&&emptyPromptedPhase.current===phaseKey){
-        setMessage(t('emptyBanSuppressed'));
-      }else if(phase.action==='ban'&&empty.lockCueDetected&&(top?.confidence??0)<EMPTY_BAN_MAX_HERO_CONFIDENCE){
-        setMessage(t('emptyBanLockCueWaiting',{count:empty.stability.count}));
-      }else if(phase.action==='ban'){
-        setMessage(t('emptyBanAwaitLockCue'));
-      }else{
-        setMessage(t('captureWaitingForStableHero'));
-      }
+      setMessage(zh?'Ban 需要当前头像的明确锁形标记；无法识别或空 Ban 时，请人工确认。画面变化不会触发锁定。':'Ban requires a positive padlock on its own portrait. Confirm unknown heroes or empty Bans manually; image changes never imply a lock.');
     }catch(error){
       if(mounted.current) setMessage(error instanceof Error?error.message:'Capture failed');
     }finally{
       busyRef.current=false;
       if(mounted.current) setBusy(false);
     }
-  },[captureSlotLabel,disabled,label,nextOpponentPickProbe,phase,phaseKey,pickToBanBoundary,recognizeWindowRegion,state.committedGameId,state.recognitionAutoAccept,state.recognitionThreshold,send,t,target,turnTargets,useHighlightRelease,zh]);
+  },[captureSlotLabel,disabled,label,phase,phaseKey,recognizeWindowRegion,state.committedGameId,state.recognitionAutoAccept,state.recognitionThreshold,send,t,target,turnTargets,zh]);
 
   useEffect(()=>{
     if(!autoWatch||result||disabled||!phase||state.committedGameId||busy||!videoReady) return;
@@ -836,8 +751,16 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       return;
     }
     closeReview();
-    if(result.kind==='empty-ban') send({type:'skip_ban',team:phase.team});
-    else send({type:'draft_action',heroId:selected,team:phase.team,action:phase.action});
+    send({type:'draft_action',heroId:selected,team:phase.team,action:phase.action});
+  };
+
+  const saveRecognitionSample=()=>{
+    if(!samples.current.length) return;
+    const blob=new Blob([JSON.stringify({version:1,provider:'local-template-v2',capturedAt:new Date().toISOString(),samples:samples.current},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download='hok-hero-recognition-sample.json';link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setMessage(zh?'已保存最近 18 个识别裁图及候选；文件仅下载到本机，请检查内容后再分享。':'Saved up to 18 recent crop samples and candidates locally. Review before sharing.');
   };
 
   const currentSlotText=phase?.action==='pick'&&turnTargets.length>1
@@ -956,9 +879,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           <div><span>{t('captureEmptyBanLabel')}</span><strong>{
             phase?.action!=='ban'
               ? t('captureNotApplicable')
-              : emptyPromptedPhase.current===phaseKey
-                ? t('capturePromptedOnce')
-                : t('captureGraceThenCheck',{seconds:Math.max(0,Math.ceil((EMPTY_BAN_GRACE_MS-(Date.now()-phaseStartedAt.current))/1000))})
+              : (zh?'仅人工确认；低分不会视为空 Ban':'Manual confirmation only; low scores never imply an empty Ban')
           }</strong></div>
         </div>
 
@@ -970,6 +891,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             onClick={openManualCandidateReview}
             title={t('captureManualCandidateHint')}
           >{t('captureManualCandidate')}</button>
+          <button type="button" disabled={busy||!manualResult} onClick={saveRecognitionSample}>{zh?'保存识别样本':'Save recognition sample'}</button>
           {phase?.action==='ban'
             ? <button className="empty-ban-button" disabled={disabled||!!state.committedGameId} onClick={()=>send({type:'skip_ban',team:phase.team})}>{t('emptyBanButton')}</button>
             : <span className="empty-ban-action-placeholder" aria-hidden="true" />}
@@ -1071,15 +993,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       </div>
     </details>
 
-    {result&&<dialog ref={dialog} className="library-dialog capture-review" aria-label={result.kind==='empty-ban'?t('emptyBanReviewTitle'):(zh?'确认识别结果':'Review recognition')} onCancel={event=>{event.preventDefault();closeReview();}}>
-      {result.kind==='empty-ban'?<>
-        <h2>{t('emptyBanReviewTitle')}</h2>
-        <p>{t('emptyBanReviewHintOnce')}</p>
-        <p>{currentSlotText}</p>
-        <img src={result.preview} alt={zh?'当前槽位截图':'Current slot capture'}/>
-      </>:result.kind==='pick-group'?<>
+    {result&&<dialog ref={dialog} className="library-dialog capture-review" aria-label={zh?'确认识别结果':'Review recognition'} onCancel={event=>{event.preventDefault();closeReview();}}>
+      {result.kind==='pick-group'?<>
         <h2>{zh?(result.entries.length>1?'确认同时选人结果':'确认 Pick 结果'):(result.entries.length>1?'Review simultaneous picks':'Review pick')}</h2>
-        <p>{zh?'普通 Pick 只在检测到对手下一个 Pick 位真正出现预选英雄后视为锁定；轮次边界和最后一手则检测选角高亮恢复到正常亮度。':'Normal Picks lock only after the opponent next Pick slot visibly starts preselecting; round boundaries and the final pick use the active-row highlight returning to normal.'}</p>
+        <p>{zh?'Pick 以各当前英雄头像底部的勾号为锁定依据。人工打开候选时请自行检查游戏是否已锁定。':'Each current Pick requires its own bottom checkmark. When opening candidates manually, verify the in-game lock yourself.'}</p>
         <div className="pick-group-review">
           {result.entries.map(entry=><div className="pick-group-review-entry" key={entry.key}>
             <strong>{captureSlotLabel(entry.key)}</strong>
@@ -1088,7 +1005,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
                 value={groupSelected[entry.key]??entry.candidates[0]?.heroId??''}
                 onChange={event=>setGroupSelected(current=>({...current,[entry.key]:Number(event.target.value)}))}
               >
-                {entry.candidates.map(candidate=><option key={candidate.heroId} value={candidate.heroId}>{label(candidate.heroId)} · {Math.round(candidate.confidence*100)}%</option>)}
+                <optgroup label={zh?'识别候选':'Candidates'}>{entry.candidates.map(candidate=><option key={candidate.heroId} value={candidate.heroId}>{label(candidate.heroId)} · {Math.round(candidate.confidence*100)}%</option>)}</optgroup>
+                <optgroup label={zh?'手动选择其他英雄':'Choose another hero manually'}>{heroesForState(state).filter(hero=>!entry.candidates.some(candidate=>candidate.heroId===hero.id)).map(hero=><option key={hero.id} value={hero.id}>{label(hero.id)}</option>)}</optgroup>
               </select>
             </label>
             <img src={entry.preview} alt={captureSlotLabel(entry.key)}/>
@@ -1096,12 +1014,12 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         </div>
       </>:<>
         <h2>{zh?'识别到：':'Recognized: '}{label(selected)}</h2>
-        <label>{zh?'候选英雄（相似度，不代表准确率）':'Candidates (similarity, not accuracy)'}<select value={selected} onChange={event=>setSelected(Number(event.target.value))}>{result.candidates.map(candidate=><option key={candidate.heroId} value={candidate.heroId}>{label(candidate.heroId)} · {Math.round(candidate.confidence*100)}%</option>)}</select></label>
+        <label>{zh?'候选英雄（相似度，不代表准确率）':'Candidates (similarity, not accuracy)'}<select value={selected} onChange={event=>setSelected(Number(event.target.value))}>{result.candidates.map(candidate=><option key={candidate.heroId} value={candidate.heroId}>{label(candidate.heroId)} · {Math.round(candidate.confidence*100)}%</option>)}<optgroup label={zh?'手动选择其他英雄':'Choose another hero manually'}>{heroesForState(state).filter(hero=>!result.candidates.some(candidate=>candidate.heroId===hero.id)).map(hero=><option key={hero.id} value={hero.id}>{label(hero.id)}</option>)}</optgroup></select></label>
         <p>{currentSlotText}</p>
         <img src={result.preview} alt={zh?'当前槽位截图':'Current slot capture'}/>
       </>}
       <div className="capture-review-actions">
-        <button disabled={disabled||!phase} onClick={submitReview}>{result.kind==='empty-ban'?t('emptyBanConfirm'):(zh?'确认并提交':'Confirm and submit')}</button>
+        <button disabled={disabled||!phase} onClick={submitReview}>{zh?'确认并提交':'Confirm and submit'}</button>
         <button onClick={closeReview}>{zh?'拒绝 / 继续监视':'Reject / keep watching'}</button>
       </div>
     </dialog>}

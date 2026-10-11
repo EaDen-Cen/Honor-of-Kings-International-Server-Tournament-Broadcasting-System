@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { IncomingMessage } from 'node:http';
-import { captureRegion, captureRegions, decodeClientCapture, localCaptureRequest } from './capture.js';
+import { captureRegion, captureRegions, decodeClientCapture, localCaptureRequest, recognizeClientFrame } from './capture.js';
 import { Store } from './store.js';
 import type { MatchSettings } from '../src/shared/types.js';
 test('capture accepts bounded negative-monitor coordinates and rejects oversized/malformed regions',()=>{
@@ -41,4 +41,16 @@ test('browser frame upload accepts bounded image data URLs only',()=>{
   assert.throws(()=>decodeClientCapture('https://example.com/frame.png'));
   assert.throws(()=>decodeClientCapture('data:text/plain;base64,SGVsbG8='));
   assert.throws(()=>decodeClientCapture(123));
+});
+
+test('same portrait with a newly visible lock cue does not reuse stale cached lock evidence',async()=>{
+  const sharp=(await import('sharp')).default;
+  const portrait=await sharp({create:{width:96,height:96,channels:3,background:'#172334'}}).png().toBuffer();
+  const locked=await sharp(Buffer.from('<svg width="96" height="96"><rect width="96" height="96" fill="#172334"/><path d="M 76 60 L 95 78 L 76 95 L 57 78 Z" fill="#126caa"/><path d="M 68 79 L 74 85 L 85 74" stroke="white" stroke-width="4" fill="none"/></svg>')).png().toBuffer();
+  const data=(buffer:Buffer)=>'data:image/png;base64,'+buffer.toString('base64');
+  const before=await recognizeClientFrame(data(portrait),[],'square',data(portrait));
+  const after=await recognizeClientFrame(data(portrait),[],'square',data(locked));
+  assert.equal(before.lockCue,'none');
+  assert.equal(after.lockCue,'checkmark');
+  assert.deepEqual(before.candidates,after.candidates);
 });
