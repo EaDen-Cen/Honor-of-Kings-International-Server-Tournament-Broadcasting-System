@@ -32,18 +32,29 @@ function normalizedSimilarity(a:string,b:string) {
  * OCR crops may include the player ID plus role/hero labels. Compare the full
  * OCR block and each visible line/token, then keep the strongest match.
  */
-function similarity(ocrText:string,player:string) {
-  if(!ocrText||!player)return 0;
+function playerTextVariants(ocrText:string,player:string) {
   const variants=new Set<string>([ocrText]);
   for(const line of ocrText.split(/[\r\n]+/)) {
     const trimmed=line.trim();
     if(trimmed)variants.add(trimmed);
     for(const token of trimmed.split(/\s+/)) if(token) variants.add(token);
   }
-  let best=0;
-  for(const variant of variants) best=Math.max(best,normalizedSimilarity(variant,player));
-  return best;
+  const wordCount=Math.max(1,player.trim().split(/\s+/).length);
+  for(const line of ocrText.split(/[\r\n]+/)){
+    const words=line.trim().split(/\s+/).slice(0,64);
+    for(let start=0;start<words.length;start++)for(let size=2;size<=wordCount;size++){
+      if(start+size<=words.length)variants.add(words.slice(start,start+size).join(' '));
+    }
+  }
+  // Keep full punctuation-bearing IDs, and compare boundary noise separately.
+  for(const variant of [...variants])variants.add(variant.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu,''));
+  return [...variants];
 }
+function similarity(ocrText:string,player:string){
+  if(!ocrText||!player)return 0;
+  return Math.max(...playerTextVariants(ocrText,player).map(variant=>normalizedSimilarity(variant,player)));
+}
+
 const permutations = (values: number[]): number[][] => values.length <= 1 ? [values] :
   values.flatMap((value,index)=>permutations(values.filter((_,i)=>i!==index)).map(rest=>[value,...rest]));
 const orders = permutations([0,1,2,3,4]);
@@ -141,7 +152,7 @@ export function solvePlayerSlotCandidates(
     // For similar names require an exact distinguishing token, including
     // numeric suffixes. Confusion-folded OCR is not conclusive evidence.
     if(rivals.some(other=>normalizedSimilarity(target,other)>=.65)){
-      return chosenText===target || chosenText.split(/[^\\p{L}\\p{N}]+/u).includes(target);
+      return playerTextVariants(ocrText[slot]||'',players[playerIndex]).some(text=>normalizePlayerText(text)===target);
     }
     return true;
   });
