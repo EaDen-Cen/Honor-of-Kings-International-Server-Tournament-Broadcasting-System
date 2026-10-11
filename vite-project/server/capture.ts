@@ -76,7 +76,7 @@ export async function lockCueFingerprint(source: Buffer) {
 async function captureFeatureVariants(source: string | Buffer, shape:MatchShape='square', template=false) {
   const meta=await sharp(source).metadata();
   const width=meta.width||0, height=meta.height||0;
-  if(width<8||height<8) return [await features(source,shape)];
+  if(width<8||height<8) return [{values:await features(source,shape),penalty:0}];
 
   const minSide=Math.min(width,height);
   const specs:{scale:number;dx:number;dy:number}[]=[
@@ -96,8 +96,15 @@ async function captureFeatureVariants(source: string | Buffer, shape:MatchShape=
   // Game portraits zoom the artwork before placing it inside a square/circle.
   // Cropping only the captured image cannot undo that zoom. Match corresponding
   // views of the template too, without changing the broadcast artwork.
-  if(template) specs.splice(4);
-  const variants:Float64Array[]=[];
+  if(template) {
+    specs.splice(4);
+    for(const scale of [.60,.50]) {
+      for(const dx of [-.35,0,.35]) {
+        for(const dy of [0,.35]) specs.push({scale,dx,dy});
+      }
+    }
+  }
+  const variants:{values:Float64Array;penalty:number}[]=[];
   const seen=new Set<string>();
   for(const spec of specs){
     const side=Math.max(8,Math.min(minSide,Math.floor(minSide*spec.scale)));
@@ -108,7 +115,12 @@ async function captureFeatureVariants(source: string | Buffer, shape:MatchShape=
     const key=`${left}:${top}:${side}`;
     if(seen.has(key)) continue;
     seen.add(key);
-    variants.push(await features(source,shape,{left,top,width:side,height:side}));
+    variants.push({
+      values:await features(source,shape,{left,top,width:side,height:side}),
+      // A small facial fragment contains less identity evidence than a full
+      // portrait. Penalize aggressive zoom so it cannot win by color alone.
+      penalty:template&&spec.scale<.7?.08+(.6-spec.scale)*.5:0,
+    });
   }
   return variants;
 }
@@ -148,7 +160,7 @@ async function heroTemplateSource(imageLink:string) {
   }
 }
 
-let templates: Promise<{heroId:number; square:Float64Array[]; circle:Float64Array[]}[]> | undefined;
+let templates: Promise<{heroId:number; square:{values:Float64Array;penalty:number}[]; circle:{values:Float64Array;penalty:number}[]}[]> | undefined;
 export async function recognizeImage(buffer: Buffer, allowedHeroIds?: number[], shape:MatchShape='square') {
   templates ??= Promise.all(heroes.map(async h=>{
     try {
@@ -175,10 +187,10 @@ export async function recognizeImage(buffer: Buffer, allowedHeroIds?: number[], 
     .map(hero=>{
       let confidence=0;
       const views=shape==='circle'?hero.circle:hero.square;
-      for(const template of views) for(const values of variants){
+      for(const {values:template,penalty} of views) for(const {values} of variants){
         let score=0;
         for(let i=0;i<template.length;i++) score+=template[i]*values[i];
-        if(score>confidence) confidence=score;
+        if(score-penalty>confidence) confidence=score-penalty;
       }
       return {heroId:hero.heroId,confidence:Math.max(0,Math.min(1,confidence))};
     })
