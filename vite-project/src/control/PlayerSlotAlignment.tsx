@@ -1,3 +1,4 @@
+import {playerIdCropSize} from './playerIdCropSize.js';
 import {mergeVerification} from '../shared/playerSlotVerification.js';
 import type {VerificationEvidence} from '../shared/playerSlotVerification.js';
 import { useEffect, useRef, useState } from 'react';
@@ -103,6 +104,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const generation=useRef(0);
   const accepted=useRef<Partial<Record<Side,string>>>({});
   const verification=useRef<Partial<Record<Side,VerificationEvidence>>>({});
+  const lastSample=useRef<{schemaVersion:1;capturedAt:string;attempts:{images:string[];players:string[][];result:unknown}[]}>();
   latest.current={state,disabled,send,scanContext:scan?.context};
 
   const context=JSON.stringify([state.blueTeam.players,state.redTeam.players,state.gameNumber]);
@@ -113,6 +115,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     accepted.current={};
     verification.current={};
     setScan(undefined);
+    lastSample.current=undefined;
     setStatus('');
     setManualEdit({blue:false,red:false});
     generation.current++;
@@ -146,6 +149,15 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       order:solution.order,
       expectedPlayers:[...current.state[`${side}Team`].players],
     });
+  }
+
+  function saveRecognitionSample(){
+    if(!lastSample.current)return;
+    const url=URL.createObjectURL(new Blob([JSON.stringify(lastSample.current,null,2)],{type:'application/json'}));
+    const link=document.createElement('a');
+    link.href=url;link.download='hok-player-id-sample.json';
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
   function requestRescan() {
@@ -207,11 +219,13 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           const cropRegion=wide?fallbackIdRegion(regions,side,index):idRegion(regions,side,index);
           const pixels=regionToPixels(cropRegion,frame.width,frame.height);
           const crop=document.createElement('canvas');
-          crop.width=Math.min(760,pixels.width*2);
-          crop.height=Math.min(180,pixels.height*2);
+          const size=playerIdCropSize(pixels.width,pixels.height);
+          crop.width=size.width;
+          crop.height=size.height;
           crop.getContext('2d')!.drawImage(frame,pixels.x,pixels.y,pixels.width,pixels.height,0,0,crop.width,crop.height);
           return crop.toDataURL('image/png');
         }));
+        const attempts:{images:string[];players:string[][];result:unknown}[]=[];
         const recognize=async(images:string[])=>{
           const response=await fetch(`${api}/api/v1/recognition/players`,{
             method:'POST',
@@ -225,6 +239,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           });
           const value=await response.json();
           if(!response.ok)throw new Error(value.error);
+          attempts.push({images,players:[[...current.state.blueTeam.players],[...current.state.redTeam.players]],result:value});
           return value;
         };
 
@@ -241,6 +256,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         }
 
         if(!active||epoch!==generation.current||capturedContext!==contextRef.current)return;
+        lastSample.current={schemaVersion:1,capturedAt:new Date().toISOString(),attempts};
         const blueMerged=mergeVerification(verification.current.blue,result.blue);
         const redMerged=mergeVerification(verification.current.red,result.red);
         verification.current.blue=blueMerged.evidence;
@@ -431,8 +447,9 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       const cropRegion=idRegion(slots,selectedSide,selectedIndex);
       const pixels=regionToPixels(cropRegion,source.videoWidth,source.videoHeight);
       const canvas=document.createElement('canvas');
-      canvas.width=Math.min(640,pixels.width*2);
-      canvas.height=Math.min(128,pixels.height*2);
+      const size=playerIdCropSize(pixels.width,pixels.height);
+      canvas.width=size.width;
+      canvas.height=size.height;
       canvas.getContext('2d')!.drawImage(source,pixels.x,pixels.y,pixels.width,pixels.height,0,0,canvas.width,canvas.height);
       setPreview(canvas.toDataURL('image/png'));
     };
@@ -442,7 +459,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   },[calibrationOpen,ready,selectedIndex,selectedSide,slots]);
 
   const confirmedSides=(['blue','red'] as const).filter(side=>scan?.[side]&&(!auto||scan[side]!.automatic)&&sameOrder(state[`${side}PlayerSlotOrder`],scan[side]!.order)).length;
-  const recognizedSlots=(['blue','red'] as const).reduce((sum,side)=>sum+(scan?.[side]?.confidence.filter(value=>value>=.8).length??0),0);
+  const recognizedSlots=(['blue','red'] as const).reduce((sum,side)=>sum+(scan?.[side]?.confidence.filter((value,index)=>value>=.8&&!scan[side]!.anomalies.includes(index)).length??0),0);
 
   function renderTeam(side:Side) {
     const team=state[`${side}Team`];
@@ -642,6 +659,9 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         <figure className="player-slot-crop-preview">
           <figcaption>{zh?'实际 OCR 裁剪预览':'Actual OCR crop'}</figcaption>
           {preview?<img src={preview} alt={zh?'实际选手 ID 裁剪':'Actual player ID crop'}/>:<div>{zh?'等待采集画面':'Waiting for capture'}</div>}
+          <figcaption>{zh?'上次匹配文字：':'Last matched text: '}{scan?.[selectedSide]?.ocrText?.[selectedIndex]|| (zh?'尚无文字结果':'No text result yet')}</figcaption>
+          <button type="button" disabled={!scan||busy||!lastSample.current} onClick={saveRecognitionSample}>{zh?'保存识别样本':'Save recognition sample'}</button>
+          <figcaption>{zh?'保存上次识别的十格裁片、选手 ID 和识别结果到本地文件。':'Save the last ten crops, player IDs and recognition results locally.'}</figcaption>
         </figure>
       </div>
     </details>}
