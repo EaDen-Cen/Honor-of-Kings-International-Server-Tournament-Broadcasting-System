@@ -131,3 +131,22 @@ test('player ID region presets save, load and update independently from BP slots
   assert.deepEqual(defaultCaptureSlots.bluePick1,defaultCaptureSlots.bluePick1);
   assert.deepEqual(readPlayerIdRegionPresets('invalid'),[]);
 });
+
+
+test('near-identical broadcast placeholder IDs require distinguishing suffix before automatic assignment',()=>{
+  const players=['Pemain 1','Pemain 2','Pemain 3','Pemain 4','Pemain 5'];
+  const indistinguishable=Array.from({length:5},()=>[
+    {text:'Pemain',confidence:.91,variant:'soft'},
+    {text:'Pemain ?',confidence:.85,variant:'threshold170'},
+  ]);
+  const ambiguous=solvePlayerSlotCandidates(indistinguishable,players)!;
+  assert.equal(ambiguous.automatic,false);
+  assert.equal(ambiguous.anomalies.length,5);
+  const exact=[3,1,4,0,2].map(i=>[{text:players[i],confidence:.90,variant:'soft'}]);
+  const verified=solvePlayerSlotCandidates(exact,players)!;
+  assert.deepEqual(verified.order,[3,1,4,0,2]);
+  assert.equal(verified.automatic,true);
+  const withLostDigit=exact.map(row=>[...row]);
+  withLostDigit[2]=[{text:'Pemain',confidence:.96,variant:'soft'}];
+  assert.equal(solvePlayerSlotCandidates(withLostDigit,players)!.automatic,false);
+});
