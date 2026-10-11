@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
-import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
+import { normalizePlayerText, solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import { readFileSync } from 'node:fs';
 test('resident offline OCR batches ten names and ten numeric fields without model downloads',async()=>{
   const provider=new PlayerRecognitionProvider();
@@ -50,7 +50,13 @@ test('wide dim right-aligned ID strips retain ink and real Chinese screenshot te
     for(const offset of [0,5]){
       const solution=solvePlayerSlotCandidates(tricky.candidates.slice(offset,offset+5),trickyRoster)!;
       assert.deepEqual(solution.order,[0,1,2,3,4]);
-      assert.equal(solution.automatic,true,JSON.stringify(solution));
+      if(normalizePlayerText(solution.ocrText?.[1]??'')!==normalizePlayerText(trickyRoster[1])){
+        // O/0 remains ambiguous next to Ocean0: a roster permutation is not proof.
+        assert.equal(solution.automatic,false,JSON.stringify(solution));
+        assert.ok(solution.anomalies.includes(1));
+      }else{
+        assert.equal(solution.automatic,true,JSON.stringify(solution));
+      }
     }
     const numbers=['8','2','10','12.5','35','14000','72000','0','99','100'];
     const numeric=await Promise.all(numbers.map(async(text)=>'data:image/png;base64,'+(await sharp(Buffer.from(`<svg width="420" height="60"><rect width="100%" height="100%" fill="white"/><text x="16" y="42" font-family="DejaVu Sans" font-size="36" fill="black">${text}</text></svg>`)).png().toBuffer()).toString('base64')));
@@ -72,5 +78,15 @@ test('wide dim right-aligned ID strips retain ink and real Chinese screenshot te
     const blank='data:image/png;base64,'+(await sharp({create:{width:570,height:90,channels:3,background:'#182030'}}).png().toBuffer()).toString('base64');
     const empty=await provider.recognizePlayerIds(Array(10).fill(blank));
     assert.equal(solvePlayerSlotCandidates(empty.candidates.slice(0,5),names.slice(0,5))!.automatic,false);
+  }finally{await provider.close();}
+});
+
+test('gold ID text is isolated from flags and hero background without moving calibrated bounds',async()=>{
+  const provider=new PlayerRecognitionProvider(undefined,'chi_sim+eng');
+  try{
+    await provider.prepare();assert.equal(provider.status,'ready',provider.error);
+    const fixture=JSON.parse(readFileSync(new URL('./fixtures/player-id-gold-background.json',import.meta.url),'utf8'));
+    const result=await provider.recognizePlayerIds(Array(10).fill(fixture.image));
+    assert.ok(result.candidates.every(row=>row.some(candidate=>candidate.variant==='yellow'&&candidate.text.replace(/\s/g,'')==='DMT.Tamirana')),JSON.stringify(result.candidates));
   }finally{await provider.close();}
 });

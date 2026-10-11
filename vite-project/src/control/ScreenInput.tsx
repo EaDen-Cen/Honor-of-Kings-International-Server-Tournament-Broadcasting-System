@@ -18,7 +18,7 @@ import { detectEmptyBan, EMPTY_BAN_GRACE_MS, EMPTY_BAN_MAX_HERO_CONFIDENCE, fing
 import { updateHeroRecognitionStability, type HeroRecognitionStability } from './heroRecognitionStability';
 import { freshHeroLockStability, updateHeroLockStability, type HeroLockStability } from './heroLockDetection';
 import { freshPickSlotActivationState, updatePickSlotActivation, type PickSlotActivationState } from './pickSlotActivation';
-import { getSharedWindowCaptureStream, setSharedWindowCaptureStream } from './sharedWindowCapture';
+import { getSharedWindowCaptureStream, requestWindowCapture, setSharedWindowCaptureStream } from './sharedWindowCapture';
 import { freshPickTurnDimState, updatePickTurnDimState, type PickTurnDimState } from './pickTurnDimDetection';
 import { regionFromDrag, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { nextCaptureSlotKey, nudgeCaptureRegion, type CalibrationDelta } from './precisionCalibration';
@@ -446,7 +446,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     try{
       stopWindowCapture();
       setMessage('');
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+      const stream=await requestWindowCapture();
       if(!mounted.current){
         stream.getTracks().forEach(track=>track.stop());
         return;
