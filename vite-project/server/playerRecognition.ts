@@ -33,6 +33,9 @@ export class PlayerRecognitionProvider {
   private workers:Worker[]=[];
   private loading?:Promise<void>;
   private busy=false;
+  private numericWorker?:Worker;
+  private numericLoading?:Promise<Worker>;
+  private numericBusy=false;
 
   constructor(private modelDirectory?:string,private languages='eng') {}
 
@@ -255,6 +258,65 @@ export class PlayerRecognitionProvider {
     }
   }
 
+  /** Numeric tables use bounded batches and a separate alphabet from player IDs. */
+  async recognizeNumbers(images:string[],tableText=false) {
+    if(this.status!=='ready'||!this.worker)throw new Error('OCR provider is not ready');
+    if(this.numericBusy)throw new Error('Numeric OCR is busy');
+    if(!Array.isArray(images)||!images.length||images.length>100||images.some(image=>typeof image!=='string'||image.length>180000||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)))throw new Error('Invalid numeric crops');
+    this.numericBusy=true;
+    const start=performance.now();
+    try{
+      const worker=await this.prepareNumericWorker();
+      const decoded=await this.decode(images);
+      const numeric=tableText?await Promise.all(decoded.map(async crop=>{
+        const {data,info}=await sharp(crop.input).removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
+        const mask=Buffer.alloc(info.width*info.height,255);
+        for(let i=0;i<mask.length;i++){
+          const r=data[i*info.channels],g=data[i*info.channels+1],b=data[i*info.channels+2],low=Math.min(r,g,b),high=Math.max(r,g,b);
+          // Pale neutral/cyan text; exclude saturated selected-row and percentage bars.
+          if(low>100&&high-low<105)mask[i]=255-Math.min(255,(low-100)*3);
+        }
+        return {input:await sharp(mask,{raw:{width:info.width,height:info.height,channels:1}}).png().toBuffer(),darkBackground:false};
+      })):decoded;
+      const localized=await Promise.all(numeric.map(crop=>this.localizePlayerInk(crop)));
+      const crops=await Promise.all(localized.map(crop=>this.preparePlayerVariant(crop,640,'soft')));
+      await worker.setParameters({tessedit_char_whitelist:'0123456789.,:/%kK+万',tessedit_pageseg_mode:PSM.SINGLE_BLOCK});
+      const result=await this.readPage(crops,64,worker);
+      // Batch segmentation can drop a solitary 1 or a small decimal point.
+      // Retry only weak cells as isolated lines, keeping OCR cost bounded.
+      const weak=result.confidences.flatMap((confidence,index)=>confidence<.85?[index]:[]);
+      if(weak.length){
+        await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
+        for(const index of weak){
+          const variants=[crops[index],await this.preparePlayerVariant(await this.localizePlayerInk(decoded[index]),640,'soft')];
+          for(const input of variants){
+            const padded=await sharp(input).extend({top:12,bottom:12,left:16,right:16,background:'#fff'}).png().toBuffer();
+            const read=await worker.recognize(padded),confidence=read.data.confidence/100;
+            if(confidence>result.confidences[index]){result.texts[index]=read.data.text.trim();result.confidences[index]=confidence;}
+          }
+        }
+      }
+      return {...result,elapsedMs:performance.now()-start};
+    }finally{
+      this.numericBusy=false;
+    }
+  }
+
+  private prepareNumericWorker(){
+    if(this.numericWorker)return Promise.resolve(this.numericWorker);
+    if(this.numericLoading)return this.numericLoading;
+    this.numericLoading=(async()=>{
+      const staging=this.modelDirectory?undefined:mkdtempSync(resolve(tmpdir(),'hok-numeric-ocr-'));
+      try{
+        if(staging)copyFileSync(resolve(dirnameOfModel('eng'),'4.0.0_best_int','eng.traineddata.gz'),resolve(staging,'eng.traineddata.gz'));
+        const worker=await createWorker('eng',OEM.LSTM_ONLY,{langPath:resolve(this.modelDirectory||staging!),gzip:!this.modelDirectory,cacheMethod:'none',errorHandler:()=>{}});
+        await worker.setParameters({user_defined_dpi:'150',preserve_interword_spaces:'1'});
+        this.numericWorker=worker;return worker;
+      }finally{if(staging)rmSync(staging,{recursive:true,force:true});}
+    })().catch(error=>{this.numericLoading=undefined;throw error;});
+    return this.numericLoading;
+  }
+
   /**
    * Player IDs use a stylized light-on-dark esports font. Keep anti-aliased
    * strokes first, then retry unresolved teams with high-contrast thresholds.
@@ -324,6 +386,7 @@ export class PlayerRecognitionProvider {
   }
 
   async close(){
-    await Promise.all(this.workers.map(worker=>worker.terminate()));
+    await this.numericLoading?.catch(()=>{});
+    await Promise.all([...this.workers,...(this.numericWorker?[this.numericWorker]:[])].map(worker=>worker.terminate()));
   }
 }

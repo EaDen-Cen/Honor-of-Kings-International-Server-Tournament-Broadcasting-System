@@ -2,18 +2,27 @@ import type { MatchState, Side } from '../shared/types';
 import { currentGame, displaySides } from '../shared/draftRules';
 import { stageName } from '../shared/display';
 import './gameHud.css';
+import { useEffect, useState } from 'react';
 export function GameHud({state}:{state:MatchState}){
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [left,right]=displaySides(state);
+  const [now,setNow]=useState(Date.now);
+  const sources=Object.values(stats.sources??{}),ocr=sources.filter(source=>source.source==='ocr');
+  useEffect(()=>{if(!ocr.length)return;const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer);},[ocr.length]);
+  const stale=ocr.some(source=>now-source.capturedAt>15000);
+  const gold=(side:Side)=>stats[`${side}Gold`]===undefined?'—':`${(stats[`${side}Gold`]!/1000).toFixed(1)}K`;
+  const time=stats.gameTimeSeconds===undefined?'—':`${Math.floor(stats.gameTimeSeconds/60)}:${String(stats.gameTimeSeconds%60).padStart(2,'0')}`;
   function team(side:Side){const data=state[`${side}Team`];return <div className={`game-hud-team ${side}`}>
     {data.logo&&<img className="game-hud-logo" src={data.logo} alt=""/>}<strong>{data.name}</strong>
     <span className="game-hud-series" aria-label={zh?'系列赛比分':'Series score'}>{state[`${side}Score`]}</span>
   </div>;}
   return <div className={`game-hud ${stats.density}`}>
-    <header>{team(left)}<div className="game-hud-center"><b>{zh?'第':'Game '}{currentGame(state)}{zh?'局':''} · {state.seriesFormat}</b><small>{stageName(state.stage,state.language)}</small></div>{team(right)}</header>
+    <header>{team(left)}<div className="game-hud-center"><b>{zh?'第':'Game '}{currentGame(state)}{zh?'局':''} · {state.seriesFormat}</b><small>{stageName(state.stage,state.language)}</small><time>{time}</time></div>{team(right)}</header>
     <div className="game-hud-stats"><span><b>{stats[`${left}Kills`]}</b> {zh?'人头':'Kills'} <b>{stats[`${right}Kills`]}</b></span>
       <span><b>{stats[`${left}Towers`]}</b> {zh?'推塔':'Towers'} <b>{stats[`${right}Towers`]}</b></span>
+      {(stats.blueGold!==undefined||stats.redGold!==undefined)&&<span><b>{gold(left)}</b> {zh?'经济':'Gold'} <b>{gold(right)}</b></span>}
       {stats.density==='full'&&stats.neutralObjectives.map(item=><span key={item.id}><b>{item[left]}</b>{item.icon&&<img src={item.icon} alt=""/>}<em title={item.name}>{item.name}</em><b>{item[right]}</b></span>)}
     </div>
+    <small className={`game-hud-status ${stale?'stale':''}`}>Experimental · {stale?(zh?'采集过期，保留最后可信值':'Capture stale · last trusted values'):ocr.length?(zh?'已核验采样':'Verified capture'):(zh?'人工数据':'Manual data')}</small>
   </div>;
 }

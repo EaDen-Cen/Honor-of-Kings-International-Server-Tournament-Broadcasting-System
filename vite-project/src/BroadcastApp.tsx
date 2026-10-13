@@ -322,7 +322,7 @@ export default function BroadcastApp() {
         {showHeroArtEditor && <Suspense fallback={<p>{t('connectingServer')}</p>}><HeroArtEditorDialog state={state} send={send} disabled={disabled} onClose={() => setShowHeroArtEditor(false)} /></Suspense>}
         <section className="control-secondary-tools" aria-label={lang==='zh'?'赛后与维护工具':'Post-game and maintenance tools'}>
           <PostGamePanel state={state} token={token} disabled={disabled} send={send} />
-          <LiveGamePanel state={state} disabled={disabled} send={send} />
+          <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />
           <RecoveryPanel token={token} zh={state.language==='zh'} />
         </section>
       </>}

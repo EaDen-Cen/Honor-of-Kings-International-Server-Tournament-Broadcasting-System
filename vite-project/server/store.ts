@@ -1,6 +1,7 @@
-import { postGameMetrics } from '../src/shared/postGame.js';
+import { postGameMetrics, postGameTeamMetrics, postGamePercentMetrics, postGameDecimalMetrics, canMergePostGameField } from '../src/shared/postGame.js';
+import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
 import { normalizePlayerSlotOrder } from '../src/shared/playerSlots.js';
-import { nextLiveGameStats } from '../src/shared/liveGame.js';
+import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import type { TeamPresetStore } from './teamPresets.js';
@@ -219,13 +220,31 @@ export class Store {
       for(const update of action.updates){
         if(!report.players.some(p=>p.rowId===update.rowId)||!postGameMetrics.includes(update.metric))throw new Error('赛后字段无效 / Invalid post-game field');
         const field=update.field;
-        if(!field||typeof field.value!=='number'||!Number.isFinite(field.value)||field.value<0||field.value>1e9||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1||typeof field.manual!=='boolean'||!['overview','survival','damage','team'].includes(field.sourcePage))throw new Error('赛后数据无效 / Invalid post-game value');
-        if(['damageShare','participation'].includes(update.metric)&&field.value>100)throw new Error('百分比必须在 0–100 / Percentage must be 0–100');
-        if(['kills','deaths','assists','gold','totalDamage','healing','damageTaken'].includes(update.metric)&&!Number.isInteger(field.value))throw new Error('此项须输入整数 / Integer required');
+        if(!field||typeof field.value!=='number'||!Number.isFinite(field.value)||field.value<0||field.value>1e9||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1||typeof field.manual!=='boolean'||!['overview','survival','damage','team','economy','record'].includes(field.sourcePage))throw new Error('赛后数据无效 / Invalid post-game value');
+        if(postGamePercentMetrics.includes(update.metric)&&field.value>100)throw new Error('百分比必须在 0–100 / Percentage must be 0–100');
+        if(!postGameDecimalMetrics.includes(update.metric)&&!Number.isInteger(field.value))throw new Error('此项须输入整数 / Integer required');
+        if(field.capturedAt!==undefined)integer(field.capturedAt,0,Number.MAX_SAFE_INTEGER);
         if(field.evidence!==undefined){shortText(field.evidence,200);if(!/^\/uploads\/player-portraits\/[a-f0-9-]{36}\.png$/.test(field.evidence))throw new Error('Invalid evidence');}
       }
       next.history.push(copy(state));
-      for(const update of action.updates){const field=update.field,player=report.players.find(p=>p.rowId===update.rowId)!;if(player.fields[update.metric]?.manual&&!field.manual)continue;player.fields[update.metric]={value:field.value,confidence:field.confidence,manual:field.manual,sourcePage:field.sourcePage,...(field.evidence?{evidence:field.evidence}:{})};}
+      for(const update of action.updates){const field=update.field,player=report.players.find(p=>p.rowId===update.rowId)!;if(!canMergePostGameField(player.fields[update.metric],field))continue;player.fields[update.metric]={value:field.value,confidence:field.confidence,manual:field.manual,sourcePage:field.sourcePage,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};}
+      break;
+    }
+    case 'post_game_team_fields': {
+      const report=state.postGameReports.find(r=>r.id===action.reportId);
+      if(!report||!Array.isArray(action.updates)||!action.updates.length||action.updates.length>20)throw new Error('Invalid team report');
+      for(const {side,metric,field} of action.updates){
+        if(!['blue','red'].includes(side)||!postGameTeamMetrics.includes(metric)||!field||field.sourcePage!=='recap'||typeof field.manual!=='boolean'||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1)throw new Error('Invalid team field');
+        integer(field.value,0,metric==='gold'?1000000:999);
+        if(field.capturedAt!==undefined)integer(field.capturedAt,0,Number.MAX_SAFE_INTEGER);
+        if(field.evidence!==undefined&&!/^\/uploads\/player-portraits\/[a-f0-9-]{36}\.png$/.test(field.evidence))throw new Error('Invalid evidence');
+      }
+      next.history.push(copy(state));
+      report.teamFields??={};
+      for(const {side,metric,field} of action.updates){
+        const fields=report.teamFields[side]??={};
+        if(canMergePostGameField(fields[metric],field))fields[metric]={value:field.value,sourcePage:'recap',manual:field.manual,confidence:field.confidence,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
+      }
       break;
     }
     case 'select_mvp': {
@@ -235,14 +254,44 @@ export class Store {
       report.selectedMvpRowId=player?.rowId??null;report.selectedMvpPlayerId=player?.playerId??null;
       break;
     }
+    case 'live_game_freeze': {
+      if(!liveCaptureKeys.includes(action.key)||typeof action.frozen!=='boolean')throw new Error('Invalid HUD field');
+      next.history.push(copy(state));
+      const sources={...state.liveGameStats.sources};
+      if(action.frozen)sources[action.key]={source:'manual',confidence:1,capturedAt:this.clock()};else delete sources[action.key];
+      state.liveGameStats.sources=sources;
+      break;
+    }
+    case 'live_game_ocr': {
+      if(action.context!==liveGameContext(state))throw new Error('Game changed; capture again');
+      for(const sample of [action.previous,action.sample]){
+        if(!sample||!Array.isArray(sample.candidates)||sample.candidates.length!==7||new Set(sample.candidates.map(c=>c.key)).size!==7)throw new Error('Invalid HUD sample');
+        integer(sample.capturedAt,0,this.clock());
+        if(this.clock()-sample.capturedAt>30000)throw new Error('HUD sample expired');
+        for(const c of sample.candidates)if(!liveCaptureKeys.includes(c.key)||c.value!==null&&(typeof c.value!=='number'||!Number.isFinite(c.value))||typeof c.confidence!=='number'||!Number.isFinite(c.confidence)||c.confidence<0||c.confidence>1)throw new Error('Invalid HUD candidate');
+      }
+      const updates=trustedLiveUpdates(state.liveGameStats,action.previous,action.sample);
+      if(!Object.keys(updates).length)throw new Error('No consistent unfrozen HUD fields; capture again or use manual input');
+      next.history.push(copy(state));next.history=next.history.slice(-200);
+      const stats=state.liveGameStats,sources={...stats.sources};
+      for(const [key,value] of Object.entries(updates)){
+        stats[key as LiveCaptureKey]=value;
+        sources[key as LiveCaptureKey]={source:'ocr',capturedAt:action.sample.capturedAt,confidence:action.sample.candidates.find(c=>c.key===key)!.confidence};
+      }
+      stats.sources=sources;
+      break;
+    }
     case 'live_game_stats': {
       const stats=action.stats;
       if(!stats || !['compact','full'].includes(stats.density) || !Array.isArray(stats.neutralObjectives) || stats.neutralObjectives.length>6) throw new Error('局内统计格式无效 / Invalid live stats');
       for(const value of [stats.blueKills,stats.redKills,stats.blueTowers,stats.redTowers]) integer(value,0,999);
+      for(const key of ['blueGold','redGold','gameTimeSeconds'] as const)if(stats[key]!==undefined)integer(stats[key],0,key==='gameTimeSeconds'?7200:1000000);
       for(const item of stats.neutralObjectives){shortText(item.id,100);shortText(item.name,24);if(!item.id||!item.name.trim())throw new Error('资源名称不能为空 / Objective name required');portraitURL(item.icon);integer(item.blue,0,999);integer(item.red,0,999);}
       if(new Set(stats.neutralObjectives.map(item=>item.id)).size!==stats.neutralObjectives.length)throw new Error('资源编号重复 / Duplicate objective ID');
       next.history.push(copy(state));
-      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,density:stats.density,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red}))};
+      const sources={...state.liveGameStats.sources};
+      for(const key of liveCaptureKeys)if(stats[key]!==undefined&&stats[key]!==state.liveGameStats[key])sources[key]={source:'manual',capturedAt:this.clock(),confidence:1};
+      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red}))};
       break;
     }
 
@@ -674,6 +723,12 @@ export class Store {
     }
     next.revision++;
     if (action.type !== 'delay') next.events.push({ id, timestamp: Math.max(this.clock(), next.events.at(-1)?.timestamp ?? 0), type: action.type, resultingState: copy(next.state), revision: next.revision });
+    if(action.type==='live_game_ocr'){
+      // Preserve the delayed baseline and every recent sample, without keeping
+      // a full-match snapshot for each automatic HUD poll for hours.
+      const cutoff=this.clock()-3600*1000,lastOld=next.events.findLastIndex(event=>event.timestamp<=cutoff);
+      next.events=next.events.filter((event,index)=>event.type!=='live_game_ocr'||event.timestamp>cutoff||index===lastOld);
+    }
     next.ids = [...next.ids.slice(-999), id];
     // Commit durable state before acknowledging or broadcasting. Failure leaves memory unchanged.
     if (this.file) {

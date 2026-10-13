@@ -1,4 +1,8 @@
 import sharp from 'sharp';
+import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
+import { decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
+import { settlementPages } from '../src/shared/gameCapture.js';
+import { liveGameContext } from '../src/shared/liveGame.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { Diagnostics } from './diagnostics.js';
@@ -87,6 +91,34 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
+    if(url.pathname==='/api/v1/recognition/settlement'||url.pathname==='/api/v1/recognition/live-hud'){
+      if(req.method!=='POST'){json(405,{error:'POST required'});return;}
+      if(roleFor(req.headers.authorization?.replace(/^Bearer /,''))!=='control'){json(403,{error:'Control only'});req.resume();return;}
+      try{
+        const chunks:Buffer[]=[];let size=0;req.setTimeout(30000,()=>req.destroy());
+        for await(const chunk of req){size+=chunk.length;if(size>5*1024*1024){json(413,{error:'Frame too large'});return;}chunks.push(chunk);}
+        const input=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
+        const capturedAt=Date.now(),context=liveGameContext(store.data.state);
+        const frame=await decodeGameFrame(input.image,input.region);
+        if(url.pathname.endsWith('live-hud')){
+          if(input.context!==context){json(409,{error:'Game changed; capture again'});return;}
+          const result=await recognizeLiveHud(frame,playerRecognition);
+          if(liveGameContext(store.data.state)!==context){json(409,{error:'Game changed; capture again'});return;}
+          json(200,{...result,capturedAt,context});
+        }else{
+          const report=store.data.state.postGameReports.find(r=>r.id===input.reportId);
+          if(!report){json(409,{error:'Prepare the game report first'});return;}
+          if(input.page!=='auto'&&!settlementPages.includes(input.page)){json(400,{error:'Invalid settlement page'});return;}
+          const result=await recognizeSettlement(frame,input.page,report,playerRecognition);
+          if(!store.data.state.postGameReports.some(r=>r.id===report.id)){json(409,{error:'Report changed'});return;}
+          await mkdir(uploadDirectory,{recursive:true});
+          const name=`${randomUUID()}.png`;await writeFile(resolve(uploadDirectory,name),frame,{flag:'wx'});
+          json(200,{...result,reportId:report.id,capturedAt,evidence:`/uploads/player-portraits/${name}`});
+        }
+      }catch(error){json(400,{error:error instanceof Error?error.message:'Game data capture failed'});}
+      return;
+    }
     if(url.pathname==='/api/v1/recognition/postgame'){
       if(req.method!=='POST'){json(405,{error:'POST required'});return;}
       if(roleFor(req.headers.authorization?.replace(/^Bearer /,''))!=='control'){json(403,{error:'Control only'});req.resume();return;}
@@ -94,15 +126,15 @@ const server = createServer(async (req, res) => {
         const chunks:Buffer[]=[];let size=0;req.setTimeout(10000,()=>req.destroy());
         for await(const chunk of req){size+=chunk.length;if(size>2*1024*1024){json(413,{error:'Crops too large'});return;}chunks.push(chunk);}
         const input=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if(!postGameMetrics.includes(input.metric)){json(400,{error:'Valid post-game metric required'});return;}
         const report=store.data.state.postGameReports.find(r=>r.id===input.reportId);
         if(!report){json(409,{error:'Prepare the game report first'});return;}
         if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
-        const result=await playerRecognition.recognize(input.images);
+        const result=await playerRecognition.recognizeNumbers(input.images);
         if(!store.data.state.postGameReports.some(r=>r.id===input.reportId)){json(409,{error:'Report changed'});return;}
         await mkdir(uploadDirectory,{recursive:true});
         const candidates=await Promise.all(result.texts.map(async(text,index)=>{
-          const normalized=text.normalize('NFKC').trim().replace(/[,，\s]/g,'').replace(/[％%]$/,'');
-          const value=/^\d+(\.\d+)?$/.test(normalized)?Number(normalized):null;
+          const value=parsePostGameNumber(text,input.metric);
           const name=`${randomUUID()}.png`;
           // Provider verified and decoded these bounded PNG crops before OCR.
           await writeFile(resolve(uploadDirectory,name),await sharp(Buffer.from(input.images[index].split(',')[1],'base64')).png().toBuffer(),{flag:'wx'});
@@ -245,7 +277,7 @@ const server = createServer(async (req, res) => {
       const role = roleFor(req.headers.authorization?.replace(/^Bearer /, ''));
       if (!role) { json(401, { error: '访问口令缺失或无效，请重新输入' }); return; }
       if (url.pathname === '/api/match') json(200, store.snapshot(role));
-      else if (url.pathname === '/api/v1/capabilities') json(200,{version:1,recognition:{provider:recognitionProvider.id,endpoint:'/api/v1/recognition/frame',confidence:'similarity',shapes:['square','circle'],revisionRequired:true},playerRecognition:{provider:playerRecognition.id,status:playerRecognition.status,endpoint:'/api/v1/recognition/players',batchSize:10,context:'roster-and-game'},postGame:{endpoint:'/api/v1/recognition/postgame',pageSelection:'manual',mvpSelection:'manual'}});
+      else if (url.pathname === '/api/v1/capabilities') json(200,{version:1,recognition:{provider:recognitionProvider.id,endpoint:'/api/v1/recognition/frame',confidence:'similarity',shapes:['square','circle'],revisionRequired:true},playerRecognition:{provider:playerRecognition.id,status:playerRecognition.status,endpoint:'/api/v1/recognition/players',batchSize:10,context:'roster-and-game'},postGame:{endpoint:'/api/v1/recognition/postgame',settlementEndpoint:'/api/v1/recognition/settlement',pageSelection:'template-or-manual',pages:settlementPages,mvpSelection:'manual'},liveHud:{endpoint:'/api/v1/recognition/live-hud',experimental:true,verificationFrames:2}});
       else if (url.pathname === '/api/heroes') json(200, heroes);
       else json(404, { error: '找不到请求的内容' });
       return;
@@ -259,7 +291,7 @@ const server = createServer(async (req, res) => {
     res.end(await readFile(file));
   } catch { json(404, { error: '找不到页面或文件，请联系导播检查网页是否已构建' }); }
 });
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16384 });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 65536 });
 interface Client { role?: Role; last?: string; alive: boolean; count: number; window: number }
 const clients = new Map<WebSocket, Client>();
 const snapshotPayloads = new Map<Role,{version:string;payload:string}>();

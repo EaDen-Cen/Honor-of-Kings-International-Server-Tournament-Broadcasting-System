@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Action, MatchState } from '../shared/types';
-import { postGameMetricLabel,postGameMetrics,type PostGameMetric,type PostGamePage,type PostGameField } from '../shared/postGame';
+import { canMergePostGameField,postGameDecimalMetrics,postGamePercentMetrics,postGameMetricLabel,postGameMetrics,type PostGameMetric,type PostGamePage,type PostGameField } from '../shared/postGame';
+import { SettlementCapturePanel } from './SettlementCapturePanel';
+import { settlementPages, settlementPageLabel } from '../shared/gameCapture';
 import { getSharedWindowCaptureStream,subscribeSharedWindowCapture } from './sharedWindowCapture';
 import { normalizeCaptureRegion,regionToPixels,type NormalizedCaptureRegion } from './windowCaptureGeometry';
 const storage='hok-post-game-regions-v1';
@@ -29,7 +31,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
       const source=video.current,frame=document.createElement('canvas');frame.width=source.videoWidth;frame.height=source.videoHeight;frame.getContext('2d')!.drawImage(source,0,0);
       const images=report.players.map((_,index)=>{const rect=regionToPixels(regionFor(index),frame.width,frame.height),crop=document.createElement('canvas');crop.width=Math.min(640,rect.width*2);crop.height=Math.min(128,rect.height*2);crop.getContext('2d')!.drawImage(frame,rect.x,rect.y,rect.width,rect.height,0,0,crop.width,crop.height);return crop.toDataURL('image/png');});
       const api=(import.meta.env.VITE_API_URL||'').replace(/\/$/,'');
-      const response=await fetch(`${api}/api/v1/recognition/postgame`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({images,reportId:report.id}),signal:AbortSignal.timeout(8000)});
+      const response=await fetch(`${api}/api/v1/recognition/postgame`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({images,reportId:report.id,metric}),signal:AbortSignal.timeout(8000)});
       const result=await response.json();if(!response.ok)throw new Error(result.error);
       if(context.current!==signature)return;
       setCandidates(result.candidates);setMessage(zh?'候选数据已生成；检查后应用。低置信度数据不会自动进入 MVP 亮点。':'Candidates ready; review before applying. Low-confidence fields do not enter MVP highlights.');
@@ -42,16 +44,17 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
     <p className="muted">{zh?'先确认有效局。MVP 由赛事方投票决定，程序仅展示。OBS：/overlay/mvp（1920×1080）。':'Commit the game first. Organizers vote for MVP; the app only displays the result. OBS: /overlay/mvp (1920×1080).'}</p>
     <button disabled={disabled||!state.committedGameId} onClick={()=>send({type:'post_game_begin'})}>{zh?'准备本局 10 人报告':'Prepare ten-player report'}</button>
     {report&&<><p>{zh?'第':'Game '}{report.gameNumber}{zh?'局 · 草稿':''}</p>
-      <div className="toolbar"><label>{zh?'数据页':'Source page'}<select value={page} onChange={e=>setPage(e.target.value as PostGamePage)}>{(['overview','survival','damage','team'] as const).map((key,i)=><option key={key} value={key}>{zh?['总览','生存','输出','团队'][i]:key}</option>)}</select></label>
+      <SettlementCapturePanel report={report} zh={zh} token={token} disabled={disabled} send={send}/>
+      <div className="toolbar"><label>{zh?'数据页':'Source page'}<select value={page} onChange={e=>setPage(e.target.value as PostGamePage)}>{settlementPages.map(key=><option key={key} value={key}>{settlementPageLabel(key,zh)}</option>)}</select></label>
         <label>{zh?'字段':'Field'}<select value={metric} onChange={e=>setMetric(e.target.value as PostGameMetric)}>{postGameMetrics.map(key=><option key={key} value={key}>{postGameMetricLabel(key,zh)}</option>)}</select></label>
         <button disabled={disabled||busy||!ready} onClick={()=>void capture()}>{busy?(zh?'识别中…':'Recognizing…'):(zh?'捕获当前页字段':'Capture current field')}</button>
         <button disabled={disabled||!candidates.some(c=>c.value!==null)} onClick={()=>send({type:'post_game_fields',reportId:report.id,updates:candidates.filter(c=>c.value!==null).map(c=>({rowId:c.rowId,metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:page,evidence:c.evidence} as PostGameField}))})}>{zh?'应用候选数据':'Apply candidates'}</button>
       </div>
       <div className="post-game-table">{report.players.map((player,index)=>{const detected=candidates[index],stored=player.fields[metric];return <div className="toolbar" key={player.rowId}>
         <span>{player.teamName} · P{player.slot+1} · {player.playerId||'—'}</span>
-        <input key={`${report.id}:${metric}:${stored?.value}`} aria-label={`${player.playerId} ${metric}`} type="number" min={0} max={['damageShare','participation'].includes(metric)?100:1e9} step={metric==='rating'||['damageShare','participation'].includes(metric)?'.1':'1'} defaultValue={stored?.value??''} disabled={disabled||busy} onBlur={e=>{if(e.target.value!==''&&Number(e.target.value)!==stored?.value)field(player.rowId,Number(e.target.value));}}/>
+        <input key={`${report.id}:${metric}:${stored?.value}`} aria-label={`${player.playerId} ${metric}`} type="number" min={0} max={postGamePercentMetrics.includes(metric)?100:1e9} step={postGameDecimalMetrics.includes(metric)?'.1':'1'} defaultValue={stored?.value??''} disabled={disabled||busy} onBlur={e=>{if(e.target.value!==''&&Number(e.target.value)!==stored?.value)field(player.rowId,Number(e.target.value));}}/>
         {stored&&<small>{stored.manual?(zh?'人工确认':'Manual'):Math.round(stored.confidence*100)+'%'}</small>}
-        {detected&&<small className={detected.confidence<.85?'error':''}>{detected.value??'—'} · {Math.round(detected.confidence*100)}% <a href={detected.evidence} target="_blank" rel="noreferrer">{zh?'原图':'Evidence'}</a></small>}
+        {detected&&<small className={detected.confidence<.85?'error':''}>{detected.value??'—'} · {Math.round(detected.confidence*100)}% {detected.value!==null&&!canMergePostGameField(stored,{value:detected.value,confidence:detected.confidence,manual:false,sourcePage:page})&&<span>{zh?'保留已有值；如需更改请人工输入。':'Existing value protected; edit manually to override.'}</span>} <a href={detected.evidence} target="_blank" rel="noreferrer">{zh?'原图':'Evidence'}</a></small>}
       </div>;})}</div>
       <label>{zh?'投票决定的 MVP':'MVP chosen by the vote'}<select aria-label="MVP player" value={report.selectedMvpRowId??''} disabled={disabled} onChange={e=>send({type:'select_mvp',reportId:report.id,rowId:e.target.value||null})}><option value="">{zh?'尚未选择 / 隐藏页面':'Not selected / hide overlay'}</option>{report.players.map(player=><option value={player.rowId} key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}</option>)}</select></label>
       <details><summary>{zh?'当前字段的 10 行数字区域':'Ten numeric regions for this field'}</summary><p className="muted">{zh?'各数据页可能换列或换序，请将每个区域对准右侧列出的对应选手数字。默认矩形仅为校准起点。':'Pages may change columns or row order. Align each region with the named player’s value; defaults are calibration starting points.'}</p>

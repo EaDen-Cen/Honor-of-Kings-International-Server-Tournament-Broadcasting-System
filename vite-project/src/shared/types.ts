@@ -1,5 +1,6 @@
-import type { PostGameReport, PostGameMetric, PostGameField } from './postGame.js';
-import { initialLiveGameStats, type LiveGameStats } from './liveGame.js';
+import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric } from './postGame.js';
+import { initialLiveGameStats, type LiveGameStats, type LiveHudSample } from './liveGame.js';
+import type { LiveCaptureKey } from './gameCapture.js';
 export type Side = 'blue' | 'red';
 
 export type Language = 'zh' | 'eng';
@@ -151,8 +152,11 @@ export type MatchSettings = Pick<
 export type Action =
   | { type: 'post_game_begin' }
   | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}> }
+  | { type: 'post_game_team_fields'; reportId:string; updates:Array<{side:Side;metric:PostGameTeamMetric;field:PostGameField}> }
   | { type: 'select_mvp'; reportId:string; rowId:string|null }
   | { type: 'live_game_stats'; stats: LiveGameStats }
+  | { type: 'live_game_ocr'; context:string; previous:LiveHudSample; sample:LiveHudSample }
+  | { type: 'live_game_freeze'; key:LiveCaptureKey; frozen:boolean }
   | { type: 'load_team_preset'; side: Side; presetId: string }
   | { type: 'draft_action'; team: Side; action: 'ban' | 'pick'; heroId: number }
   | { type: 'draft_pick_group'; team: Side; heroIds: number[] }

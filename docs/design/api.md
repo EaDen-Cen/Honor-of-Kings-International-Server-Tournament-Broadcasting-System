@@ -13,12 +13,18 @@
 | `/api/v1/capabilities` | GET | 识别版本、提供者、形状与接口位置 |
 | `/api/v1/recognition/frame` | POST | Control 上传浏览器英雄头像裁剪；兼容路径 `/api/recognize-frame` |
 | `/api/v1/recognition/players` | GET / POST | 查询本地 Player OCR 状态；或提交双方 10 个 ID 裁剪与 roster/gameNumber，返回映射建议 |
-| `/api/v1/recognition/postgame` | POST | 提交赛后数字裁剪与 reportId，返回 OCR 草稿、置信度与证据 |
+| `/api/v1/recognition/postgame` | POST | 提交十行数字裁剪 images、reportId 与必填 metric，返回 OCR 草稿、置信度与证据；支持字段适用的 K/万/% 单位，不合法数字返回 null |
+| `/api/v1/recognition/settlement` | POST | Control 提交 `{image, reportId, page, region?}`；page 为 auto/overview/damage/survival/economy/record/team/recap，返回整页数字候选、身份匹配与原图证据 |
+| `/api/v1/recognition/live-hud` | POST | Control 提交 `{image, context, region?}`，返回七项顶栏候选、置信度与服务器采集时间；context 由当前局、队伍、已提交局 ID 和 Picks 组成，变化返回 409 |
 | `/ws` | WebSocket | 身份认证、修订号动作、ACK 和状态广播 |
 
 识别请求：`{revision, image, allowedHeroIds?, shape?}`。`image` 为 PNG/JPEG/WebP 的 base64 data URL；`shape` 为 square / circle。限制为 4 MiB 请求、3 MiB 解码文件及 400 万像素。显式空英雄池不会回退到全部英雄。响应包含 `preview`、`fingerprint`、`lockFingerprint`、`meanLuma`、`candidates: [{heroId, confidence}]`。confidence 是相似度，不是准确率。陈旧修订号返回 409。
 
 未来 AI 实现 `HeroRecognitionProvider`，保持证据结构、修订号和 BP 校验流程；提供者只识别，不直接修改比赛。当前未提供 AI 模型、云端凭据或 AI 推理功能。
+
+整页接口接受 PNG/JPEG data URL，限制 5 MiB 请求、4 MiB 编码图像和 900 万像素；`region` 为 0–1 的 `{x,y,width,height}`，必须选中 16:9 游戏内容，服务端统一到 1920×1080。模板基于当前提供的中文版结算 UI；自动判页不明确时返回错误，允许指定 page 兜底。未通过身份匹配的行返回 `rowId:null`，须人工逐行确认；不默认沿用 BP 行序。recap 返回按 left/right 的 `teamCandidates`，应用前须确认队伍方向。
+
+`post_game_fields` 合并逐选手数据，`post_game_team_fields` 合并逐队 recap；字段可带 `capturedAt`、`evidence`，可信冲突和人工值受到保护。`live_game_ocr` 提交 `{context, previous, sample}`，两个样本均为 `{capturedAt,candidates}`，服务端复核两帧一致性、置信度、合理趋势、30 秒有效期与冻结状态；单样本不直接写入播出。`live_game_freeze` 接收 `{key,frozen}`；人工改值自动冻结该项。WebSocket 单消息上限 64 KiB，支持最多 100 项字段批次。
 
 密码 8–256 字符，保存盐和 scrypt 哈希；修改后已连接页面通过 `access_token_update` 获取本角色新 token。离线页面重新登录。密码可取得 Control 权限，只读成员应使用角色分享 token。环境变量 `ACCESS_PASSWORD` 只在尚未配置密码时初始化。
 
