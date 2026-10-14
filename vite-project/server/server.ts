@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
 import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
-import { decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
+import { decodeGameFrame, frameHasVisualContent, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
 import { liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, settlementPages } from '../src/shared/gameCapture.js';
 import { liveGameContext } from '../src/shared/liveGame.js';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -103,6 +103,7 @@ const server = createServer(async (req, res) => {
         if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
         const capturedAt=Date.now(),context=liveGameContext(store.data.state);
         const frame=await decodeGameFrame(input.image,input.region);
+        if(!await frameHasVisualContent(frame)){json(422,{error:'Game capture is blank or mostly black. Preview the actual game screen or upload a valid screenshot.'});return;}
         if(url.pathname.endsWith('live-hud')){
           if(input.context!==context){json(409,{error:'Game changed; capture again'});return;}
           if(input.regions!==undefined&&!validLiveCaptureRects(input.regions)){json(400,{error:'Invalid HUD crop calibration'});return;}
