@@ -1,6 +1,6 @@
 import { ViewportCanvas } from '../shared/ViewportCanvas';
 import { useEffect, useMemo } from 'react';
-import heroes from '../components/HeroList';
+import { allPoolHeroes,heroesForPool } from '../shared/heroPool';
 import { phases, type Side } from '../shared/types';
 import { simulatorBanVisualKeys, simulatorRandomPlayerOrder, simulatorSlotForPhase, simulatorSlotKey, simulatorSlotsForTurn } from './bpSimulatorModel';
 import { useBpSimulatorState } from './bpSimulatorState';
@@ -9,12 +9,12 @@ import './bpSimulator.css';
 const roles=['Roaming','Jungling','Mid Lane','Clash Lane','Farm Lane'];
 
 function heroName(id:number|undefined) {
-  const hero=heroes.find(item=>item.id===id);
+  const hero=allPoolHeroes.find(item=>item.id===id);
   return hero?.chineseName||hero?.englishName||'—';
 }
 
 function heroImage(id:number|undefined) {
-  return heroes.find(item=>item.id===id)?.imageLink||'';
+  return allPoolHeroes.find(item=>item.id===id)?.imageLink||'';
 }
 
 function PickLockCue() {
@@ -27,8 +27,8 @@ function LockCue() {
 
 export function BpSimulator() {
   const [state,update]=useBpSimulatorState();
-  const sequence=useMemo(()=>phases(state.mode,state.firstPickSide),[state.mode,state.firstPickSide]);
-  const activeSlots=simulatorSlotsForTurn(state.mode,state.firstPickSide,state.phaseIndex);
+  const sequence=useMemo(()=>phases(state.mode,state.firstPickSide,state.banCount),[state.mode,state.firstPickSide,state.banCount]);
+  const activeSlots=simulatorSlotsForTurn(state.mode,state.firstPickSide,state.phaseIndex,state.banCount);
   const active=activeSlots[0];
   const activeKeys=useMemo(()=>new Set(activeSlots.map(simulatorSlotKey)),[activeSlots]);
   const activeKey=active?simulatorSlotKey(active):'';
@@ -37,7 +37,7 @@ export function BpSimulator() {
   const phaseByKey=useMemo(()=>{
     const map=new Map<string,number>();
     sequence.forEach((_,index)=>{
-      const slot=simulatorSlotForPhase(state.mode,state.firstPickSide,index);
+      const slot=simulatorSlotForPhase(state.mode,state.firstPickSide,index,state.banCount);
       if(slot) map.set(simulatorSlotKey(slot),index);
     });
     return map;
@@ -54,9 +54,9 @@ export function BpSimulator() {
 
   const activeHeroId=activeKey?state.slotHeroes[activeKey]:undefined;
   const heroPool=useMemo(()=>{
-    const base=heroes.slice(0,28);
+    const base=heroesForPool(state.heroPool).slice(0,28);
     if(activeHeroId===undefined||base.some(hero=>hero.id===activeHeroId)) return base;
-    const activeHero=heroes.find(hero=>hero.id===activeHeroId);
+    const activeHero=allPoolHeroes.find(hero=>hero.id===activeHeroId);
     return activeHero?[activeHero,...base.slice(1)]:base;
   },[activeHeroId]);
 
@@ -172,10 +172,10 @@ export function BpSimulator() {
 
       {state.testMode!=='lineup'&&<>
         <div className="sim-ban-row blue">
-          {simulatorBanVisualKeys('blue').map(renderBan)}
+          {simulatorBanVisualKeys('blue',state.banCount).map(renderBan)}
         </div>
         <div className="sim-ban-row red">
-          {simulatorBanVisualKeys('red').map(renderBan)}
+          {simulatorBanVisualKeys('red',state.banCount).map(renderBan)}
         </div>
       </>}
 

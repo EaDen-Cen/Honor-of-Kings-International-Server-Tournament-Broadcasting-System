@@ -21,7 +21,7 @@ export function ControlHeroPicker({ state, disabled, active, send, acknowledged 
   const [recorded, setRecorded] = useState<Action>();
   const searchInput = useRef<HTMLInputElement>(null);
   const activeRef = useRef(active); activeRef.current = active;
-  const t = translator(state.language), phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+  const t = translator(state.language), phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
   const heroes = heroesForState(state);
   const unavailable = (id: number) => disabled || !phase || !!state.committedGameId || draftHeroUsed(state, id) || !!draftRestriction(state, phase.team, phase.action, id);
   const filtered = heroes.filter(h => (filter === 'all' || h.occupation === filter || h.altOccupation === filter)
@@ -57,8 +57,8 @@ export function ControlHeroPicker({ state, disabled, active, send, acknowledged 
     <div className={`picker-heading side-${phase?.team || 'none'}`}>
       <div className="current-phase" aria-live="polite">
         <h2>{phaseName(state, state.language)}</h2>
-        {phase && <span>{phase.action === 'ban' ? t('banCount', {number:state[`${phase.team}Bans`].length + 1,total:state.draftMode === 'match' ? 4 : 2}) : t('pickingFor', {player:playerAtSlot(state, phase.team, state[`${phase.team}Picks`].length).id || t('playerNumber',{number:state[`${phase.team}Picks`].length + 1}),slot:state[`${phase.team}Picks`].length + 1})}</span>}
-        {phase && <small>{t('phaseStep',{step:state.currentPhase+1,total:phases(state.draftMode,state.firstPickSide).length})}</small>}
+        {phase && <span>{phase.action === 'ban' ? t('banCount', {number:state[`${phase.team}Bans`].length + 1,total:state.banCount}) : t('pickingFor', {player:playerAtSlot(state, phase.team, state[`${phase.team}Picks`].length).id || t('playerNumber',{number:state[`${phase.team}Picks`].length + 1}),slot:state[`${phase.team}Picks`].length + 1})}</span>}
+        {phase && <small>{t('phaseStep',{step:state.currentPhase+1,total:phases(state.draftMode,state.firstPickSide,state.banCount).length})}</small>}
       </div>
       <input ref={searchInput} aria-label={t('searchHeroes')} placeholder={t('searchHeroes')} value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => {
         if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.repeat) return;

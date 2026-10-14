@@ -1,8 +1,8 @@
-import heroes from '../components/HeroList';
+import { allPoolHeroes, heroesForPool } from './heroPool';
 import type { Hero } from '../data/heroTypes';
 import type { MatchState } from './types';
 
-const heroesById=new Map(heroes.map(hero=>[hero.id,hero]));
+const heroesById=new Map(allPoolHeroes.map(hero=>[hero.id,hero]));
 
 export function heroForState(state: Pick<MatchState, 'heroDataOverrides'>, id: number): Hero | undefined {
   const base = heroesById.get(id);
@@ -16,6 +16,6 @@ export function heroForState(state: Pick<MatchState, 'heroDataOverrides'>, id: n
   };
 }
 
-export function heroesForState(state: Pick<MatchState, 'heroDataOverrides'>): Hero[] {
-  return heroes.map(hero => heroForState(state, hero.id) ?? hero);
+export function heroesForState(state: Pick<MatchState, 'heroDataOverrides'> & {heroPool?:MatchState['heroPool']}): Hero[] {
+  return heroesForPool(state.heroPool).map(hero => heroForState(state, hero.id) ?? hero);
 }

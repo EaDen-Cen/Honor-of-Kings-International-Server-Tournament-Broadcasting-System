@@ -177,3 +177,8 @@ Auto BP 已支持浏览器窗口采集、18 槽位校准/预设、Pick/Ban 识�
 当前编号与迁移原则见 [ID 规则](../research/hero-id-order.md)，
 同步内容与来源见 [历史英雄数据核查](../research/hero-data-audit-2026-09-16.md)、
 [图标来源清单](../../research/new-hero-assets.json)。
+
+
+## 国服英雄目录同步（开发 PR #68）
+
+在 `vite-project/` 运行 `npm run hero:cn-sync`，请求国服官网英雄列表并生成版本受控的 `src/data/cnHeroCatalog.ts`。脚本失败时不会覆盖旧文件；成功后人工核对差异、重跑 build/test，再提交 PR。由于本项目开发环境无法直接读取国服官网实时数据，**本次内置国服目录不应当成完整、实时的官方名单**。启动后 Control → 比赛设置 → 英雄池服务器可选 CN/Global，每队 Ban 另选 0–5；具体操作和禁止自动化声称见 [双服指南](hero-pool-and-ban-rules.md)。

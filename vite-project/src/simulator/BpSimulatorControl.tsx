@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import heroes from '../components/HeroList';
+import { allPoolHeroes,heroesForPool,type BanCount,type HeroPool } from '../shared/heroPool';
 import { useAccess } from '../shared/access';
 import { useMatch } from '../shared/useMatch';
 import { initialState, phases, type Action, type MatchSettings, type MatchState, type Side } from '../shared/types';
@@ -24,7 +24,7 @@ import { useBpSimulatorState } from './bpSimulatorState';
 import './bpSimulator.css';
 
 function heroName(id:number|undefined) {
-  const hero=heroes.find(item=>item.id===id);
+  const hero=allPoolHeroes.find(item=>item.id===id);
   return hero?.chineseName||hero?.englishName||'—';
 }
 
@@ -46,6 +46,7 @@ function playerTestSettings(state:MatchState,bluePlayers:string[],redPlayers:str
     seriesFormat:state.seriesFormat,
     stage:state.stage,
     draftMode:state.draftMode,
+    heroPool:state.heroPool,banCount:state.banCount,
     draftRuleMode:state.draftRuleMode,
     flowbornFormsIndependent:state.flowbornFormsIndependent,
     firstPickSide:state.firstPickSide,
@@ -71,6 +72,7 @@ function lineupTestSettings(state:MatchState):MatchSettings {
     seriesFormat:state.seriesFormat,
     stage:state.stage,
     draftMode:'normal',
+    heroPool:state.heroPool,banCount:2,
     draftRuleMode:'normal',
     flowbornFormsIndependent:true,
     firstPickSide:'blue',
@@ -90,14 +92,14 @@ function pickLineup(slotHeroes:Record<string,number>,side:Side) {
   return [0,1,2,3,4].map(index=>slotHeroes[`${side}Pick${index+1}`]);
 }
 
-function createLineupFixtureActions(slotHeroes:Record<string,number>):Action[] {
+function createLineupFixtureActions(slotHeroes:Record<string,number>,heroPool:HeroPool):Action[] {
   const blue=pickLineup(slotHeroes,'blue');
   const red=pickLineup(slotHeroes,'red');
   if([...blue,...red].some(value=>!Number.isInteger(value)))throw new Error('10 个 Pick 槽必须都有英雄');
   if(new Set([...blue,...red]).size!==10)throw new Error('换英雄测试的 10 个 Pick 槽必须使用不同英雄');
 
   const reserved=new Set([...blue,...red]);
-  const banPool=heroes.map(hero=>hero.id).filter(id=>!reserved.has(id));
+  const banPool=heroesForPool(heroPool).map(hero=>hero.id).filter(id=>!reserved.has(id));
   let banIndex=0;
   return phases('normal','blue').map((phase,index)=>{
     const slot=simulatorSlotForPhase('normal','blue',index)!;
@@ -136,8 +138,8 @@ export function BpSimulatorControl() {
   const [swapCompletedAt,setSwapCompletedAt]=useState<number|null>(null);
   const [clock,setClock]=useState(Date.now());
 
-  const sequence=useMemo(()=>phases(state.mode,state.firstPickSide),[state.mode,state.firstPickSide]);
-  const activeSlots=simulatorSlotsForTurn(state.mode,state.firstPickSide,state.phaseIndex);
+  const sequence=useMemo(()=>phases(state.mode,state.firstPickSide,state.banCount),[state.mode,state.firstPickSide,state.banCount]);
+  const activeSlots=simulatorSlotsForTurn(state.mode,state.firstPickSide,state.phaseIndex,state.banCount);
   const active=activeSlots[0];
   const activeKeys=activeSlots.map(simulatorSlotKey);
   const activeKey=activeKeys[0]??'';
@@ -145,7 +147,7 @@ export function BpSimulatorControl() {
 
   const randomize=(current:typeof state,keys:string[],autoPlay=current.autoPlay)=>{
     try{
-      const slotHeroes=randomizeSimulatorSlots(current.slotHeroes,current.mode,current.firstPickSide,rules,new Set(keys),current.emptyBans);
+      const slotHeroes=randomizeSimulatorSlots(current.slotHeroes,current.mode,current.firstPickSide,{...rules,heroPool:current.heroPool,banCount:current.banCount},new Set(keys),current.emptyBans);
       setRuleError('');
       return {...current,slotHeroes,autoPlay};
     }catch(error){
@@ -214,13 +216,19 @@ export function BpSimulatorControl() {
     }
   };
 
-  const setDraftMode=(mode:typeof state.mode)=>update(current=>({...current,mode,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setDraftMode=(mode:typeof state.mode)=>update(current=>({...current,mode,banCount:mode==='match'?4:2,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setHeroPool=(heroPool:HeroPool)=>update(current=>{
+    const available=heroesForPool(heroPool);
+    const slotHeroes=Object.fromEntries(simulatorAllSlotKeys.map((key,index)=>[key,available[index%available.length]?.id??0])) as Record<string,number>;
+    return {...current,heroPool,slotHeroes,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false};
+  });
+  const setBanCount=(banCount:BanCount)=>update(current=>({...current,banCount,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
   const setFirstPickSide=(firstPickSide:Side)=>update(current=>({...current,firstPickSide,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
 
   const toggleCurrentLock=()=>{
     if(!activeKeys.length)return;
     update(current=>{
-      const currentKeys=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex).map(simulatorSlotKey);
+      const currentKeys=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex,current.banCount).map(simulatorSlotKey);
       const allLocked=currentKeys.length>0&&currentKeys.every(key=>current.locked.includes(key));
       return {...current,locked:allLocked?current.locked.filter(key=>!currentKeys.includes(key)):unique([...current.locked,...currentKeys])};
     });
@@ -228,11 +236,11 @@ export function BpSimulatorControl() {
 
   const nextPhase=()=>{
     if(!activeKeys.length||!activeLocked)return;
-    update(current=>({...current,phaseIndex:Math.min(phases(current.mode,current.firstPickSide).length,simulatorNextTurnPhase(current.mode,current.firstPickSide,current.phaseIndex))}));
+    update(current=>({...current,phaseIndex:Math.min(phases(current.mode,current.firstPickSide,current.banCount).length,simulatorNextTurnPhase(current.mode,current.firstPickSide,current.phaseIndex,current.banCount))}));
   };
 
   const previousPhase=()=>update(current=>{
-    const next=simulatorPreviousTurnPhase(current.mode,current.firstPickSide,current.phaseIndex);
+    const next=simulatorPreviousTurnPhase(current.mode,current.firstPickSide,current.phaseIndex,current.banCount);
     const previousKeys=simulatorSlotsForTurn(current.mode,current.firstPickSide,next).map(simulatorSlotKey);
     return {...current,phaseIndex:next,locked:current.locked.filter(item=>!previousKeys.includes(item)),autoPlay:false};
   });
@@ -242,11 +250,11 @@ export function BpSimulatorControl() {
     update(current=>({...current,emptyBans:current.emptyBans.includes(activeKey)?current.emptyBans.filter(key=>key!==activeKey):unique([...current.emptyBans,activeKey])}));
   };
 
-  const randomizeCurrent=()=>update(current=>randomize(current,simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex).map(simulatorSlotKey)));
+  const randomizeCurrent=()=>update(current=>randomize(current,simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex,current.banCount).map(simulatorSlotKey)));
   const randomizeAll=()=>update(current=>randomize(current,simulatorAllSlotKeys.filter(key=>!current.locked.includes(key))));
 
   const randomizeLineup=()=>update(current=>{
-    const available=[...heroes];
+    const available=[...heroesForPool(current.heroPool)];
     const slotHeroes={...current.slotHeroes};
     for(const side of ['blue','red'] as const)for(let index=0;index<5;index++){
       const pick=Math.floor(Math.random()*available.length);
@@ -279,6 +287,7 @@ export function BpSimulatorControl() {
     update(current=>({
       ...current,
       mode:synced.mode,
+      heroPool:synced.heroPool,banCount:synced.banCount,
       firstPickSide:synced.firstPickSide,
       phaseIndex:synced.phaseIndex,
       slotHeroes:synced.slotHeroes,
@@ -332,7 +341,7 @@ export function BpSimulatorControl() {
     if(!snapshot||controlStatus!=='Connected'||controlPending){setIntegrationMessage('Control 尚未准备好。');return;}
     if(snapshot.state.committedGameId){setIntegrationMessage('当前 Control 已提交本局；请进入下一局或重置比赛。');return;}
     try{
-      const actions=createLineupFixtureActions(state.slotHeroes);
+      const actions=createLineupFixtureActions(state.slotHeroes,state.heroPool);
       const blue=pickLineup(state.slotHeroes,'blue');
       const red=pickLineup(state.slotHeroes,'red');
       setDraftSync({stage:'resetting',actions,index:0,targetBlue:blue,targetRed:red});
@@ -438,8 +447,8 @@ export function BpSimulatorControl() {
     if(activeLocked){
       const timer=window.setTimeout(()=>{
         update(current=>{
-          const currentSequence=phases(current.mode,current.firstPickSide);
-          const next=Math.min(currentSequence.length,simulatorNextTurnPhase(current.mode,current.firstPickSide,current.phaseIndex));
+          const currentSequence=phases(current.mode,current.firstPickSide,current.banCount);
+          const next=Math.min(currentSequence.length,simulatorNextTurnPhase(current.mode,current.firstPickSide,current.phaseIndex,current.banCount));
           return {...current,phaseIndex:next,autoPlay:next<currentSequence.length&&current.autoPlay};
         });
       },state.transitionHoldMs);
@@ -453,7 +462,7 @@ export function BpSimulatorControl() {
       for(const moment of moments){
         timers.push(window.setTimeout(()=>{
           update(current=>{
-            const slots=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex);
+            const slots=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex,current.banCount);
             const keys=slots.map(simulatorSlotKey).filter(key=>!current.emptyBans.includes(key));
             if(!keys.length||keys.every(key=>current.locked.includes(key)))return current;
             try{
@@ -463,7 +472,7 @@ export function BpSimulatorControl() {
                   current.slotHeroes,
                   current.mode,
                   current.firstPickSide,
-                  rulesRef.current,
+                  {...rulesRef.current,heroPool:current.heroPool,banCount:current.banCount},
                   new Set(keys),
                   current.emptyBans,
                 ),
@@ -478,7 +487,7 @@ export function BpSimulatorControl() {
 
     timers.push(window.setTimeout(()=>{
       update(current=>{
-        const currentSlots=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex);
+        const currentSlots=simulatorSlotsForTurn(current.mode,current.firstPickSide,current.phaseIndex,current.banCount);
         if(!currentSlots.length)return {...current,autoPlay:false};
         const keys=currentSlots.map(simulatorSlotKey);
         return {...current,locked:unique([...current.locked,...keys])};
@@ -494,6 +503,8 @@ export function BpSimulatorControl() {
     state.intervalMaxMs,
     state.intervalMinMs,
     state.mode,
+    state.banCount,
+    state.heroPool,
     state.phaseIndex,
     state.preselectSwitching,
     state.testMode,
@@ -514,7 +525,7 @@ export function BpSimulatorControl() {
         setSwapCompletedAt(null);
         update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}));
       }}>
-        {heroes.map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}
+        {heroesForPool(state.heroPool).map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}
       </select>
     </label>;
   };
@@ -615,7 +626,9 @@ export function BpSimulatorControl() {
         <p className="sim-control-note">{snapshot?'已连接 Control，随机选角可参考当前比赛规则。':'未连接 Control，按普通 BP 规则模拟。'}</p>
         {ruleError&&<p role="alert">{ruleError}</p>}
         <div className="sim-control-grid separated">
-          <label>BP 模式<select value={state.mode} onChange={event=>setDraftMode(event.target.value as typeof state.mode)}><option value="match">Match · 4 Ban</option><option value="normal">Normal · 2 Ban</option></select></label>
+          <label>BP 模式<select value={state.mode} onChange={event=>setDraftMode(event.target.value as typeof state.mode)}><option value="match">Match · 分段禁用</option><option value="normal">Normal · 集中禁用</option></select></label>
+          <label>英雄池<select aria-label="Simulator hero pool" value={state.heroPool} onChange={event=>setHeroPool(event.target.value as HeroPool)}><option value="global">国际服</option><option value="cn">国服（预览目录）</option></select></label>
+          <label>每队 Ban<select aria-label="Simulator bans per team" value={state.banCount} onChange={event=>setBanCount(Number(event.target.value) as BanCount)}>{([0,1,2,3,4,5] as const).map(n=><option key={n} value={n}>{n} Ban</option>)}</select></label>
           <label>先手方<select value={state.firstPickSide} onChange={event=>setFirstPickSide(event.target.value as Side)}><option value="blue">蓝方</option><option value="red">红方</option></select></label>
           <div className="sim-interval-range"><span>自动脚本随机等待</span>
             <label>最短<input type="number" min={0.3} max={15} step={0.1} value={(state.intervalMinMs/1000).toFixed(1)} onChange={event=>patch({intervalMinMs:Math.round(Number(event.target.value)*1000)})}/><small>秒</small></label>
@@ -649,7 +662,7 @@ export function BpSimulatorControl() {
         <div className="sim-current-pick-group">
           {activeSlots.map(slot=>{
             const key=simulatorSlotKey(slot);
-            return <label key={key}>{slot.action==='ban'?'B':'P'}{slot.slotIndex+1}<select value={state.slotHeroes[key]??''} disabled={activeLocked} onChange={event=>update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}))}>{heroes.map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}</select></label>;
+            return <label key={key}>{slot.action==='ban'?'B':'P'}{slot.slotIndex+1}<select value={state.slotHeroes[key]??''} disabled={activeLocked} onChange={event=>update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}))}>{heroesForPool(state.heroPool).map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}</select></label>;
           })}
           <button onClick={randomizeCurrent} disabled={!activeKeys.length||activeLocked}>随机当前组</button>
           <button onClick={randomizeAll}>随机完整 BP 配置</button>

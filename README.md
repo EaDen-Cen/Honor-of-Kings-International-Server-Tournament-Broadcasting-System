@@ -255,3 +255,10 @@ vite-project/       应用与 npm 命令执行目录
 OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgame-compare?role=mid`（clash/jungle/mid/farm/roam 五位置对位雷达）及 `/overlay/game-progress` 经济 x 时间。评分可核实后人工补录或自行校准原有单字段 OCR；不会凭字母评级猜数字。经济线只连接输入的 **2–240 个真实时间/双方经济观测点**，不从最终经济反推。上述均为开发分支能力，**未通过真实十人+OBS 长时验收，也不包含在此前发布的 RC.1 中**。详细使用方式见 [操作指南](docs/guides/operator-guide.md#回放优先的赛后彩排pr-67)。
 
 所有代码改动须在同一个 PR 中同步核对、更新相关文档，规则见 [文档索引与维护约定](docs/README.md#命名和维护规则)。
+
+
+## 国服 / 国际服双英雄池与自定义 0–5 Ban（开发 PR #68）
+
+比赛设置新增互不依赖的英雄池 `global / cn` 与每队 `0–5` Ban。Match 模式按先 2 Ban、三选、再禁剩余 Ban、两选的结构运行（5 Ban 为 KPL 风格 2+3，国际赛事 4 Ban 为 2+2）；Normal 将 Ban 全部放在选人前。修改后服务器校验、比赛历史、Control、OBS、Simulator 与捕获槽位都使用相同的设置。旧 Match 默认 4 Ban，旧 Normal 默认 2 Ban。特殊巅峰对决/Ultimate Battle 的盲选不是普通 0 Ban，目前尚不支持。
+
+**国服英雄名单仍是工作快照**：目前由有来源和日期的 2026-08-19 国服官方接口存档（132 条）组成；不能保证覆盖国服 2026 年 10 月全部英雄。可运行 `npm run hero:cn-sync` 尝试更新国服官方名单；国服独有英雄自动 OCR 与 Ban #5 的真实游戏 ROI 尚未验收，优先人工输入。完整规则、来源、兼容性与测试矩阵见 [双服英雄池/自定义 Ban 指南](docs/guides/hero-pool-and-ban-rules.md)。

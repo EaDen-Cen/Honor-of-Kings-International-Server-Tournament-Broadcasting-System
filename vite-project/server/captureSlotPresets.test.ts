@@ -7,7 +7,7 @@ import {
   updateCaptureSlotPreset,
 } from '../src/control/captureSlotPresets.js';
 
-test('capture preset round-trips all 18 normalized slots',()=>{
+test('capture preset round-trips all 20 normalized slots',()=>{
   const preset=createCaptureSlotPreset({
     id:'preset-1',
     name:'  1920x1080 比赛端  ',
@@ -19,7 +19,7 @@ test('capture preset round-trips all 18 normalized slots',()=>{
   const parsed=readCaptureSlotPresets(JSON.stringify([preset]));
   assert.equal(parsed.length,1);
   assert.equal(parsed[0].name,'1920x1080 比赛端');
-  assert.equal(Object.keys(parsed[0].slots).length,18);
+  assert.equal(Object.keys(parsed[0].slots).length,20);
   assert.deepEqual(parsed[0].slots,defaultCaptureSlots);
   assert.equal(parsed[0].sourceWidth,1920);
   assert.equal(parsed[0].sourceHeight,1080);

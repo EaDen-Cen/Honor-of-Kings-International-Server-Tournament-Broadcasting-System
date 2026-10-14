@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import heroes from '../components/HeroList.js';
+import { defaultBansForMode,isBanCount,type HeroPool,type BanCount } from '../shared/heroPool.js';
 import type { MatchState, Side } from '../shared/types.js';
 import { migrateLegacySimulatorSlotHeroes, simulatorAllSlotKeys, type SimulatorPlayerProfile, type SimulatorScene, type SimulatorTestMode } from './bpSimulatorModel.js';
 
@@ -7,6 +8,8 @@ export type SimulatorSlotMap = Record<string,number>;
 
 export interface BpSimulatorState {
   mode: MatchState['draftMode'];
+  heroPool:HeroPool;
+  banCount:BanCount;
   firstPickSide: Side;
   phaseIndex: number;
   slotHeroes: SimulatorSlotMap;
@@ -45,6 +48,7 @@ function defaultAssignments():SimulatorSlotMap {
 export function createDefaultBpSimulatorState():BpSimulatorState {
   return {
     mode:'match',
+    heroPool:'global',banCount:4,
     firstPickSide:'blue',
     phaseIndex:0,
     slotHeroes:defaultAssignments(),
@@ -97,6 +101,8 @@ function normalizeState(value:Partial<BpSimulatorState>|undefined,migrateLegacyI
     ? source.playerProfile as SimulatorPlayerProfile : 'mixed';
   return {
     mode:source.mode==='normal'?'normal':'match',
+    heroPool:source.heroPool==='cn'?'cn':'global',
+    banCount:isBanCount(source.banCount)?source.banCount:defaultBansForMode(source.mode==='normal'?'normal':'match'),
     firstPickSide:source.firstPickSide==='red'?'red':'blue',
     phaseIndex:Number.isFinite(source.phaseIndex)?Math.max(0,Math.floor(source.phaseIndex!)):0,
     slotHeroes,

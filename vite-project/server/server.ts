@@ -16,7 +16,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
-import heroes from '../src/components/HeroList.js';
+import { heroesForPool } from '../src/shared/heroPool.js';
 import type { Role } from '../src/shared/types.js';
 import { TeamPresetStore } from './teamPresets.js';
 import { Store } from './store.js';
@@ -278,7 +278,7 @@ const server = createServer(async (req, res) => {
       if (!role) { json(401, { error: '访问口令缺失或无效，请重新输入' }); return; }
       if (url.pathname === '/api/match') json(200, store.snapshot(role));
       else if (url.pathname === '/api/v1/capabilities') json(200,{version:1,recognition:{provider:recognitionProvider.id,endpoint:'/api/v1/recognition/frame',confidence:'similarity',shapes:['square','circle'],revisionRequired:true},playerRecognition:{provider:playerRecognition.id,status:playerRecognition.status,endpoint:'/api/v1/recognition/players',batchSize:10,context:'roster-and-game'},postGame:{endpoint:'/api/v1/recognition/postgame',settlementEndpoint:'/api/v1/recognition/settlement',pageSelection:'template-or-manual',pages:settlementPages,mvpSelection:'manual'},liveHud:{endpoint:'/api/v1/recognition/live-hud',experimental:true,verificationFrames:2}});
-      else if (url.pathname === '/api/heroes') json(200, heroes);
+      else if (url.pathname === '/api/heroes') json(200,heroesForPool(url.searchParams.get('pool')==='cn'?'cn':'global'));
       else json(404, { error: '找不到请求的内容' });
       return;
     }

@@ -50,10 +50,10 @@ function HeroSlot({ state, id, ban = false, lang }: { state: MatchState; id?: nu
 }
 function Board({ state, lang, compact = false }: { state: MatchState; lang: Language; compact?: boolean }) {
   const t = translator(lang);
-  const phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+  const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
   return <section className={`board ${compact ? 'compact-board' : ''}`}><div className="match-strip"><span>{t('gameTitle')}</span><span>{stageName(state.stage, lang)} · {t('gameNumber', { number: currentGame(state) })} · {seriesName(state.seriesFormat, lang)} · {draftRuleName(state, lang)}</span></div>
-    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={state[`${side}Team`].logo} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.draftMode === 'match' ? 4 : 2 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
-    <footer className={`phase ${phase?.team || ''}`} key={state.currentPhase}>{phase ? `${phaseName(state, lang)} · ${t('phaseStep', { step: state.currentPhase + 1, total: phases(state.draftMode, state.firstPickSide).length })}` : t('draftComplete')}</footer></section>;
+    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={state[`${side}Team`].logo} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
+    <footer className={`phase ${phase?.team || ''}`} key={state.currentPhase}>{phase ? `${phaseName(state, lang)} · ${t('phaseStep', { step: state.currentPhase + 1, total: phases(state.draftMode, state.firstPickSide,state.banCount).length })}` : t('draftComplete')}</footer></section>;
 }
 function TeamAnalysis({
   state,
@@ -106,6 +106,8 @@ const settingsFromState = (state: MatchState): MatchSettings => ({
   seriesFormat: state.seriesFormat,
   stage: state.stage,
   draftMode: state.draftMode,
+  heroPool:state.heroPool,
+  banCount:state.banCount,
   draftRuleMode: state.draftRuleMode,
   flowbornFormsIndependent: state.flowbornFormsIndependent,
   firstPickSide: state.firstPickSide,
@@ -142,9 +144,16 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
           {(['BO1', 'BO3', 'BO5'] as const).map(format => <option key={format} value={format}>{seriesName(format, state.language)}</option>)}
         </select></label>
         <label>{t('currentGame')}<div className="readonly-field">{t('gameNumber', { number: state.gameNumber })} · {t('automatic')}</div></label>
-        <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'] })}>
+        <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'],banCount:e.target.value==='normal'?2:4 })}>
           <option value="match">{t('matchMode')}</option><option value="normal">{t('normalMode')}</option>
         </select></label>
+        <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={ruleLocked(state)} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool'],recognitionAutoAccept:false})}>
+          <option value="global">{state.language==='zh'?'国际服 · Honor of Kings':'Global · Honor of Kings'}</option>
+          <option value="cn">{state.language==='zh'?'国服 · 王者荣耀':'CN · 王者荣耀'}</option>
+        </select><small>{state.language==='zh'?'国服英雄资料使用独立目录；若使用屏幕识别，请先校准国服头像模板。':'CN heroes use a separate catalog. Calibrate CN hero recognition before auto capture.'}</small></label>
+        <label>{state.language==='zh'?'每队 Ban 数量':'Bans per team'}<select aria-label="Bans per team" disabled={ruleLocked(state)} value={form.banCount} onChange={e=>setForm({...form,banCount:Number(e.target.value) as MatchSettings['banCount']})}>
+          {([0,1,2,3,4,5] as const).map(count=><option key={count} value={count}>{count} Ban / {state.language==='zh'?'每队':'side'}</option>)}
+        </select><small>{state.language==='zh'?'Match 模式先 Ban 最多两轮，余下 Ban 在第二次选人阶段后执行；Normal 模式先完成全部 Ban。':'Match mode bans up to two each before picks and the remainder mid-draft. Normal mode bans all first.'}</small></label>
         <label>{t('draftRules')}<select aria-label={t('draftRules')} disabled={ruleLocked(state)} value={form.draftRuleMode} onChange={e => setForm({ ...form, draftRuleMode: e.target.value as MatchSettings['draftRuleMode'] })}>
           <option value="normal">{t('ruleNormal')}</option><option value="player">{t('rulePlayer')}</option><option value="global">{t('ruleGlobal')}</option>
         </select></label>
@@ -167,9 +176,9 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
         <label>{t('scoreDisplay')}<select value={form.scoreDisplay || 'number'} onChange={e => setForm({ ...form, scoreDisplay: e.target.value as MatchSettings['scoreDisplay'] })}><option value="number">{t('scoreNumber')}</option><option value="boxes">{t('scoreBoxes')}</option></select></label>
         <label>{t('bpInputMode')}<select value={form.bpInputMode || 'manual'} onChange={e => setForm({ ...form, bpInputMode: e.target.value as MatchSettings['bpInputMode'] })}><option value="manual">{t('manualInput')}</option><option value="screen">{t('screenInput')}</option></select></label>
         {form.bpInputMode === 'screen' && <details className="advanced-options"><summary>{state.language === 'zh' ? '屏幕识别 · 高级选项' : 'Screen recognition · advanced'}</summary>
-          <label className="settings-checkbox"><span>{state.language === 'zh' ? '高相似度自动输入' : 'Automatically accept high similarity'}</span><input type="checkbox" checked={form.recognitionAutoAccept ?? false} onChange={e => setForm({...form, recognitionAutoAccept:e.target.checked})} /></label>
+          <label className="settings-checkbox"><span>{state.language === 'zh' ? '高相似度自动输入' : 'Automatically accept high similarity'}</span><input type="checkbox" disabled={form.heroPool==='cn'} checked={form.heroPool!=='cn'&&(form.recognitionAutoAccept ?? false)} onChange={e => setForm({...form, recognitionAutoAccept:e.target.checked})} /></label>
           <label>{state.language === 'zh' ? '相似度阈值 (%)' : 'Similarity threshold (%)'}<input type="number" min={50} max={100} step={1} value={form.recognitionThreshold ?? 90} onChange={e => setForm({...form, recognitionThreshold:Number(e.target.value)})} /></label>
-          <small>{state.language === 'zh' ? '相似度不是准确率；仍需稳定帧和锁定证据。低于或等于阈值、空 Ban 均需审核。' : 'Similarity is not accuracy. Stable frames and lock evidence remain required. At or below the threshold, and empty bans, require review.'}</small>
+          <small>{state.language === 'zh' ? '国服暂未训练独有英雄模板，因此自动输入强制关闭。相似度不是准确率；仍需稳定帧和锁定证据。低于或等于阈值、空 Ban 均需审核。' : 'Similarity is not accuracy. Stable frames and lock evidence remain required. At or below the threshold, and empty bans, require review.'}</small>
         </details>}
         <label>{t('overlayLayout')}<select value={form.overlayLayout} onChange={e => setForm({ ...form, overlayLayout: e.target.value as MatchSettings['overlayLayout'] })}>
           <option value="panel">{t('panelLayout')}</option><option value="side">{t('sideLayout')}</option>
@@ -300,7 +309,7 @@ export default function BroadcastApp() {
           </section>
 
           <DraftLifecycle state={state} send={send} disabled={disabled} />
-          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={() => setShowSettings(false)}><MatchSettingsPanel key={JSON.stringify([state.seriesFormat, state.stage, state.draftMode, state.draftRuleMode, state.firstPickSide, state.sideSwapMode, state.language, state.overlayLayout, state.scoreDisplay, state.bpInputMode, state.recognitionAutoAccept, state.recognitionThreshold, state.showHeroName, state.artSourceMode])} state={state} send={send} disabled={disabled} /></SettingsDialog>}
+          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={() => setShowSettings(false)}><MatchSettingsPanel key={JSON.stringify([state.seriesFormat, state.stage, state.draftMode, state.heroPool,state.banCount,state.draftRuleMode, state.firstPickSide, state.sideSwapMode, state.language, state.overlayLayout, state.scoreDisplay, state.bpInputMode, state.recognitionAutoAccept, state.recognitionThreshold, state.showHeroName, state.artSourceMode])} state={state} send={send} disabled={disabled} /></SettingsDialog>}
           {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
           {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />}
         </>}>

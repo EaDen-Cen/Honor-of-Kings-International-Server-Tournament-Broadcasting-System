@@ -2,6 +2,7 @@ import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric 
 import { initialLiveGameStats, type LiveGameStats, type LiveHudSample } from './liveGame.js';
 import type { LiveCaptureKey } from './gameCapture.js';
 import type { GoldTimelinePoint } from './postGameTimeline.js';
+import { defaultBansForMode, type HeroPool, type BanCount } from './heroPool.js';
 export type Side = 'blue' | 'red';
 
 export type Language = 'zh' | 'eng';
@@ -59,6 +60,8 @@ export interface TeamPreset extends Team {
 
 export interface GameDraftRecord {
   firstPickSide: Side;
+  heroPool?:HeroPool;
+  banCount?:BanCount;
   id: string;
   gameNumber: number;
   committedAt: number;
@@ -102,6 +105,8 @@ export interface MatchState {
   heroDataOverrides: Record<string, HeroDataOverride>;
 
   draftMode: 'match' | 'normal';
+  heroPool:HeroPool;
+  banCount:BanCount;
   displayLeftSide: Side;
   firstPickSide: Side;
   sideSwapMode: SideSwapMode;
@@ -136,6 +141,8 @@ export type MatchSettings = Pick<
   | 'seriesFormat'
   | 'stage'
   | 'draftMode'
+  | 'heroPool'
+  | 'banCount'
   | 'draftRuleMode'
   | 'flowbornFormsIndependent'
   | 'firstPickSide'
@@ -229,6 +236,8 @@ export const initialState = (): MatchState => ({
   heroDataOverrides: {},
 
   draftMode: 'match',
+  heroPool:'global',
+  banCount:4,
   displayLeftSide: 'blue',
   firstPickSide: 'blue',
   sideSwapMode: 'moveTeams',
@@ -250,12 +259,24 @@ export const initialState = (): MatchState => ({
   redAssignments: [null, null, null, null, null],
 });
 
-export function phases(mode: MatchState['draftMode'], firstPickSide: Side = 'blue') {
-  const sequence =
-    mode === 'match'
-      ? 'bb rb bb rb bp rp rp bp bp rp rb bb rb bb rp bp bp rp'
-      : 'bb bb rb rb bp rp rp bp bp rp rp bp bp rp';
-
+/** Phase scheduling is independent from which server owns the hero roster.
+ * Match order retains 2+2 (global) and 2+3 (2026 KPL) bans.
+ * Normal mode keeps the original all-bans-first order.
+ */
+export function phases(mode:MatchState['draftMode'],firstPickSide:Side='blue',banCount:BanCount=defaultBansForMode(mode)){
+  const first: string[]=[];
+  const second: string[]=[];
+  if(mode==='match'){
+    for(let i=0;i<Math.min(2,banCount);i++)first.push('bb','rb');
+    for(let i=0;i<Math.max(0,banCount-2);i++)second.push('rb','bb');
+  } else {
+    for(let i=0;i<banCount;i++)first.push('bb');
+    for(let i=0;i<banCount;i++)first.push('rb');
+  }
+  const sequence=[...first,
+    'bp','rp','rp','bp','bp','rp',
+    ...(mode==='match'?second:[]),
+    'rp','bp','bp','rp'].join(' ');
   return sequence.split(' ').map(s => ({
     team: ((s[0] === 'b') === (firstPickSide === 'blue') ? 'blue' : 'red') as Side,
     action: (s[1] === 'b' ? 'ban' : 'pick') as 'ban' | 'pick',

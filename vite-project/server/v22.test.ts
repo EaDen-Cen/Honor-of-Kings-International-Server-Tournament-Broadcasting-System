@@ -21,7 +21,7 @@ test('both formats mirror every phase for red first, complete, and record the st
   for (const draftMode of ['normal', 'match'] as const) {
     const blue = phases(draftMode, 'blue'), red = phases(draftMode, 'red');
     blue.forEach((phase, i) => { assert.notEqual(phase.team, red[i].team); assert.equal(phase.action, red[i].action); });
-    const s = new Store(); act(s, { type: 'settings', settings: { ...s.data.state, draftMode, firstPickSide: 'red' } });
+    const s = new Store(); act(s, { type: 'settings', settings: { ...s.data.state, draftMode,banCount:draftMode==='normal'?2:4, firstPickSide: 'red' } });
     assert.throws(() => act(s, { type: 'draft_action', team: 'blue', action: 'ban', heroId: 1 }));
     fill(s);
     assert.equal(s.data.state.bluePicks.length, 5); assert.equal(s.data.state.redPicks.length, 5);

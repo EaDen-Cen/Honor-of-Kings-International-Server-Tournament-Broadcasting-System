@@ -141,7 +141,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const pickLocks=useRef<Record<string,HeroLockStability>>({});
   const pickSlotStability=useRef<Record<string,HeroRecognitionStability>>({});
 
-  const phase=phases(state.draftMode,state.firstPickSide)[state.currentPhase];
+  const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
   const target=useMemo(()=>captureTargetForState(state,slots),[state,slots]);
   const turnTargets=useMemo(()=>captureTargetsForCurrentTurn(state,slots),[state,slots]);

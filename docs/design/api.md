@@ -48,3 +48,10 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 ## PR #67：经济时间线与赛后图形契约
 
 `post_game_gold_timeline` 为 Control WebSocket Action：`{type:"post_game_gold_timeline",reportId,points:[{timeSeconds,blueGold,redGold},...]}`。服务器验证 2–240 个样本、时间严格递增且为 0–7200 的整数秒、双方经济为 0–1,000,000 的非负整数。通过后写入本局 `PostGameReport.goldTimeline`，走修订号、Undo 与持久化。导播文本输入允许 `mm:ss,blueGold,redGold`，数字支持 `K/万`；最终局总经济不能替代历史采样。详情参见 [回放工作流](../guides/player-alignment-recovery-hud.md#回放结算测试与全屏赛后图形开发-pr-67)。
+
+
+## PR #68：服务器英雄池与 Ban 数字段
+
+`MatchState` / `MatchSettings` 新增 `heroPool: "global" | "cn"` 与 `banCount: 0 | 1 | 2 | 3 | 4 | 5`。服务器强制检查每次选/禁的 `heroId` 属于当前池，按 Ban 数判断轮次及结束条件；两个字段在首手 BP 及有效历史产生后锁定。每份新 `GameDraftRecord` 保存自己的 `heroPool` 和 `banCount`；旧文件缺失时归一化为全球池、Match=4/Normal=2，避免重编号旧英雄。局内状态与模拟器可共享同一 `heroPool` / `banCount`，仅改客户端 UI 不能绕过服务端合法性验证。
+
+`GET /api/heroes` 返回国际服全名单（兼容旧调用），`GET /api/heroes?pool=cn` 返回当前国服工作候选名单。国服目录在 `src/data/cnHeroCatalog.ts`，`npm run hero:cn-sync` 将从官方名单重新生成此文件，但尚未完成 2026-10 实时抓取验收。巅峰对决盲选不由普通 0 Ban 规则表示。

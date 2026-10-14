@@ -12,7 +12,7 @@ const pick = (store: Store, heroId: number) => apply(store, { type: 'draft_actio
 
 test('both draft modes complete with exactly five picks and the expected bans', () => {
   for (const mode of ['match', 'normal'] as const) {
-    const s = new Store(); apply(s, { type: 'settings', settings: { ...initialState(), draftMode: mode } });
+    const s = new Store(); apply(s, { type: 'settings', settings: { ...initialState(), draftMode: mode,banCount:mode==='normal'?2:4 } });
     phases(mode).forEach((_, i) => pick(s, heroes[i].id));
     assert.equal(s.data.state.bluePicks.length, 5); assert.equal(s.data.state.redPicks.length, 5);
     assert.equal(s.data.state.blueBans.length, mode === 'match' ? 4 : 2); assert.equal(s.data.state.draftComplete, true);

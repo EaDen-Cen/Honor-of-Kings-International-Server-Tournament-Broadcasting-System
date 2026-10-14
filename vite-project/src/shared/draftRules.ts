@@ -1,6 +1,7 @@
 import { normalizePlayerSlotOrder, playerAtSlot } from './playerSlots.js';
-import heroes from '../components/HeroList.js';
+import { allPoolHeroes } from './heroPool.js';
 import { initialState, type GameDraftRecord, type MatchState, type Side, type Team } from './types.js';
+import { defaultBansForMode as defaultBanCount } from './heroPool.js';
 
 export const playerIdentity = (name: string) => name.normalize('NFKC').trim().toLocaleLowerCase('en-US');
 export const seriesWins = (state: MatchState) => (Number(state.seriesFormat.slice(2)) + 1) / 2;
@@ -9,7 +10,7 @@ export const ruleLocked = (state: MatchState) => state.currentPhase > 0 || state
 export const currentGame = (state: MatchState) => state.draftGameNumber ?? state.gameNumber;
 export const displaySides = (state: MatchState): [Side, Side] => [state.displayLeftSide, state.displayLeftSide === 'blue' ? 'red' : 'blue'];
 
-const heroById = new Map(heroes.map(hero => [hero.id, hero]));
+const heroById = new Map(allPoolHeroes.map(hero => [hero.id, hero]));
 
 export function draftHeroGroupKey(state: Pick<MatchState, 'flowbornFormsIndependent'>, heroId: number) {
   const hero = heroById.get(heroId);
@@ -119,6 +120,10 @@ export function normalizeState(raw: MatchState): MatchState {
   state.flowbornFormsIndependent = raw.flowbornFormsIndependent ?? true;
   state.displayLeftSide = raw.displayLeftSide ?? 'blue';
   state.firstPickSide = raw.firstPickSide ?? 'blue';
+  state.heroPool = raw.heroPool === 'cn' ? 'cn' : 'global';
+  if(state.heroPool==='cn')state.recognitionAutoAccept=false;
+  state.banCount = Number.isInteger(raw.banCount)&&raw.banCount>=0&&raw.banCount<=5 ? raw.banCount : defaultBanCount(raw.draftMode);
+  state.draftHistory=state.draftHistory.map(record=>({...record,heroPool:record.heroPool??'global',banCount:record.banCount??defaultBanCount(raw.draftMode)}));
   state.sideSwapMode = raw.sideSwapMode ?? 'moveTeams';
   state.draftGameNumber = raw.draftGameNumber ?? (raw.currentPhase > 0 ? raw.gameNumber : null);
   return state;

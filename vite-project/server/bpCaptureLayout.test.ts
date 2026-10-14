@@ -11,10 +11,10 @@ import {
   slotMeta,
 } from '../src/control/bpCaptureLayout.js';
 
-test('capture layout exposes exactly 18 independently stored slots',()=>{
-  assert.equal(captureSlotKeys.length,18);
-  assert.equal(new Set(captureSlotKeys).size,18);
-  assert.equal(captureSlotKeys.filter(key=>key.includes('Ban')).length,8);
+test('capture layout exposes exactly 20 independently stored slots',()=>{
+  assert.equal(captureSlotKeys.length,20);
+  assert.equal(new Set(captureSlotKeys).size,20);
+  assert.equal(captureSlotKeys.filter(key=>key.includes('Ban')).length,10);
   assert.equal(captureSlotKeys.filter(key=>key.includes('Pick')).length,10);
 
   const changed=normalizeCaptureSlots(defaultCaptureSlots);
@@ -46,7 +46,7 @@ test('red first-pick mirrors the team ownership without changing slot numbers',(
   assert.equal(captureTargetForState({...state,currentPhase:17},defaultCaptureSlots)!.key,'bluePick5');
 });
 
-test('normal BP uses only B1/B2 while keeping all 18 calibration boxes available',()=>{
+test('normal BP uses only B1/B2 while keeping all 20 calibration boxes available',()=>{
   const state={draftMode:'normal' as const,firstPickSide:'blue' as const,currentPhase:0};
   const keys=Array.from({length:14},(_,phase)=>captureTargetForState({...state,currentPhase:phase},defaultCaptureSlots)!.key);
   assert.ok(keys.includes('blueBan1'));
@@ -54,7 +54,7 @@ test('normal BP uses only B1/B2 while keeping all 18 calibration boxes available
   assert.ok(keys.includes('redBan1'));
   assert.ok(keys.includes('redBan2'));
   assert.equal(keys.some(key=>key==='blueBan3'||key==='blueBan4'||key==='redBan3'||key==='redBan4'),false);
-  assert.equal(captureSlotKeys.length,18);
+  assert.equal(captureSlotKeys.length,20);
 });
 
 test('slot metadata is explicit and stable',()=>{

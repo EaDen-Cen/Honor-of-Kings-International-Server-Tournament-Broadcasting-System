@@ -113,7 +113,7 @@ test('player-order comparison requires the exact P1-P5 permutation',()=>{
 
 test('simulator can mirror Control draft history or final lineup without changing authoritative state',()=>{
   const state=initialState();
-  state.draftMode='normal';
+  state.draftMode='normal';state.banCount=2;
   state.firstPickSide='blue';
   state.blueBans=[11,22];
   state.redBans=[33,null];

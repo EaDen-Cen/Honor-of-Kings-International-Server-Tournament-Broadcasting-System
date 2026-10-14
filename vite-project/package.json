@@ -21,7 +21,8 @@
     "simulator:stage": "vite --open /tools/bp-simulator",
     "benchmark:recognition": "node --import tsx scripts/benchmark-recognition.ts",
     "recovery": "node --env-file-if-exists=.env --import tsx scripts/recovery.ts",
-    "benchmark:players": "node --import tsx scripts/benchmark-player-recognition.ts"
+    "benchmark:players": "node --import tsx scripts/benchmark-player-recognition.ts",
+    "hero:cn-sync": "tsx scripts/hero-sync/syncCn.ts"
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",

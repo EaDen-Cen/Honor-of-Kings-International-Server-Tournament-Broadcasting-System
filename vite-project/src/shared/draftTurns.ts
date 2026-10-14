@@ -1,4 +1,5 @@
 import { phases, type MatchState, type Side } from './types.js';
+import { defaultBansForMode,type BanCount } from './heroPool.js';
 
 export interface DraftTurn {
   startPhase:number;
@@ -22,8 +23,9 @@ export function draftTurnAtPhase(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ):DraftTurn|undefined {
-  const sequence=phases(mode,firstPickSide);
+  const sequence=phases(mode,firstPickSide,banCount);
   const first=sequence[phaseIndex];
   if(!first) return undefined;
 
@@ -49,9 +51,10 @@ export function nextDraftTurn(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  const current=draftTurnAtPhase(mode,firstPickSide,phaseIndex);
-  return current ? draftTurnAtPhase(mode,firstPickSide,current.endPhaseExclusive) : undefined;
+  const current=draftTurnAtPhase(mode,firstPickSide,phaseIndex,banCount);
+  return current ? draftTurnAtPhase(mode,firstPickSide,current.endPhaseExclusive,banCount) : undefined;
 }
 
 
@@ -59,13 +62,14 @@ export function nextOpponentPickTurn(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  const current=draftTurnAtPhase(mode,firstPickSide,phaseIndex);
+  const current=draftTurnAtPhase(mode,firstPickSide,phaseIndex,banCount);
   if(!current||current.action!=='pick') return undefined;
-  const sequence=phases(mode,firstPickSide);
+  const sequence=phases(mode,firstPickSide,banCount);
   for(let cursor=current.endPhaseExclusive;cursor<sequence.length;cursor++){
     const phase=sequence[cursor];
-    if(phase.action==='pick'&&phase.team!==current.team) return draftTurnAtPhase(mode,firstPickSide,cursor);
+    if(phase.action==='pick'&&phase.team!==current.team) return draftTurnAtPhase(mode,firstPickSide,cursor,banCount);
   }
   return undefined;
 }
@@ -74,22 +78,24 @@ export function immediateNextTurnIsBan(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  return nextDraftTurn(mode,firstPickSide,phaseIndex)?.action==='ban';
+  return nextDraftTurn(mode,firstPickSide,phaseIndex,banCount)?.action==='ban';
 }
 
 export function previousDraftTurnStart(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
   if(phaseIndex<=0) return 0;
-  const sequence=phases(mode,firstPickSide);
+  const sequence=phases(mode,firstPickSide,banCount);
   let cursor=0;
   let previous=0;
   while(cursor<Math.min(phaseIndex,sequence.length)) {
     previous=cursor;
-    const turn=draftTurnAtPhase(mode,firstPickSide,cursor);
+    const turn=draftTurnAtPhase(mode,firstPickSide,cursor,banCount);
     if(!turn||turn.endPhaseExclusive>=phaseIndex) break;
     cursor=turn.endPhaseExclusive;
   }
