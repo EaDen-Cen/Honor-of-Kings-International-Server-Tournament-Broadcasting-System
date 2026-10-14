@@ -10,7 +10,7 @@
 .pg-team-banner span:last-child{text-align:right}
 .pg-team-banner em{text-align:center;font-size:20px;color:#98a9bc;font-style:normal}
 .pg-role-tabs{display:flex;gap:20px;padding:12px 0}
-.pg-role-tabs span{padding:13px 30px;border-bottom:3px solid #586479;color:#8497ae;font-size:21px;font-weight:bold}
+.pg-role-tabs a{display:inline-block;text-decoration:none;padding:13px 30px;border-bottom:3px solid #586479;color:#8497ae;font-size:21px;font-weight:bold}
 .pg-role-tabs .active{border-color:#f3c97b;color:#f3e4c6;background:#ffffff0b}
 .pg-compare-body{margin-top:12px}
 .pg-duel-top{display:grid;grid-template-columns:1fr 100px 1fr;gap:10px;align-items:center;background:#080e17aa;padding:20px 24px}

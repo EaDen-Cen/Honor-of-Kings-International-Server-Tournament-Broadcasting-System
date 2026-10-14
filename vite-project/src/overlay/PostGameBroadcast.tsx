@@ -45,7 +45,7 @@ function Comparison({state,report,zh}:{state:MatchState;report:PostGameReport;zh
   const blue=pair('blue',selected),red=pair('red',selected);
   const stats:PostGameMetric[]=['rating','kills','deaths','assists','gold','totalDamage','damageShare','damageTaken','participation','towerDamage'];
   return <>
-    <div className="pg-role-tabs">{roles.map(role=><span key={role} className={role===selected?'active':''}>{roleNames[role][zh?0:1]}</span>)}</div>
+    <nav className="pg-role-tabs" aria-label={zh?'对位位置':'Matchup role'}>{roles.map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}${window.location.hash}`} className={role===selected?'active':''} aria-current={role===selected?'page':undefined}>{roleNames[role][zh?0:1]}</a>)}</nav>
     <div className="pg-compare-body">
       <div className="pg-duel-top"><Competitor player={blue} state={state} zh={zh}/><span className="pg-versus">VS</span><Competitor player={red} state={state} zh={zh}/></div>
       <div className="pg-compare-layout">
@@ -80,7 +80,7 @@ function Progress({report,zh}:{report:PostGameReport;zh:boolean}){
 }
 export function PostGameBroadcast({state,mode}:{state:MatchState;mode:'compare'|'progress'}){
   const report=state.postGameReports.find(r=>r.id===state.activePostGameReportId),zh=state.language==='zh';
-  if(!report)return null;
+  if(!report)return <section className="pg-broadcast"><div className="pg-broadcast-glow"/><header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{zh?'暂无本局赛后报告':'NO POST-GAME REPORT'}</h1><p>{zh?'请在 Control 中确认本局有效并创建十人赛后报告，再打开此 OBS 场景。':'Confirm and prepare the ten-player report in Control before opening this scene.'}</p></header></section>;
   const blue=report.players.find(p=>p.side==='blue'),red=report.players.find(p=>p.side==='red');
   return <section className="pg-broadcast">
     <div className="pg-broadcast-glow"/>
