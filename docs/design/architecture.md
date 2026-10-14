@@ -82,3 +82,6 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 `server/uiRoutes.ts` 是 Node/Vite 单页壳路由的完整枚举，`BroadcastApp.tsx` 按 `location.pathname` 选择具体 Overlay。通过这一双向清单避免组件写好了但生产服务器 404。MVP 画布对美术插画采用包含式构图，保持焦点完整。
 `LiveHudCalibration.tsx` 是 Control 内的七字段按图框选 UI；由 `useGameDataCapture.tsx` 提供严格选择的 16:9 图像（不会误把下方回放工具栏当作顶部偏移），按 ROI map 请求 `server/gameDataRecognition.ts`。服务端拒绝无效 ROI 并返回 profile；`shared/liveGame.ts` 验证同一 profile、时钟增长及稳定合理的两次数值后才能写入 Store。正式比赛数据仍应以裁判/游戏界面为准。
 `GameHud.tsx` 采用全画布不透明 matte 盖住顶部、底部、左右原生 UI 并绘制已有可靠的团队与十人信息；地图本身在默认纯色遮罩之下，OBS 需要一个附加地图裁切源才能恢复真实地图。
+
+### PR #70：在单浏览器会话复用截图，解耦十人固定 ROI
+`sharedGameStill.ts` 发布已 decode 的截图对象，让 `useGameDataCapture` 各实例（整页采集、单字段、GHUD）读到同一静态图；`sharedWindowCapture` 继续维护共享视频源。单字段工具在 `PostGamePanel` 冻结一张 1920×1080 画面供 `PostGameRegionPicker` 显示并框选；前端直接按像素裁出非空白 OCR 图，服务端 `postGameCaptureRows.ts` 验证候选绑定完整 report rowId，拒绝 P1 下标错配，`server.ts` 跳过无视觉信息的纯色图并保留现场证据。旧十图 POST 仍然兼容。所有数据仍经既有 PostGameField merge/Manual 保护。

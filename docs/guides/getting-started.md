@@ -186,3 +186,7 @@ Auto BP 已支持浏览器窗口采集、18 槽位校准/预设、Pick/Ban 识�
 
 ## PR #69 赛后 URL 和 GHUD 的验证入口
 生产 `server.ts` 现在明确登记 `/overlay/postgame-compare` 与 `/overlay/game-progress`，不必额外的 Vite 多页面入口。更新代码之后重新执行 `npm run build` 并重启 3001 Node 服务器，避免继续从旧服务器得到「找不到页面或文件」。GHUD 首次使用须预览当前帧，校准并确认七项 OCR 区域；OBS 的游戏源与 HUD 浏览器源保持 1920×1080 同步，地图源须额外裁切。参见 [可复现的彩排步骤](postgame-ghud-overlay-fixes.md)。
+
+
+### 赛后选手评分与自定义数字字段（PR #70）
+旧单字段工具只读取隐藏的共享窗口视频，未共享整页上传截图，导致截图工作流无法用；已改为直接使用共享截图或共享实时窗口，在 Control 的「单字段 OCR」中预览并拖框，随后选择单人或批量识别。服务器允许 1–10 张显式 rowId 的裁图，并拒绝完全空白图。详细操作见 [赛后与 GHUD 彩排](postgame-ghud-overlay-fixes.md)。
