@@ -144,6 +144,11 @@
 
 ## 国服候选英雄工作目录（PR #68；与国际服英雄表独立）
 
-国服初始目录定义于 `vite-project/src/data/cnHeroCatalog.ts`，基本名称和部分 ID 取自国服官网历史 `https://pvp.qq.com/web201605/js/herolist.json` 的社区镜像（非当前官方时点）；国际服现有同名英雄沿用其内部 ID，国服独有英雄独立 ID 并在未知图像时显示占位图，此外增加了少量近年新英雄候选。**这份初始目录不是国服 2026 年 10 月的权威完整名单**，既不能用来断定某英雄一定已上线，也不能作为截图 OCR 准确率依据。
+国服初始目录定义于 `vite-project/src/data/cnHeroCatalog.ts`，基本名称和部分 ID 取自国服官网历史 `https://pvp.qq.com/web201605/js/herolist.json` 的社区镜像（非当前官方时点）；国际服现有同名英雄沿用其内部 ID，国服独有英雄独立 ID 并在未知图像时显示占位图，此外增加了少量2026-08-19 国服官方接口记录。**这份初始目录不是国服 2026 年 10 月的权威完整名单**，既不能用来断定某英雄一定已上线，也不能作为截图 OCR 准确率依据。
 
 后续运行 `npm run hero:cn-sync` 从 `pvp.qq.com` 请求官方名单，成功校验才更新跟踪文件，需人工审查新增/改名/皮肤与技能存在实质差异的角色；图像识别模板须另行按国服截图适配。国际服现有同步器和编号不受此功能影响。
+
+
+### 2026-08-19 国服目录更新依据
+
+本分支已采用 [olivia-happy/moba-build-agent 的 CN 英雄原始快照](https://github.com/olivia-happy/moba-build-agent/blob/main/data/hero_catalog_raw.json)，其中明确记载 `retrieved_at: 2026-08-19T07:52:08.060908+00:00`、来源 `https://pvp.qq.com/web201605/js/herolist.json` 与内容校验哈希。快照有 **132 条国服英雄记录**（含一些元流之子形态），经过 ID/名称唯一性检查再写入 `src/data/cnHeroCatalog.ts`。本程序现在以此作为国服池初始快照：这改善了原先只有 95 条的过时镜像数据，但**2026 年 8 月 19 日以后的上架变化未核实**，未来需执行 `hero:cn-sync` 并审核 diff。上述记录属于 GitHub 第三方留存的官方来源快照，并非此时实时访问腾讯官网得到的结果。

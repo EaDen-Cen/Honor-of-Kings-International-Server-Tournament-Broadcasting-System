@@ -261,4 +261,4 @@ OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgam
 
 比赛设置新增互不依赖的英雄池 `global / cn` 与每队 `0–5` Ban。Match 模式按先 2 Ban、三选、再禁剩余 Ban、两选的结构运行（5 Ban 为 KPL 风格 2+3，国际赛事 4 Ban 为 2+2）；Normal 将 Ban 全部放在选人前。修改后服务器校验、比赛历史、Control、OBS、Simulator 与捕获槽位都使用相同的设置。旧 Match 默认 4 Ban，旧 Normal 默认 2 Ban。特殊巅峰对决/Ultimate Battle 的盲选不是普通 0 Ban，目前尚不支持。
 
-**国服英雄名单仍是工作快照**：目前由可审查的历史国服源资料、国际服共用英雄及部分新英雄组成；不能保证覆盖国服 2026 年 10 月全部英雄。可运行 `npm run hero:cn-sync` 尝试更新国服官方名单；国服独有英雄自动 OCR 与 Ban #5 的真实游戏 ROI 尚未验收，优先人工输入。完整规则、来源、兼容性与测试矩阵见 [双服英雄池/自定义 Ban 指南](docs/guides/hero-pool-and-ban-rules.md)。
+**国服英雄名单仍是工作快照**：目前由有来源和日期的 2026-08-19 国服官方接口存档（132 条）组成；不能保证覆盖国服 2026 年 10 月全部英雄。可运行 `npm run hero:cn-sync` 尝试更新国服官方名单；国服独有英雄自动 OCR 与 Ban #5 的真实游戏 ROI 尚未验收，优先人工输入。完整规则、来源、兼容性与测试矩阵见 [双服英雄池/自定义 Ban 指南](docs/guides/hero-pool-and-ban-rules.md)。

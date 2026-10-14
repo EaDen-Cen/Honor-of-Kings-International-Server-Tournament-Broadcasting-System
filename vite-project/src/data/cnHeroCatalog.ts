@@ -1,8 +1,9 @@
-/** CN roster working snapshot: archived official IDs plus modern names requiring review. */
+/** Verified-upstream 2026-08-19 CN snapshot, not guaranteed live-current. */
 export const cnHeroCatalog={
   "source": "https://pvp.qq.com/web201605/js/herolist.json",
-  "snapshot": "historical community mirror; requires update with official feed",
-  "sourceMirror": "https://github.com/yansheng836/hero-skin-images/blob/master/wzry/json数据/herolist.json",
+  "snapshot": "2026-08-19T07:52:08.060908+00:00",
+  "sourceMirror": "https://github.com/olivia-happy/moba-build-agent/blob/main/data/hero_catalog_raw.json",
+  "contentHash": "1185755f637a0bf56afada53ae1ba6f98a51556960e5820c87e5a91c7d578e7c",
   "entries": [
     {
       "officialId": 105,
@@ -52,7 +53,7 @@ export const cnHeroCatalog={
     {
       "officialId": 114,
       "name": "刘禅",
-      "type": 3
+      "type": 6
     },
     {
       "officialId": 115,
@@ -78,6 +79,16 @@ export const cnHeroCatalog={
       "officialId": 119,
       "name": "扁鹊",
       "type": 2
+    },
+    {
+      "officialId": 167,
+      "name": "孙悟空",
+      "type": 4
+    },
+    {
+      "officialId": 549,
+      "name": "心魔六耳",
+      "type": 4
     },
     {
       "officialId": 120,
@@ -182,7 +193,7 @@ export const cnHeroCatalog={
     {
       "officialId": 146,
       "name": "露娜",
-      "type": 1
+      "type": 4
     },
     {
       "officialId": 148,
@@ -222,7 +233,7 @@ export const cnHeroCatalog={
     {
       "officialId": 157,
       "name": "不知火舞",
-      "type": 2
+      "type": 4
     },
     {
       "officialId": 162,
@@ -240,14 +251,9 @@ export const cnHeroCatalog={
       "type": 1
     },
     {
-      "officialId": 167,
-      "name": "孙悟空",
-      "type": 1
-    },
-    {
       "officialId": 168,
       "name": "牛魔",
-      "type": 3
+      "type": 6
     },
     {
       "officialId": 169,
@@ -277,12 +283,7 @@ export const cnHeroCatalog={
     {
       "officialId": 175,
       "name": "钟馗",
-      "type": 2
-    },
-    {
-      "officialId": 177,
-      "name": "成吉思汗",
-      "type": 5
+      "type": 6
     },
     {
       "officialId": 178,
@@ -327,7 +328,7 @@ export const cnHeroCatalog={
     {
       "officialId": 187,
       "name": "东皇太一",
-      "type": 3
+      "type": 6
     },
     {
       "officialId": 182,
@@ -357,7 +358,7 @@ export const cnHeroCatalog={
     {
       "officialId": 194,
       "name": "苏烈",
-      "type": 3
+      "type": 6
     },
     {
       "officialId": 198,
@@ -478,21 +479,192 @@ export const cnHeroCatalog={
       "officialId": 518,
       "name": "马超",
       "type": 1
+    },
+    {
+      "officialId": 523,
+      "name": "西施",
+      "type": 2
+    },
+    {
+      "officialId": 525,
+      "name": "鲁班大师",
+      "type": 6
+    },
+    {
+      "officialId": 524,
+      "name": "蒙犽",
+      "type": 5
+    },
+    {
+      "officialId": 531,
+      "name": "镜",
+      "type": 4
+    },
+    {
+      "officialId": 527,
+      "name": "蒙恬",
+      "type": 3
+    },
+    {
+      "officialId": 533,
+      "name": "阿古朵",
+      "type": 5
+    },
+    {
+      "officialId": 536,
+      "name": "夏洛特",
+      "type": 1
+    },
+    {
+      "officialId": 528,
+      "name": "澜",
+      "type": 4
+    },
+    {
+      "officialId": 537,
+      "name": "司空震",
+      "type": 1
+    },
+    {
+      "officialId": 155,
+      "name": "艾琳",
+      "type": 5
+    },
+    {
+      "officialId": 538,
+      "name": "云缨",
+      "type": 1
+    },
+    {
+      "officialId": 540,
+      "name": "金蝉",
+      "type": 2
+    },
+    {
+      "officialId": 542,
+      "name": "暃",
+      "type": 4
+    },
+    {
+      "officialId": 534,
+      "name": "桑启",
+      "type": 6
+    },
+    {
+      "officialId": 548,
+      "name": "戈娅",
+      "type": 5
+    },
+    {
+      "officialId": 521,
+      "name": "海月",
+      "type": 2
+    },
+    {
+      "officialId": 544,
+      "name": "赵怀真",
+      "type": 1
+    },
+    {
+      "officialId": 545,
+      "name": "莱西奥",
+      "type": 5
+    },
+    {
+      "officialId": 564,
+      "name": "姬小满",
+      "type": 1
+    },
+    {
+      "officialId": 514,
+      "name": "亚连",
+      "type": 1
+    },
+    {
+      "officialId": 159,
+      "name": "朵莉亚",
+      "type": 6
+    },
+    {
+      "officialId": 563,
+      "name": "海诺",
+      "type": 1
+    },
+    {
+      "officialId": 519,
+      "name": "敖隐",
+      "type": 5
+    },
+    {
+      "officialId": 517,
+      "name": "大司命",
+      "type": 1
+    },
+    {
+      "officialId": 582,
+      "name": "元流之子(法师)",
+      "type": 2
+    },
+    {
+      "officialId": 581,
+      "name": "元流之子(坦克)",
+      "type": 3
+    },
+    {
+      "officialId": 577,
+      "name": "少司缘",
+      "type": 6
+    },
+    {
+      "officialId": 558,
+      "name": "影",
+      "type": 1
+    },
+    {
+      "officialId": 177,
+      "name": "苍",
+      "type": 5
+    },
+    {
+      "officialId": 550,
+      "name": "空空儿",
+      "type": 6
+    },
+    {
+      "officialId": 584,
+      "name": "元流之子(射手)",
+      "type": 5
+    },
+    {
+      "officialId": 151,
+      "name": "孙权",
+      "type": 5
+    },
+    {
+      "officialId": 172,
+      "name": "蚩奼",
+      "type": 1
+    },
+    {
+      "officialId": 585,
+      "name": "元流之子(辅助)",
+      "type": 6
+    },
+    {
+      "officialId": 188,
+      "name": "大禹",
+      "type": 6
+    },
+    {
+      "officialId": 583,
+      "name": "元流之子(刺客)",
+      "type": 6
+    },
+    {
+      "officialId": 547,
+      "name": "卢雅那",
+      "type": 5
     }
   ],
-  "contemporaryNames": [
-    "空空儿",
-    "大禹",
-    "戈娅",
-    "苍",
-    "孙权",
-    "卢雅那",
-    "蚩奼",
-    "影",
-    "元流之子（战士）",
-    "元流之子（法师）",
-    "元流之子（坦克）",
-    "元流之子（射手）",
-    "元流之子（辅助）"
-  ]
+  "contemporaryNames": []
 } as const;

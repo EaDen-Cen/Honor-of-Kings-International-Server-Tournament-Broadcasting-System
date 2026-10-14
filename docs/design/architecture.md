@@ -75,4 +75,4 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 
 `src/shared/heroPool.ts` 维护国际服已存在 ID 和独立国服工作目录，CN-only ID 用稳定的英雄名字哈希命名空间生成，**不因源文件排序、官方 ID 变化而覆盖历史国际服 ID**。`src/shared/types.ts` 的 `phases(draftMode,firstPickSide,banCount)` 定义可复现的 0–5 Ban 顺序；`src/shared/draftTurns.ts` 负责同步多选回合聚合。`server/store.ts` 对每个 Action 以当前英雄池和 Ban 数执行合法性验证，提交有效局时写入这些字段并锁定配置。Control、OBS Draft Overlay、20 槽可校准截图、Simulator、Hero Picker 都读取同一设置，不应再分散写死固定 Ban 数。
 
-旧存档无新字段按 Match=4/Normal=2 归一化。国服历史官方列表镜像和近代候选仍是可人工更新的部分目录；自动识别器尚未获得 CN-only 全套图像模板，不应因数据目录已经能显示而宣称具备真实国服自动 BP 能力。
+旧存档无新字段按 Match=4/Normal=2 归一化。国服2026-08-19 国服官方接口存档和近代候选仍是可人工更新的截至 2026-08-19 的 132 条存档目录；自动识别器尚未获得 CN-only 全套图像模板，不应因数据目录已经能显示而宣称具备真实国服自动 BP 能力。
