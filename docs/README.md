@@ -48,3 +48,6 @@
 ## 新增 · PR #69 赛后页面和 GHUD 采集修复
 - [赛后路由 / MVP 立绘 / 不透明赛事 HUD / GHUD OCR 七项校准指南](guides/postgame-ghud-overlay-fixes.md)。
 - 与 [原 GHUD/MVP 工作流](guides/player-alignment-recovery-hud.md) 配合使用，旧版本没有逐字段七项校准、自动发布前强制预览。软件自动化结果与 OBS 现场验收分开。
+
+
+**赛后 OCR 可视化框选修复（PR #70）**：选手评分不再只能输入百分比坐标；详情见 [赛后与 GHUD 彩排指南](guides/postgame-ghud-overlay-fixes.md#2026-10-13--pr-70--赛后数字-ocr-恢复截图直接框选) 和 [导播操作指南](guides/operator-guide.md)。

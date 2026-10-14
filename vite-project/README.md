@@ -54,3 +54,6 @@ npm run hero:crop-sync
 
 ## PR #69 赛后路由与 GHUD 画面/OCR 修复
 本地运行 3001 生产服务必须先执行 `npm run build` 并重启后端；`/overlay/postgame-compare?role=mid`、`/overlay/game-progress` 由同一 `dist/index.html` 入口载入而非多个 `.html`。OBS 游戏源和完整不透明 GHUD 层按 1920×1080 叠放，地图区域默认是缺源占位，需要 OBS 上层另行叠加真实地图裁切。Control →「GHUD 顶栏识别」必须预览实际图像、画出七项数字框、保存确认，并人工核对两次 OCR 后再开启自动推送。详见 [彩排文档](../docs/guides/postgame-ghud-overlay-fixes.md)。
+
+### PR #70 赛后 OCR 框选恢复
+先用结算页截图或共享窗口在 Control 中「单字段 OCR」点击预览，选择玩家并鼠标直接框选数字（可从一人按 130px 复制同队五行并检查），再识别一人/已框选所有人。框选结果不是自动应用，黑图/空白不会入库。与整页采集工具在当前会话复用截图。详见 [导播指南](../docs/guides/operator-guide.md)。

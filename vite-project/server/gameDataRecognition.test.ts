@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
-import { classifySettlementPage, decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
+import { classifySettlementPage, decodeGameFrame, frameHasVisualContent, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
 import { parsePostGameNumber, type PostGameMetric, type PostGameReport } from '../src/shared/postGame.js';
 import { settlementPages } from '../src/shared/gameCapture.js';
 
@@ -15,6 +15,8 @@ test('actual active settlement tabs classify seven pages and reject blank screen
   for(let i=0;i<7;i++)assert.equal((await classifySettlementPage(Buffer.from(fixture.tabs[i],'base64'))).page,settlementPages[i]);
   const blank=await sharp({create:{width:1920,height:1080,channels:3,background:'#000'}}).png().toBuffer();
   assert.equal((await classifySettlementPage(blank)).page,null);
+  assert.equal(await frameHasVisualContent(blank),false,'black capture must not be accepted');
+  assert.equal(await frameHasVisualContent(Buffer.from(fixture.tabs[0],'base64')),true,'real screenshot must not be rejected');
   await assert.rejects(decodeGameFrame('data:image/png;base64,'+blank.toString('base64'),{x:0,y:0,width:1,height:.5}),/16:9/);
   await assert.rejects(decodeGameFrame('data:image/png;base64,'+blank.toString('base64'),{x:0,y:0,width:2,height:1}),/Invalid/);
   const bordered=await sharp(Buffer.from(fixture.tabs[0],'base64')).extend({top:40,bottom:0,left:0,right:0,background:'#202020'}).png().toBuffer();

@@ -4,6 +4,11 @@ import { parsePostGameNumber, type PostGamePage, type PostGameReport, type PostG
 import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import type { PlayerRecognitionProvider } from './playerRecognition.js';
 
+/** Stop nearly blank frames before producing false OCR evidence. */
+export async function frameHasVisualContent(frame:Buffer):Promise<boolean>{
+  const result=await sharp(frame).resize(96,54,{fit:'fill'}).greyscale().stats();
+  return (result.channels[0]?.stdev??0)>=5;
+}
 export async function decodeGameFrame(image:unknown,region:unknown=fullGameRect){
   if(typeof image!=='string'||image.length>4*1024*1024||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)||!validCaptureRect(region))throw new Error('Invalid game frame or content region');
   const source=Buffer.from(image.split(',')[1],'base64'),meta=await sharp(source,{limitInputPixels:9000000}).metadata();

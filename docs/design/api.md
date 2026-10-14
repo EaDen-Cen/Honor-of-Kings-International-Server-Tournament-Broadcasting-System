@@ -61,3 +61,6 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 后端 HTML Shell 由 `server/uiRoutes.ts` 统一维护。路由新增 `/overlay/postgame-compare`（`role` 为查询参数，选对位：clash/jungle/mid/farm/roam）和 `/overlay/game-progress`，二者均映射 `dist/index.html`，不增加多页面 Vite 入口；未知 HTML 路径不得使用任意 overlay shell 兜底。
 
 `POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`，`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回 `profile` 为规范化 ROI 字符串，随后 `live_game_ocr` 若 `previous.profile !== sample.profile` 必须拒绝跨配置两帧合并；时钟必须实际增长。运营端保存 `localStorage['hok-ghud-calibration-v1']`，不是云端共享预设，不应暗示自动同步到另一台设备。
+
+### PR #70：数字字段 OCR 部分选手模式
+`POST /api/v1/recognition/postgame` 支持 `{reportId,metric,images:[PNG data URL ...],rowIds:[report rowId ...]}`，其中 image/rowId 一一对应，允许 1–10 项，`rowIds` 必须属于对应已建立的 `PostGameReport.players` 且不能重复。旧客户端若省略 rowIds，只接受与报告人数一致的完整十行数组，不允许一张图暗中写入 P1。请求中完全空白/纯色图将跳过，若全部空白返回 422；有有效图才调用数值 OCR，并按原始 rowId 返回 `{candidates:[{rowId,value,confidence,text,evidence}],elapsedMs}`。每个 candidate 必须由 Control 人工点击应用，保护手工值与已有可信冲突。截图通过前端会话分享；服务器存储的 evidence 仅为实际参与 OCR 的裁图。
