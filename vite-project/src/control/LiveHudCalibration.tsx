@@ -32,7 +32,7 @@ export function LiveHudCalibration({
     <div className="toolbar">
       <button type="button" disabled={!ready} onClick={onPreview}>{zh?'预览当前帧':'Preview captured frame'}</button>
       <label>{zh?'选择字段':'Field'}<select value={selected} onChange={e=>onSelectedChange(e.target.value as LiveCaptureKey)}>{liveCaptureKeys.map(key=><option key={key} value={key}>{liveCaptureLabel(key,zh)}</option>)}</select></label>
-      <button type="button" onClick={onConfirm} disabled={!validLiveCaptureRects(regions)}>{zh?'保存选框并确认可采样':'Save & confirm calibration'}</button>
+      <button type="button" onClick={onConfirm} disabled={!preview||!validLiveCaptureRects(regions)}>{zh?'保存选框并确认可采样':'Save & confirm calibration'}</button>
       <strong style={{color:calibrated?'#89ecc8':'#ffcb83'}}>{calibrated?(zh?'已确认，可以采样':'Confirmed'):(zh?'未确认 · 禁止自动发布':'Not approved · no auto output')}</strong>
     </div>
     {preview&&<div className="ghud-roi-preview" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setDrag(point(e));setEnd(point(e));}}
