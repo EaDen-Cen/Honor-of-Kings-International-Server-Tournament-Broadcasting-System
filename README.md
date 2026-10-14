@@ -99,6 +99,8 @@ vite-project/start-broadcast.bat
 - Draft Overlay：<http://127.0.0.1:3001/overlay/draft>
 - Experimental Game HUD：<http://127.0.0.1:3001/overlay/game-hud>
 - MVP Overlay：<http://127.0.0.1:3001/overlay/mvp>
+- 五位置对位图：<http://127.0.0.1:3001/overlay/postgame-compare?role=mid>
+- 经济时间线：<http://127.0.0.1:3001/overlay/game-progress>
 
 本机访问由服务器验证后免登录；远程密码和各角色 token 在 Control 的“访问与网站设置”中管理。
 
@@ -173,7 +175,7 @@ Hero ID 目前按国际服 **Launch Time 从旧到新**连续编号，因此 ID 
 
 Player ID OCR 会利用赛前已经知道的五人名单做全局匹配，而不是把整个 ID 交给通用 AI 从零猜测；双方可信时可以一次原子更新 10 个槽位。单帧存在边缘弱项时，连续相同排列可以进行两帧一致性复核，仍然保持原安全阈值。
 
-备份与恢复已经覆盖比赛状态、事件历史、队伍资料、上传媒体和访问配置。局内 Game HUD 支持人工统计，2026-10-13 开发增量加入时间/人头/经济/推塔的顶栏 OCR、两次采样核验与逐项冻结；仍为 **Experimental**，OBS 长时间稳定性和连续真实游戏画面适配待实机验收。赛后新增六种十人结算页及对局汇总的整页模板采集、页签分类、身份审核和证据保存；可直接用截图彩排，装备与经济曲线不在识别范围内。
+备份与恢复已经覆盖比赛状态、事件历史、队伍资料、上传媒体和访问配置。局内 Game HUD 支持人工统计，2026-10-13 开发增量加入时间/人头/经济/推塔的顶栏 OCR、两次采样核验与逐项冻结；仍为 **Experimental**，OBS 长时间稳定性和连续真实游戏画面适配待实机验收。赛后新增六种十人结算页及对局汇总的整页模板采集、页签分类、身份审核和证据保存；可直接用截图彩排，装备与截图内的经济曲线不在**自动识别**范围内；可在赛后补录评分，导入真实经济时间点绘制图形。
 
 赛后 MVP 模块的重点不是由程序决定“谁最值得 MVP”，而是把分散在多个结算页的数据尽快整理成结构化报告。MVP 人选由比赛方/投票决定，系统负责展示。
 
@@ -246,10 +248,10 @@ vite-project/       应用与 npm 命令执行目录
 本项目基于 qiqi47 的原项目继续开发，保留原英雄数据及 [MIT 许可](LICENSE.txt)。[原中英文 README](docs/archive/legacy/upstream-readme.md) 已完整归档，旧站点与旧安装说明仅作历史参考。
 
 
-### Replay-based post-game graphics (development PR #67)
+## 回放赛后图形（开发 PR #67）
 
-Without ten available players, the post-game capture can be rehearsed from actual replay PNG/JPEG screenshots. The six player settlement pages now reuse a single per-game screen-row-to-player map, rather than asking the operator to remap each page. A later page with conflicting OCR identity shows a warning and does not silently replace a confirmed mapping. Mapping lives in the current browser profile; a different browser still requires verification.
+不必凑齐十位玩家才能测试结算流程：使用游戏回放中的 PNG/JPEG 截图，第一次核对十人身份行序后，六种玩家统计页共用这一映射；如后续 OCR 与已保存顺序冲突则显示提醒，不会自动覆盖。此映射存在当前浏览器 localStorage，换电脑/浏览器需重核。
 
-Three full-HD OBS scenes: `/overlay/mvp`, `/overlay/postgame-compare?role=mid` (also clash/jungle/farm/roam), and `/overlay/game-progress`. Head-to-head numbers and radar axes use verified or manually corrected fields only; missing metrics show “—”, and each radar axis is relative to its two players rather than an official rating. The MVP is chosen by the tournament organizer.
+OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgame-compare?role=mid`（clash/jungle/mid/farm/roam 五位置对位雷达）及 `/overlay/game-progress` 经济 x 时间。评分可核实后人工补录或自行校准原有单字段 OCR；不会凭字母评级猜数字。经济线只连接输入的 **2–240 个真实时间/双方经济观测点**，不从最终经济反推。上述均为开发分支能力，**未通过真实十人+OBS 长时验收，也不包含在此前发布的 RC.1 中**。详细使用方式见 [操作指南](docs/guides/operator-guide.md#回放优先的赛后彩排pr-67)。
 
-The end-of-game rating has no confirmed fixed pixel region in the provided replay template: use the new ten-player Rating fields or calibrate the existing Rating OCR input; values cannot be assumed from a letter grade. To draw economic progress, import genuine time/gold samples (`mm:ss,blueGold,redGold`) from the replay. The chart joins those observed samples and **does not reconstruct match history from final gold totals**. Full-match capture, screenshot-based graph digitization, and real OBS/ten-player reliability remain unverified.
+所有代码改动须在同一个 PR 中同步核对、更新相关文档，规则见 [文档索引与维护约定](docs/README.md#命名和维护规则)。
