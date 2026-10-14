@@ -144,7 +144,7 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
           {(['BO1', 'BO3', 'BO5'] as const).map(format => <option key={format} value={format}>{seriesName(format, state.language)}</option>)}
         </select></label>
         <label>{t('currentGame')}<div className="readonly-field">{t('gameNumber', { number: state.gameNumber })} · {t('automatic')}</div></label>
-        <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'] })}>
+        <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'],banCount:e.target.value==='normal'?2:4 })}>
           <option value="match">{t('matchMode')}</option><option value="normal">{t('normalMode')}</option>
         </select></label>
         <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={ruleLocked(state)} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool']})}>

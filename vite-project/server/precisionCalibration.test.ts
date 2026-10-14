@@ -16,8 +16,8 @@ test('pixel nudges map back to normalized source coordinates',()=>{
   assert.ok(Math.abs(resized.height-(base.height+1/1080))<1e-10);
 });
 
-test('precision calibration next/previous navigation cycles through all 18 slots',()=>{
-  assert.equal(captureSlotKeys.length,18);
+test('precision calibration next/previous navigation cycles through all 20 slots',()=>{
+  assert.equal(captureSlotKeys.length,20);
   const first=captureSlotKeys[0];
   const second=captureSlotKeys[1];
   const last=captureSlotKeys[captureSlotKeys.length-1];

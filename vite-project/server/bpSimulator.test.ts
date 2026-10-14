@@ -5,7 +5,7 @@ import { completedSimulatorSlots, migrateLegacySimulatorSlotHeroes, simulatorBan
 
 test('simulator match mode follows the production 18-phase HOK draft order', () => {
   const sequence=phases('match','blue');
-  assert.equal(sequence.length,18);
+  assert.equal(sequence.length,20);
   const keys=sequence.map((_,index)=>simulatorSlotKey(simulatorSlotForPhase('match','blue',index)!));
   assert.deepEqual(keys,[
     'blueBan1','redBan1','blueBan2','redBan2',
@@ -113,7 +113,7 @@ test('player-order comparison requires the exact P1-P5 permutation',()=>{
 
 test('simulator can mirror Control draft history or final lineup without changing authoritative state',()=>{
   const state=initialState();
-  state.draftMode='normal';
+  state.draftMode='normal';state.banCount=2;
   state.firstPickSide='blue';
   state.blueBans=[11,22];
   state.redBans=[33,null];
