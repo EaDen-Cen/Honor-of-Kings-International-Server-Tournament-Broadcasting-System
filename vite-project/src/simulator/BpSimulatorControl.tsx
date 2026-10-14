@@ -217,7 +217,11 @@ export function BpSimulatorControl() {
   };
 
   const setDraftMode=(mode:typeof state.mode)=>update(current=>({...current,mode,banCount:mode==='match'?4:2,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
-  const setHeroPool=(heroPool:HeroPool)=>update(current=>({...current,heroPool,slotHeroes:{},phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setHeroPool=(heroPool:HeroPool)=>update(current=>{
+    const available=heroesForPool(heroPool);
+    const slotHeroes=Object.fromEntries(simulatorAllSlotKeys.map((key,index)=>[key,available[index%available.length]?.id??0])) as Record<string,number>;
+    return {...current,heroPool,slotHeroes,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false};
+  });
   const setBanCount=(banCount:BanCount)=>update(current=>({...current,banCount,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
   const setFirstPickSide=(firstPickSide:Side)=>update(current=>({...current,firstPickSide,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
 
