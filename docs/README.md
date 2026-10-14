@@ -43,3 +43,8 @@
 ## 国服 / 国际服英雄池与可配置 Ban 数量（开发 PR #68）
 
 入口：[国服英雄池与 0–5 Ban 规则说明](guides/hero-pool-and-ban-rules.md)。此功能在开发分支中提供独立 `heroPool`、`banCount`，历史状态默认行为不改变。国服英雄名单为**待与官方实时目录核对的工作快照**，国服专属英雄头像识别与真实 5 Ban 游戏 UI 尚未经过实机/OBS 验收，不属于已发布 RC 的承诺。
+
+
+## 新增 · PR #69 赛后页面和 GHUD 采集修复
+- [赛后路由 / MVP 立绘 / 不透明赛事 HUD / GHUD OCR 七项校准指南](guides/postgame-ghud-overlay-fixes.md)。
+- 与 [原 GHUD/MVP 工作流](guides/player-alignment-recovery-hud.md) 配合使用，旧版本没有逐字段七项校准、自动发布前强制预览。软件自动化结果与 OBS 现场验收分开。

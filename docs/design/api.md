@@ -55,3 +55,9 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 `MatchState` / `MatchSettings` 新增 `heroPool: "global" | "cn"` 与 `banCount: 0 | 1 | 2 | 3 | 4 | 5`。服务器强制检查每次选/禁的 `heroId` 属于当前池，按 Ban 数判断轮次及结束条件；两个字段在首手 BP 及有效历史产生后锁定。每份新 `GameDraftRecord` 保存自己的 `heroPool` 和 `banCount`；旧文件缺失时归一化为全球池、Match=4/Normal=2，避免重编号旧英雄。局内状态与模拟器可共享同一 `heroPool` / `banCount`，仅改客户端 UI 不能绕过服务端合法性验证。
 
 `GET /api/heroes` 返回国际服全名单（兼容旧调用），`GET /api/heroes?pool=cn` 返回当前国服工作候选名单。国服目录在 `src/data/cnHeroCatalog.ts`，`npm run hero:cn-sync` 将从官方名单重新生成此文件，但尚未完成 2026-10 实时抓取验收。巅峰对决盲选不由普通 0 Ban 规则表示。
+
+
+## PR #69：真实 SPA 路由 + HUD 自定义 ROI 请求
+后端 HTML Shell 由 `server/uiRoutes.ts` 统一维护。路由新增 `/overlay/postgame-compare`（`role` 为查询参数，选对位：clash/jungle/mid/farm/roam）和 `/overlay/game-progress`，二者均映射 `dist/index.html`，不增加多页面 Vite 入口；未知 HTML 路径不得使用任意 overlay shell 兜底。
+
+`POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`，`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回 `profile` 为规范化 ROI 字符串，随后 `live_game_ocr` 若 `previous.profile !== sample.profile` 必须拒绝跨配置两帧合并；时钟必须实际增长。运营端保存 `localStorage['hok-ghud-calibration-v1']`，不是云端共享预设，不应暗示自动同步到另一台设备。
