@@ -68,7 +68,7 @@ test('GHUD requires a complete geometrically valid ROI profile, two reads from s
   const a=sample(100000,12),b=sample(105000,17);
   a.profile=liveCaptureProfile(liveCaptureRects);
   b.profile=liveCaptureProfile(shift);
-  const store=new Store();
+  const store=new Store(undefined,()=>105000);
   const context=liveGameContext(store.data.state);
   assert.throws(()=>apply(store,{type:'live_game_ocr',context,previous:a,sample:b}),/No consistent/);
   b.profile=a.profile;
