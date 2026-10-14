@@ -3,6 +3,7 @@ import type { Action, MatchState } from '../shared/types';
 import { liveGameContext, trustedLiveUpdates, type LiveHudSample } from '../shared/liveGame';
 import { liveCaptureLabel, liveCaptureRects, liveCaptureKeys, validLiveCaptureRects, type LiveCaptureKey, type CaptureRect } from '../shared/gameCapture';
 import { LiveHudCalibration } from './LiveHudCalibration';
+import './liveHudCalibration.css';
 import { useGameDataCapture } from './useGameDataCapture';
 
 interface Result extends LiveHudSample { context:string; elapsedMs:number }

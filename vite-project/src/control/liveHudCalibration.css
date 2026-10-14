@@ -1,0 +1,11 @@
+.ghud-calibration{margin:14px 0;background:#12253b;border:1px solid #456079;padding:15px;border-radius:8px}
+.ghud-calibration summary{cursor:pointer;color:#f4dcad;font-weight:800;font-size:14px;margin-bottom:10px}
+.ghud-calibration p{margin:8px 0 12px;line-height:1.5}
+.ghud-calibration .toolbar{margin:8px 0 14px;align-items:end}
+.ghud-roi-preview{width:min(100%,960px);aspect-ratio:16/9;position:relative;touch-action:none;cursor:crosshair;overflow:hidden;background:#081523;user-select:none;border:1px solid #cbb987}
+.ghud-roi-preview img{width:100%;height:100%;object-fit:fill;display:block;pointer-events:none}
+.ghud-roi{position:absolute;pointer-events:none;border:1px dashed #68d1ed;background:#43a8c41a}
+.ghud-roi.selected{border:2px solid #ffce6c;background:#ffbb3d30}
+.ghud-roi b{position:absolute;bottom:100%;left:0;font-size:10px;background:#132238e8;color:#fff;padding:2px 4px;white-space:nowrap}
+.ghud-roi-coordinates{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.ghud-roi-coordinates label{width:130px}.ghud-roi-coordinates input{width:100%;font-size:13px}
