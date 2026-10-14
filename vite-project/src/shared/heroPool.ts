@@ -25,18 +25,13 @@ for(const entry of [...sourceEntries,...newNames.map((name:string,index:number)=
     id:cnStableId(key),
     englishName:entry.name,
     chineseName:entry.name,
-    imageLink:knownOfficial?`https://game.gtimg.cn/images/yxzj/img201606/heroimg/${entry.officialId}/${entry.officialId}.jpg`:blankHeroPortrait(entry.name),
+    imageLink:knownOfficial?`https://game.gtimg.cn/images/yxzj/img201606/heroimg/${entry.officialId}/${entry.officialId}-smallskin-1.jpg`:blankHeroPortrait(entry.name),
     occupation:defaultLane(entry.type),
     combo:[],counter:[],beCountered:[],relationshipStatus:'unverified',
   });
 }
-// Extend historical CN source with confidently shared modern heroes already present
-// in the international catalog. Do not confuse release dates with source certainty.
-for(const hero of globalHeroes){
-  const key=normalized(hero.chineseName);
-  if(!key||key==='刀锋宝贝'||key==='劳拉'||key==='王维'||key==='Comingsoon'||seen.has(key))continue;
-  seen.add(key);builtCnHeroes.push(hero);
-}
+// CN is deliberately limited to the dated official-source roster. Never automatically
+// import Global-only heroes merely because they appear in the international list.
 export const cnHeroes:Hero[]=builtCnHeroes;
 // Working CN snapshot is not a claim of complete live-server release parity.
 export const cnPoolCatalogStatus='partial-snapshot' as const;

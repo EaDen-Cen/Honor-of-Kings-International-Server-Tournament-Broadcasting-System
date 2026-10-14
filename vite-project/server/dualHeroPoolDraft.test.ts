@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { phases,initialState,type MatchState } from '../src/shared/types.js';
 import { normalizeState } from '../src/shared/draftRules.js';
 import { cnHeroes,heroesForPool,heroAllowed } from '../src/shared/heroPool.js';
+import { cnHeroCatalog } from '../src/data/cnHeroCatalog.js';
 import { simulatorSlotForPhase,simulatorBanVisualKeys,simulatorSlotsForTurn } from '../src/simulator/bpSimulatorModel.js';
 import { captureTargetForPhaseIndex,defaultCaptureSlots } from '../src/control/bpCaptureLayout.js';
 import { Store } from './store.js';
@@ -38,6 +39,7 @@ test('legacy mode defaults remain 4-Ban Match, 2-Ban Normal',()=>{
   assert.equal(phases('match').length,18);assert.equal(phases('normal').length,14);
 });
 test('CN-only heroes have namespaced IDs and cannot be selected in global mode',()=>{
+  assert.equal(cnHeroes.length,cnHeroCatalog.entries.length,'CN pool must not silently include international-only heroes');
   const globals=heroesForPool('global'),cnOnly=cnHeroes.find(hero=>!globals.some(global=>global.id===hero.id));
   assert.ok(cnOnly,'CN roster must contain distinct CN-only entries');
   assert.ok(cnOnly!.id>=20000);
@@ -68,4 +70,13 @@ test('global mode rejects CN-only hero and invalid bans are rejected',()=>{
   const s=new Store(),onlyCn=cnHeroes.find(h=>!heroAllowed('global',h.id))!;
   assert.throws(()=>apply(s,{type:'draft_action',team:'blue',action:'ban',heroId:onlyCn.id}),/heroNotInPool/);
   assert.throws(()=>apply(s,{type:'settings',settings:{...initialState(),banCount:6 as MatchState['banCount']}}),/Invalid hero pool or bans/);
+});
+
+test('CN untrained auto-accept is forcibly disabled on settings and restored snapshots',()=>{
+  const s=new Store();
+  apply(s,{type:'settings',settings:{...initialState(),heroPool:'cn',recognitionAutoAccept:true}});
+  assert.equal(s.data.state.recognitionAutoAccept,false);
+  assert.equal(normalizeState({...s.data.state,recognitionAutoAccept:true}).recognitionAutoAccept,false);
+  apply(s,{type:'settings',settings:{...s.data.state,heroPool:'global',recognitionAutoAccept:true}});
+  assert.equal(s.data.state.recognitionAutoAccept,true);
 });
