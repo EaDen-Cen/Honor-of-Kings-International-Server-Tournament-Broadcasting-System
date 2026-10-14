@@ -1,24 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSharedWindowCaptureStream, requestWindowCapture, setSharedWindowCaptureStream, subscribeSharedWindowCapture } from './sharedWindowCapture';
 import { pixelRect, settlementTabRects } from '../shared/gameCapture';
+import { getSharedGameStill, publishSharedGameStill, subscribeSharedGameStill } from './sharedGameStill';
 
 export function useGameDataCapture(zh:boolean){
-  const video=useRef<HTMLVideoElement>(null),still=useRef<HTMLImageElement>(),generation=useRef(0);
+  const video=useRef<HTMLVideoElement>(null),still=useRef<HTMLImageElement|undefined>(getSharedGameStill()?.image),generation=useRef(0);
   const [sourceVersion,setSourceVersion]=useState(0);
-  const [ready,setReady]=useState(false),[top,setTop]=useState(0),[error,setError]=useState(''),[fileName,setFileName]=useState('');
+  const [ready,setReady]=useState(!!getSharedGameStill()),[top,setTop]=useState(0),[error,setError]=useState(''),[fileName,setFileName]=useState(()=>getSharedGameStill()?.name??'');
   const topRef=useRef(top);topRef.current=top;
   useEffect(()=>{
     let active=true;
     const attach=async(stream:MediaStream|undefined)=>{
-      const version=++generation.current;setSourceVersion(version);still.current=undefined;setFileName('');setReady(false);
+      const version=++generation.current;setSourceVersion(version);setReady(!!still.current);
       if(!video.current)return;
       video.current.srcObject=stream??null;
       if(stream)try{await video.current.play();if(active&&version===generation.current)setReady(true);}catch{/* disconnected source */}
     };
     void attach(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
+    const unsubscribeStill=subscribeSharedGameStill(data=>{
+      if(!active)return;
+      still.current=data?.image;setFileName(data?.name??'');setError('');
+      const revision=++generation.current;setSourceVersion(revision);
+      setReady(!!data||!!(video.current?.videoWidth&&video.current?.srcObject));
+    });
     const sourceGeneration=generation;
-    return()=>{active=false;sourceGeneration.current++;unsubscribe();};
+    return()=>{active=false;sourceGeneration.current++;unsubscribe();unsubscribeStill();};
   },[]);
   function frame(){
     const source=still.current??video.current;
@@ -36,7 +43,7 @@ export function useGameDataCapture(zh:boolean){
     canvas.getContext('2d')!.drawImage(source,0,offset,width,Math.min(contentHeight,height-offset),0,0,1920,1080);
     return canvas;
   }
-  async function choose(){try{setError('');const stream=await requestWindowCapture(),previous=getSharedWindowCaptureStream();setSharedWindowCaptureStream(stream);previous?.getTracks().forEach(track=>track.stop());}catch(e){setError(e instanceof Error?e.message:'Capture failed');}}
+  async function choose(){try{setError('');const stream=await requestWindowCapture(),previous=getSharedWindowCaptureStream();publishSharedGameStill(undefined);setSharedWindowCaptureStream(stream);previous?.getTracks().forEach(track=>track.stop());}catch(e){setError(e instanceof Error?e.message:'Capture failed');}}
   async function load(file:File|undefined){
     if(!file)return;
     const version=++generation.current;
@@ -45,8 +52,7 @@ export function useGameDataCapture(zh:boolean){
       const url=URL.createObjectURL(file),img=new Image();
       try{img.src=url;await img.decode();}finally{URL.revokeObjectURL(url);}
       if(version!==generation.current)return;
-      still.current=img;setReady(true);setFileName(file.name);setError('');
-      setSourceVersion(generation.current);
+      publishSharedGameStill({image:img,name:file.name});setError('');
     }catch(e){setError(e instanceof Error?e.message:'Invalid image');}
   }
   const controls=<div className="toolbar">
