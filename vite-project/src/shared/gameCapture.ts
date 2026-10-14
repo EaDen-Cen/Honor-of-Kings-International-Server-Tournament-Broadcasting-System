@@ -39,6 +39,32 @@ export const liveCaptureRects:Record<LiveCaptureKey,CaptureRect>={
   blueTowers:rect(650,19,26,38),redTowers:rect(1274,19,26,38),
   gameTimeSeconds:rect(931,1,59,27),
 };
+/** Full, non-overlapping seven-field profile. Unknown game UI layouts must be
+ * calibrated in Control before enabling automatic publication. */
+export function validLiveCaptureRects(value:unknown):value is Record<LiveCaptureKey,CaptureRect> {
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  const regions=value as Record<string,unknown>;
+  if(Object.keys(regions).length!==liveCaptureKeys.length)return false;
+  if(!liveCaptureKeys.every(key=>validCaptureRect(regions[key])))return false;
+  for(const key of liveCaptureKeys){
+    const region=regions[key] as CaptureRect;
+    if(region.width<.005||region.height<.008||region.width>.24||region.height>.18)return false;
+  }
+  for(let i=0;i<liveCaptureKeys.length;i++){
+    const a=regions[liveCaptureKeys[i]] as CaptureRect;
+    for(let j=i+1;j<liveCaptureKeys.length;j++){
+      const b=regions[liveCaptureKeys[j]] as CaptureRect;
+      const overlapX=Math.max(0,Math.min(a.x+a.width,b.x+b.width)-Math.max(a.x,b.x));
+      const overlapY=Math.max(0,Math.min(a.y+a.height,b.y+b.height)-Math.max(a.y,b.y));
+      if(overlapX*overlapY>Math.min(a.width*a.height,b.width*b.height)*.3)return false;
+    }
+  }
+  return true;
+}
+/** Compare server-side ROI layouts rather than mixing two reads from different crops. */
+export function liveCaptureProfile(regions:Record<LiveCaptureKey,CaptureRect>):string {
+  return liveCaptureKeys.map(key=>{const r=regions[key];return [r.x,r.y,r.width,r.height].map(v=>v.toFixed(5)).join(',');}).join('|');
+}
 export function validCaptureRect(value:unknown):value is CaptureRect {
   if(!value||typeof value!=='object')return false;
   const r=value as CaptureRect;

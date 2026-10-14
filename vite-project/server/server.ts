@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { isBroadcastPageRoute } from './uiRoutes.js';
 import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
 import { decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
-import { settlementPages } from '../src/shared/gameCapture.js';
+import { liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, settlementPages } from '../src/shared/gameCapture.js';
 import { liveGameContext } from '../src/shared/liveGame.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -104,9 +104,11 @@ const server = createServer(async (req, res) => {
         const frame=await decodeGameFrame(input.image,input.region);
         if(url.pathname.endsWith('live-hud')){
           if(input.context!==context){json(409,{error:'Game changed; capture again'});return;}
-          const result=await recognizeLiveHud(frame,playerRecognition);
+          if(input.regions!==undefined&&!validLiveCaptureRects(input.regions)){json(400,{error:'Invalid HUD crop calibration'});return;}
+          const regions=input.regions??liveCaptureRects;
+          const result=await recognizeLiveHud(frame,playerRecognition,regions);
           if(liveGameContext(store.data.state)!==context){json(409,{error:'Game changed; capture again'});return;}
-          json(200,{...result,capturedAt,context});
+          json(200,{...result,capturedAt,context,profile:liveCaptureProfile(regions)});
         }else{
           const report=store.data.state.postGameReports.find(r=>r.id===input.reportId);
           if(!report){json(409,{error:'Prepare the game report first'});return;}

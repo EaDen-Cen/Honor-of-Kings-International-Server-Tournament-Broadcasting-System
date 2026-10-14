@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { fullGameRect, liveCaptureKeys, liveCaptureRects, parseLiveNumber, pixelRect, recapRegions, settlementColumns, settlementNameRect, settlementPages, settlementTabRects, validCaptureRect, type CaptureRect } from '../src/shared/gameCapture.js';
+import { fullGameRect, liveCaptureKeys, liveCaptureRects, parseLiveNumber, pixelRect, recapRegions, settlementColumns, settlementNameRect, settlementPages, settlementTabRects, validCaptureRect, type LiveCaptureKey, type CaptureRect } from '../src/shared/gameCapture.js';
 import { parsePostGameNumber, type PostGamePage, type PostGameReport, type PostGameTeamMetric } from '../src/shared/postGame.js';
 import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import type { PlayerRecognitionProvider } from './playerRecognition.js';
@@ -59,9 +59,9 @@ export async function recognizeSettlement(frame:Buffer,page:PostGamePage|'auto',
   }),candidates:jobs.map((job,index)=>({screenRow:job.screenRow,metric:job.metric,value:parsePostGameNumber(numeric.texts[index],job.metric),confidence:numeric.confidences[index],text:numeric.texts[index]})),elapsedMs:performance.now()-start};
 }
 
-export async function recognizeLiveHud(frame:Buffer,provider:PlayerRecognitionProvider){
+export async function recognizeLiveHud(frame:Buffer,provider:PlayerRecognitionProvider,regions:Record<LiveCaptureKey,CaptureRect>=liveCaptureRects){
   const images=await Promise.all(liveCaptureKeys.map(async key=>{
-    if(!key.startsWith('blue'))return crop(frame,liveCaptureRects[key]);
+    if(!key.startsWith('blue'))return crop(frame,regions[key]);
     const {data,info}=await sharp(frame).extract(pixelRect(liveCaptureRects[key],1920,1080)).removeAlpha().raw().toBuffer({resolveWithObject:true});
     const mask=Buffer.alloc(info.width*info.height,255);
     for(let i=0;i<mask.length;i++){
