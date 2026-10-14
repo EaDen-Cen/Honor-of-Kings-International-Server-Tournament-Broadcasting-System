@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from './store.js';
-import { liveGameContext, type LiveHudSample } from '../src/shared/liveGame.js';
+import { liveGameContext, trustedLiveUpdates, type LiveHudSample } from '../src/shared/liveGame.js';
 import { liveCaptureKeys, liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, parseLiveNumber } from '../src/shared/gameCapture.js';
 import type { Action } from '../src/shared/types.js';
 
@@ -73,4 +73,10 @@ test('GHUD requires a complete geometrically valid ROI profile, two reads from s
   assert.throws(()=>apply(store,{type:'live_game_ocr',context,previous:a,sample:b}),/No consistent/);
   b.profile=a.profile;
   assert.ok(a.profile.length>10);
+});
+
+test('unchanged OCR game clock cannot verify a frozen replay frame',()=>{
+  const stats=new Store().data.state.liveGameStats;
+  const a=sample(100000,30);const b=sample(105000,30);
+  assert.equal(Object.keys(trustedLiveUpdates(stats,a,b)).length,0);
 });

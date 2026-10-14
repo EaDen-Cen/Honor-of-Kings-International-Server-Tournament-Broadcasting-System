@@ -36,7 +36,7 @@ export function GameHud({state}:{state:MatchState}){
     <div className="game-hud-opaque-left" aria-hidden="true"/>
     <div className="game-hud-opaque-right" aria-hidden="true"/>
     <div className="game-hud-opaque-bottom" aria-hidden="true"/>
-    <div className="game-hud-map-cover"><strong>CHASING WIND</strong><span>{zh?'小地图画面：可使用 OBS 另加地图裁切源':'Map: place a cropped source above this layer in OBS'}</span></div>
+    <div className="game-hud-map-cover"><strong>CHASING WIND</strong><span>{zh?'赛事地图源 · 未接入':'MAP FEED · NOT CONNECTED'}</span></div>
     {lineup(left)}{lineup(right)}
     <header>{team(left)}<div className="game-hud-center"><b>{zh?'第':'Game '}{currentGame(state)}{zh?'局':''} · {state.seriesFormat}</b><small>{stageName(state.stage,state.language)}</small><time>{time}</time></div>{team(right)}</header>
     <div className="game-hud-stats"><span><b>{stats[`${left}Kills`]}</b> {zh?'人头':'Kills'} <b>{stats[`${right}Kills`]}</b></span>

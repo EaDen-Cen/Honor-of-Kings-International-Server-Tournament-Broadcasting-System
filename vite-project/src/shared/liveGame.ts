@@ -10,7 +10,7 @@ export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sa
   if(previous.profile!==sample.profile)return updates;
   const elapsed=sample.capturedAt-previous.capturedAt;
   const clock=sample.candidates.find(c=>c.key==='gameTimeSeconds'),oldClock=previous.candidates.find(c=>c.key==='gameTimeSeconds');
-  if(clock?.value==null||oldClock?.value==null||!Number.isInteger(clock.value)||!Number.isInteger(oldClock.value)||oldClock.value<0||clock.value>7200||clock.confidence<.85||oldClock.confidence<.85||!consistentLiveValue('gameTimeSeconds',oldClock.value,clock.value,elapsed))return updates;
+  if(clock?.value==null||oldClock?.value==null||clock.value<=oldClock.value||!Number.isInteger(clock.value)||!Number.isInteger(oldClock.value)||oldClock.value<0||clock.value>7200||clock.confidence<.85||oldClock.confidence<.85||!consistentLiveValue('gameTimeSeconds',oldClock.value,clock.value,elapsed))return updates;
   for(const key of liveCaptureKeys){
     const incoming=sample.candidates.find(c=>c.key===key),prior=previous.candidates.find(c=>c.key===key),source=stats.sources?.[key];
     if(incoming?.value==null||prior?.value==null||incoming.confidence<.85||prior.confidence<.85||source?.source==='manual')continue;

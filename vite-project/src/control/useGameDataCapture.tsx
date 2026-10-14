@@ -31,9 +31,9 @@ export function useGameDataCapture(zh:boolean){
     // desktop capture often includes a bottom replay toolbar; this silently
     // shifted every OCR rectangle upward and created plausible false matches.
     const offset=topRef.current<0?0:topRef.current;
-    if(offset<0||offset+contentHeight>height+2)throw new Error('Select an exact 16:9 game content area; adjust content top or use a clean game capture');
+    if(offset<0||offset+contentHeight>height+Math.max(4,contentHeight*.02))throw new Error('Select an exact 16:9 game content area; adjust content top or use a clean game capture');
     const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
-    canvas.getContext('2d')!.drawImage(source,0,offset,width,contentHeight,0,0,1920,1080);
+    canvas.getContext('2d')!.drawImage(source,0,offset,width,Math.min(contentHeight,height-offset),0,0,1920,1080);
     return canvas;
   }
   async function choose(){try{setError('');const stream=await requestWindowCapture(),previous=getSharedWindowCaptureStream();setSharedWindowCaptureStream(stream);previous?.getTracks().forEach(track=>track.stop());}catch(e){setError(e instanceof Error?e.message:'Capture failed');}}
