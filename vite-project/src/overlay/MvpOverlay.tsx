@@ -13,7 +13,7 @@ export function MvpOverlay({state}:{state:MatchState}){
     <div className="mvp-screen-accent" />
     <header className="mvp-screen-header"><span>CHASING WIND · ESPORT BROADCAST</span><span>{report.stage} · GAME {report.gameNumber} · {report.seriesFormat}</span></header>
     <section className="mvp-screen-portrait">
-      {player.portrait?<img src={player.portrait} alt={player.playerId}/>:<div className="mvp-screen-initials">{player.playerId.slice(0,2).toUpperCase()||`P${player.slot+1}`}</div>}
+      {player.portrait||hero?.artLink||hero?.imageLink?<img src={player.portrait||hero?.artLink||hero?.imageLink} alt={player.playerId}/>:<div className="mvp-screen-initials">{player.playerId.slice(0,2).toUpperCase()||`P${player.slot+1}`}</div>}
       <div className="mvp-screen-portrait-label">MOST VALUABLE PLAYER</div>
     </section>
     <section className="mvp-screen-info">

@@ -244,3 +244,12 @@ vite-project/       应用与 npm 命令执行目录
 开发和验证命令见 [应用目录说明](vite-project/README.md)。OBS、跨设备公网、完整音画同步与真实游戏 UI 兼容性仍需要赛事设备彩排；自动化测试不能替代现场验收。
 
 本项目基于 qiqi47 的原项目继续开发，保留原英雄数据及 [MIT 许可](LICENSE.txt)。[原中英文 README](docs/archive/legacy/upstream-readme.md) 已完整归档，旧站点与旧安装说明仅作历史参考。
+
+
+### Replay-based post-game graphics (development PR #67)
+
+Without ten available players, the post-game capture can be rehearsed from actual replay PNG/JPEG screenshots. The six player settlement pages now reuse a single per-game screen-row-to-player map, rather than asking the operator to remap each page. A later page with conflicting OCR identity shows a warning and does not silently replace a confirmed mapping. Mapping lives in the current browser profile; a different browser still requires verification.
+
+Three full-HD OBS scenes: `/overlay/mvp`, `/overlay/postgame-compare?role=mid` (also clash/jungle/farm/roam), and `/overlay/game-progress`. Head-to-head numbers and radar axes use verified or manually corrected fields only; missing metrics show “—”, and each radar axis is relative to its two players rather than an official rating. The MVP is chosen by the tournament organizer.
+
+The end-of-game rating has no confirmed fixed pixel region in the provided replay template: use the new ten-player Rating fields or calibrate the existing Rating OCR input; values cannot be assumed from a letter grade. To draw economic progress, import genuine time/gold samples (`mm:ss,blueGold,redGold`) from the replay. The chart joins those observed samples and **does not reconstruct match history from final gold totals**. Full-match capture, screenshot-based graph digitization, and real OBS/ten-player reliability remain unverified.
