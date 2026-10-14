@@ -140,7 +140,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
       </details>
       <details className="panel"><summary>{zh?'OBS 赛后图形 · 1920×1080':'OBS post-game graphics · 1920×1080'}</summary>
         <div className="toolbar"><a href="/overlay/mvp" target="_blank" rel="noreferrer">MVP 1920×1080</a><a href="/overlay/game-progress" target="_blank" rel="noreferrer">{zh?'经济进程':'Gold progress'}</a>
-        {(['clash','jungle','mid','farm','roam'] as const).map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}`} target="_blank" rel="noreferrer">{role} VS</a>)}</div>
+          {(['clash','jungle','mid','farm','roam'] as const).map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}`} target="_blank" rel="noreferrer">{role} VS</a>)}</div>
       </details>
       <label>{zh?'投票决定的 MVP':'MVP chosen by the vote'}<select aria-label="MVP player" value={report.selectedMvpRowId??''} disabled={disabled} onChange={e=>send({type:'select_mvp',reportId:report.id,rowId:e.target.value||null})}><option value="">{zh?'尚未选择 / 隐藏页面':'Not selected / hide overlay'}</option>{report.players.map(player=><option value={player.rowId} key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}</option>)}</select></label>
     </>}
