@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Action, MatchState } from '../shared/types';
-import { canMergePostGameField,postGameDecimalMetrics,postGamePercentMetrics,postGameMetricLabel,postGameMetrics,type PostGameMetric,type PostGamePage,type PostGameField } from '../shared/postGame';
+import { canMergePostGameField,postGameDecimalMetrics,postGamePercentMetrics,postGameMetricLabel,postGameMetrics,type PostGameMetric,type PostGamePage,type PostGameField,type PostGameReport } from '../shared/postGame';
+import { parseGoldTimelineText,timelineToText } from '../shared/postGameTimeline';
 import { SettlementCapturePanel } from './SettlementCapturePanel';
 import { settlementPages, settlementPageLabel } from '../shared/gameCapture';
 import { getSharedWindowCaptureStream,subscribeSharedWindowCapture } from './sharedWindowCapture';
@@ -9,6 +10,17 @@ const storage='hok-post-game-regions-v1';
 type Regions=Record<string,NormalizedCaptureRegion>;
 function readRegions():Regions{try{return JSON.parse(localStorage.getItem(storage)||'{}');}catch{return {};}}
 interface Candidate { rowId:string; value:number|null; confidence:number; evidence:string; text:string }
+function GoldTimelineEditor({report,zh,disabled,send}:{report:PostGameReport;zh:boolean;disabled:boolean;send:(action:Action)=>void}){
+  const [text,setText]=useState(()=>timelineToText(report.goldTimeline??[]));
+  const [message,setMessage]=useState('');
+  useEffect(()=>{setText(timelineToText(report.goldTimeline??[]));setMessage('');},[report.id]);
+  function submit(){try{const points=parseGoldTimelineText(text);send({type:'post_game_gold_timeline',reportId:report.id,points});setMessage(zh?`已提交 ${points.length} 个回放采样点。`:`Saved ${points.length} replay samples.`);}catch(e){setMessage(e instanceof Error?e.message:String(e));}}
+  return <details className="panel"><summary>{zh?'游戏进程 · 经济时间线（回放数据）':'Game progress · replay gold timeline'}</summary>
+    <p className="muted">{zh?'每行填写「时间,蓝方经济,红方经济」，例如 02:00,3500,3600。支持 K、万。至少两个递增时间点，最多 240 个。仅画真实输入的点，不从结算数据推测历史。':'Enter time, blue gold, red gold per row (e.g. 02:00,3500,3600). K and 万 units accepted; 2–240 increasing samples. No history is fabricated from final totals.'}</p>
+    <textarea aria-label="Replay gold timeline CSV" rows={6} style={{width:'100%',minHeight:130}} value={text} onChange={e=>setText(e.target.value)} placeholder={'02:00,3500,3600\\n05:00,11000,11200\\n10:00,24000,23700'} disabled={disabled}/>
+    <div className="toolbar"><button disabled={disabled} onClick={submit}>{zh?'保存时间线':'Save timeline'}</button><span>{zh?`已保存 ${report.goldTimeline?.length??0} 个点`:`${report.goldTimeline?.length??0} saved points`}</span><a target="_blank" rel="noreferrer" href="/overlay/game-progress">{zh?'打开 1920×1080 经济进程页':'Open 1920×1080 gold progress overlay'}</a></div><p role="status">{message}</p>
+  </details>;
+}
 export function PostGamePanel({state,token,disabled,send}:{state:MatchState;token:string;disabled:boolean;send:(action:Action)=>void}){
   const zh=state.language==='zh',report=state.postGameReports.find(r=>r.id===state.activePostGameReportId);
   const [metric,setMetric]=useState<PostGameMetric>('kills'),[page,setPage]=useState<PostGamePage>('overview'),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[candidates,setCandidates]=useState<Candidate[]>([]),[row,setRow]=useState(0),[regions,setRegions]=useState(readRegions);
@@ -47,6 +59,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
     <button disabled={disabled||!state.committedGameId} onClick={()=>send({type:'post_game_begin'})}>{zh?'准备本局 10 人报告':'Prepare ten-player report'}</button>
     {report&&<><p>{zh?'第':'Game '}{report.gameNumber}{zh?'局 · 草稿':''}</p>
       <SettlementCapturePanel report={report} zh={zh} token={token} disabled={disabled} send={send}/>
+      <GoldTimelineEditor key={report.id} report={report} zh={zh} disabled={disabled} send={send}/>
       <details className="panel"><summary>{zh?'选手评分 / Rating · 补录与识别':'Player rating · capture or manual entry'}</summary>
         <p className="muted">{zh?'当前整页固定模板没有可靠的评分坐标。可在下方补录回放结算评分，或选择字段「游戏评分」并校准十行数字区域进行 OCR；未核实的数据不会被虚构为 0。':'The fixed full-page template does not yet have a verified rating region. Enter confirmed replay scores here, or choose Rating in the field OCR and calibrate the ten numeric regions. Unknown ratings remain blank.'}</p>
         <div className="post-game-table">{ratingPlayers.map(player=><label className="toolbar" key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}
@@ -65,6 +78,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
         {stored&&<small>{stored.manual?(zh?'人工确认':'Manual'):Math.round(stored.confidence*100)+'%'}</small>}
         {detected&&<small className={detected.confidence<.85?'error':''}>{detected.value??'—'} · {Math.round(detected.confidence*100)}% {detected.value!==null&&!canMergePostGameField(stored,{value:detected.value,confidence:detected.confidence,manual:false,sourcePage:page})&&<span>{zh?'保留已有值；如需更改请人工输入。':'Existing value protected; edit manually to override.'}</span>} <a href={detected.evidence} target="_blank" rel="noreferrer">{zh?'原图':'Evidence'}</a></small>}
       </div>;})}</div>
+      <details className="panel"><summary>{zh?'OBS 赛后图形 · 1920×1080':'OBS post-game graphics · 1920×1080'}</summary><p className="muted">{zh?'所有页面读取当前报告的真实字段；缺失数据显示 —。按对位选择链接，可在 OBS 浏览器源中使用相应 URL。':'All overlays display verified report values; unknown metrics remain —. Choose a lane URL for the OBS browser source.'}</p><div className="toolbar"><a href="/overlay/mvp" target="_blank" rel="noreferrer">MVP 1920×1080</a><a href="/overlay/game-progress" target="_blank" rel="noreferrer">{zh?'经济进程':'Gold progress'}</a>{(['clash','jungle','mid','farm','roam'] as const).map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}`} target="_blank" rel="noreferrer">{role} VS</a>)}</div></details>
       <label>{zh?'投票决定的 MVP':'MVP chosen by the vote'}<select aria-label="MVP player" value={report.selectedMvpRowId??''} disabled={disabled} onChange={e=>send({type:'select_mvp',reportId:report.id,rowId:e.target.value||null})}><option value="">{zh?'尚未选择 / 隐藏页面':'Not selected / hide overlay'}</option>{report.players.map(player=><option value={player.rowId} key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}</option>)}</select></label>
       <details><summary>{zh?'当前字段的 10 行数字区域':'Ten numeric regions for this field'}</summary><p className="muted">{zh?'各数据页可能换列或换序，请将每个区域对准右侧列出的对应选手数字。默认矩形仅为校准起点。':'Pages may change columns or row order. Align each region with the named player’s value; defaults are calibration starting points.'}</p>
         <select aria-label="Post-game region" value={row} onChange={e=>setRow(Number(e.target.value))}>{report.players.map((player,index)=><option key={player.rowId} value={index}>{player.teamName} · {player.playerId||`P${player.slot+1}`}</option>)}</select>
