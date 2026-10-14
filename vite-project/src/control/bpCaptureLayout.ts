@@ -3,8 +3,8 @@ import { draftTurnAtPhase, nextDraftTurn, nextOpponentPickTurn } from '../shared
 import { normalizeCaptureRegion, type NormalizedCaptureRegion } from './windowCaptureGeometry.js';
 
 export type CaptureSlotKey =
-  | 'blueBan1' | 'blueBan2' | 'blueBan3' | 'blueBan4'
-  | 'redBan1' | 'redBan2' | 'redBan3' | 'redBan4'
+  | 'blueBan1' | 'blueBan2' | 'blueBan3' | 'blueBan4' | 'blueBan5'
+  | 'redBan1' | 'redBan2' | 'redBan3' | 'redBan4' | 'redBan5'
   | 'bluePick1' | 'bluePick2' | 'bluePick3' | 'bluePick4' | 'bluePick5'
   | 'redPick1' | 'redPick2' | 'redPick3' | 'redPick4' | 'redPick5';
 
@@ -27,8 +27,8 @@ export interface CaptureTarget {
 }
 
 export const captureSlotKeys: CaptureSlotKey[] = [
-  'blueBan1','blueBan2','blueBan3','blueBan4',
-  'redBan1','redBan2','redBan3','redBan4',
+  'blueBan1','blueBan2','blueBan3','blueBan4','blueBan5',
+  'redBan1','redBan2','redBan3','redBan4','redBan5',
   'bluePick1','bluePick2','bluePick3','bluePick4','bluePick5',
   'redPick1','redPick2','redPick3','redPick4','redPick5',
 ];
@@ -84,6 +84,8 @@ export function slotsFromLegacyZones(zones:LegacyCaptureZones):CaptureSlots {
     for(let i=0;i<4;i++) {
       result[`${side}Ban${i+1}` as CaptureSlotKey]=splitLegacyZone(zones[`${side}Ban`], 'ban', i, 4);
     }
+    // Preserve four proven ROIs; Ban #5 needs calibration for the new screen layout.
+    result[`${side}Ban5` as CaptureSlotKey]=splitLegacyZone(zones[`${side}Ban`],'ban',4,5);
     for(let i=0;i<5;i++) {
       result[`${side}Pick${i+1}` as CaptureSlotKey]=splitLegacyZone(zones[`${side}Pick`], 'pick', i, 5);
     }
@@ -113,27 +115,27 @@ export function slotMeta(key:CaptureSlotKey) {
 }
 
 function previousSlotIndexAtPhase(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'banCount'>,
   phaseIndex:number,
   side:Side,
   action:'ban'|'pick',
 ) {
-  return phases(state.draftMode,state.firstPickSide)
+  return phases(state.draftMode,state.firstPickSide,state.banCount)
     .slice(0,phaseIndex)
     .filter(phase=>phase.team===side&&phase.action===action)
     .length;
 }
 
-export function slotCountFor(state:Pick<MatchState,'draftMode'>, action:'ban'|'pick') {
-  return action==='pick' ? 5 : (state.draftMode==='match' ? 4 : 2);
+export function slotCountFor(state:Pick<MatchState,'draftMode'|'banCount'>, action:'ban'|'pick') {
+  return action==='pick' ? 5 : state.banCount;
 }
 
 export function captureTargetForPhaseIndex(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'banCount'>,
   slots:CaptureSlots,
   phaseIndex:number,
 ):CaptureTarget|undefined {
-  const phase=phases(state.draftMode,state.firstPickSide)[phaseIndex];
+  const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[phaseIndex];
   if(!phase) return undefined;
   const slotIndex=previousSlotIndexAtPhase(state,phaseIndex,phase.team,phase.action);
   const slotCount=slotCountFor(state,phase.action);
@@ -149,17 +151,17 @@ export function captureTargetForPhaseIndex(
 }
 
 export function captureTargetForState(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
   return captureTargetForPhaseIndex(state,slots,state.currentPhase);
 }
 
 export function captureTargetsForCurrentTurn(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
   slots:CaptureSlots,
 ):CaptureTarget[] {
-  const turn=draftTurnAtPhase(state.draftMode,state.firstPickSide,state.currentPhase);
+  const turn=draftTurnAtPhase(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
   if(!turn) return [];
   return turn.phaseIndexes
     .map(phaseIndex=>captureTargetForPhaseIndex(state,slots,phaseIndex))
@@ -167,18 +169,18 @@ export function captureTargetsForCurrentTurn(
 }
 
 export function captureProbeForNextTurn(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
-  const turn=nextDraftTurn(state.draftMode,state.firstPickSide,state.currentPhase);
+  const turn=nextDraftTurn(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
   return turn ? captureTargetForPhaseIndex(state,slots,turn.startPhase) : undefined;
 }
 
 
 export function captureProbeForNextOpponentPick(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
-  const turn=nextOpponentPickTurn(state.draftMode,state.firstPickSide,state.currentPhase);
+  const turn=nextOpponentPickTurn(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
   return turn ? captureTargetForPhaseIndex(state,slots,turn.startPhase) : undefined;
 }
