@@ -1,6 +1,7 @@
 import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric } from './postGame.js';
 import { initialLiveGameStats, type LiveGameStats, type LiveHudSample } from './liveGame.js';
 import type { LiveCaptureKey } from './gameCapture.js';
+import type { GoldTimelinePoint } from './postGameTimeline.js';
 export type Side = 'blue' | 'red';
 
 export type Language = 'zh' | 'eng';
@@ -154,6 +155,7 @@ export type Action =
   | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}> }
   | { type: 'post_game_team_fields'; reportId:string; updates:Array<{side:Side;metric:PostGameTeamMetric;field:PostGameField}> }
   | { type: 'select_mvp'; reportId:string; rowId:string|null }
+  | { type: 'post_game_gold_timeline'; reportId:string; points:GoldTimelinePoint[] }
   | { type: 'live_game_stats'; stats: LiveGameStats }
   | { type: 'live_game_ocr'; context:string; previous:LiveHudSample; sample:LiveHudSample }
   | { type: 'live_game_freeze'; key:LiveCaptureKey; frozen:boolean }

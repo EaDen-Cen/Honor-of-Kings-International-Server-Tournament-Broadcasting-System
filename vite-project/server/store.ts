@@ -1,4 +1,5 @@
 import { postGameMetrics, postGameTeamMetrics, postGamePercentMetrics, postGameDecimalMetrics, canMergePostGameField } from '../src/shared/postGame.js';
+import { validGoldTimeline } from '../src/shared/postGameTimeline.js';
 import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
 import { normalizePlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
@@ -245,6 +246,13 @@ export class Store {
         const fields=report.teamFields[side]??={};
         if(canMergePostGameField(fields[metric],field))fields[metric]={value:field.value,sourcePage:'recap',manual:field.manual,confidence:field.confidence,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
       }
+      break;
+    }
+    case 'post_game_gold_timeline': {
+      const report=state.postGameReports.find(r=>r.id===action.reportId);
+      if(!report||!validGoldTimeline(action.points))throw new Error('Invalid gold time-series; use verified, increasing replay samples');
+      next.history.push(copy(state));
+      report.goldTimeline=action.points.map(point=>({timeSeconds:point.timeSeconds,blueGold:point.blueGold,redGold:point.redGold}));
       break;
     }
     case 'select_mvp': {
