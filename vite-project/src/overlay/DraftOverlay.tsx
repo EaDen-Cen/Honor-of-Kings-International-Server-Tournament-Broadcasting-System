@@ -112,7 +112,7 @@ function PickCard({ state, side, index, position }: { state: MatchState; side: S
   </article>;
 }
 export function DraftOverlay({ state }: { state: MatchState }) {
-  const t = translator(state.language), phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+  const t = translator(state.language), phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
   const sides = displaySides(state), [left, right] = sides;
   return <section className={`broadcast-overlay broadcast-${state.overlayLayout} ${state.showHeroName ? 'hero-names-visible' : 'hero-names-hidden'}`}>
     <div className="broadcast-top"><header className="broadcast-header">
@@ -128,7 +128,7 @@ export function DraftOverlay({ state }: { state: MatchState }) {
     <div className="broadcast-bottom">
       {state.draftHistory.length > 0 && <DraftHistory state={state} compact />}
       <div className="broadcast-bans">{sides.map((side, position) => <div className={`ban-team ${side} display-${position === 0 ? 'left' : 'right'}`} key={state[`${side}Team`].id}><span>{t(side === 'blue' ? 'blueSide' : 'redSide')} · {t('ban')}</span><div className="bans">
-        {Array.from({ length: state.draftMode === 'match' ? 4 : 2 }, (_, index) => {
+        {Array.from({ length: state.banCount }, (_, index) => {
           const value = state[`${side}Bans`][index];
           const skipped = value === null;
           const hero = typeof value === 'number' ? heroForState(state, value) : undefined;

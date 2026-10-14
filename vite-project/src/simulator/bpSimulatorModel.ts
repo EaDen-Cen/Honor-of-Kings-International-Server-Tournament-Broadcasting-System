@@ -1,4 +1,4 @@
-import heroes from '../components/HeroList.js';
+import { heroesForPool,defaultBansForMode,type BanCount,type HeroPool } from '../shared/heroPool.js';
 import { draftHeroUsed, draftRestriction } from '../shared/draftRules.js';
 import { phases, type MatchState, type Side } from '../shared/types.js';
 import { draftTurnAtPhase, previousDraftTurnStart } from '../shared/draftTurns.js';
@@ -12,8 +12,8 @@ export interface SimulatorPhaseSlot {
 }
 
 export const simulatorAllSlotKeys = [
-  'blueBan1','blueBan2','blueBan3','blueBan4',
-  'redBan1','redBan2','redBan3','redBan4',
+  'blueBan1','blueBan2','blueBan3','blueBan4','blueBan5',
+  'redBan1','redBan2','redBan3','redBan4','redBan5',
   'bluePick1','bluePick2','bluePick3','bluePick4','bluePick5',
   'redPick1','redPick2','redPick3','redPick4','redPick5',
 ] as const;
@@ -87,6 +87,7 @@ export function simulatorSlotForPhase(
   mode: MatchState['draftMode'],
   firstPickSide: Side,
   phaseIndex: number,
+  banCount:BanCount=defaultBansForMode(mode),
 ): SimulatorPhaseSlot | undefined {
   const sequence=phases(mode,firstPickSide);
   const phase=sequence[phaseIndex];
@@ -103,11 +104,12 @@ export function simulatorSlotsForTurn(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  const turn=draftTurnAtPhase(mode,firstPickSide,phaseIndex);
+  const turn=draftTurnAtPhase(mode,firstPickSide,phaseIndex,banCount);
   if(!turn) return [];
   return turn.phaseIndexes
-    .map(index=>simulatorSlotForPhase(mode,firstPickSide,index))
+    .map(index=>simulatorSlotForPhase(mode,firstPickSide,index,banCount))
     .filter((slot):slot is SimulatorPhaseSlot=>!!slot);
 }
 
@@ -115,16 +117,18 @@ export function simulatorNextTurnPhase(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  return draftTurnAtPhase(mode,firstPickSide,phaseIndex)?.endPhaseExclusive ?? phases(mode,firstPickSide).length;
+  return draftTurnAtPhase(mode,firstPickSide,phaseIndex,banCount)?.endPhaseExclusive ?? phases(mode,firstPickSide,banCount).length;
 }
 
 export function simulatorPreviousTurnPhase(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  return previousDraftTurnStart(mode,firstPickSide,phaseIndex);
+  return previousDraftTurnStart(mode,firstPickSide,phaseIndex,banCount);
 }
 
 export function simulatorSlotKey(slot:SimulatorPhaseSlot) {
@@ -136,8 +140,8 @@ export function simulatorSlotKey(slot:SimulatorPhaseSlot) {
  * Blue fills B1 -> B4 from left to right. Red is axis-mirrored, so B1 is
  * physically the right-most circle and the visible order is B4 -> B1.
  */
-export function simulatorBanVisualKeys(side:Side) {
-  const keys=Array.from({length:4},(_,index)=>`${side}Ban${index+1}`);
+export function simulatorBanVisualKeys(side:Side,banCount:BanCount=4) {
+  const keys=Array.from({length:banCount},(_,index)=>`${side}Ban${index+1}`);
   return side==='blue'?keys:keys.reverse();
 }
 
@@ -191,6 +195,8 @@ export function swapSimulatorPickHeroes(
 
 export interface SimulatorControlSync {
   mode: MatchState['draftMode'];
+  heroPool:HeroPool;
+  banCount:BanCount;
   firstPickSide: Side;
   phaseIndex: number;
   slotHeroes: Record<string,number>;
@@ -219,7 +225,7 @@ export function simulatorControlSync(
   const slotHeroes={...currentSlots};
   const emptyBans:string[]=[];
   const locked:string[]=[];
-  const sequence=phases(state.draftMode,state.firstPickSide);
+  const sequence=phases(state.draftMode,state.firstPickSide,state.banCount);
   const finalFor=(side:Side)=>{
     const assignments=state[`${side}Assignments`] as Array<number|null>;
     const picks=state[`${side}Picks`] as number[];
@@ -230,7 +236,7 @@ export function simulatorControlSync(
   const lineupRed=finalFor('red');
 
   sequence.forEach((phase,index)=>{
-    const slot=simulatorSlotForPhase(state.draftMode,state.firstPickSide,index);
+    const slot=simulatorSlotForPhase(state.draftMode,state.firstPickSide,index,state.banCount);
     if(!slot) return;
     const key=simulatorSlotKey(slot);
     if(phase.action==='ban'){
@@ -250,6 +256,7 @@ export function simulatorControlSync(
 
   return {
     mode:state.draftMode,
+    heroPool:state.heroPool,banCount:state.banCount,
     firstPickSide:state.firstPickSide,
     phaseIndex:Math.min(state.currentPhase,sequence.length),
     slotHeroes,
@@ -268,10 +275,11 @@ export function completedSimulatorSlots(
   mode:MatchState['draftMode'],
   firstPickSide:Side,
   phaseIndex:number,
+  banCount:BanCount=defaultBansForMode(mode),
 ) {
-  return phases(mode,firstPickSide)
+  return phases(mode,firstPickSide,banCount)
     .slice(0,Math.max(0,phaseIndex))
-    .map((_,index)=>simulatorSlotForPhase(mode,firstPickSide,index)!)
+    .map((_,index)=>simulatorSlotForPhase(mode,firstPickSide,index,banCount)!)
     .filter(Boolean);
 }
 
@@ -284,12 +292,12 @@ export function randomizeSimulatorSlots(
 ) {
   const draft:MatchState={...rules,blueBans:[],redBans:[],bluePicks:[],redPicks:[],currentPhase:0};
   const output={...assignments};
-  for(let index=0;index<phases(mode,firstPickSide).length;index++) {
-    const slot=simulatorSlotForPhase(mode,firstPickSide,index)!;
+  for(let index=0;index<phases(mode,firstPickSide,rules.banCount).length;index++) {
+    const slot=simulatorSlotForPhase(mode,firstPickSide,index,rules.banCount)!;
     const key=simulatorSlotKey(slot);
     if(emptyBans.includes(key)&&slot.action==='ban') { draft[`${slot.side}Bans`].push(null); continue; }
     if(keys.has(key)) {
-      const pool=heroes.filter(hero=>!draftHeroUsed(draft,hero.id)&&!draftRestriction(draft,slot.side,slot.action,hero.id));
+      const pool=heroesForPool(draft.heroPool).filter(hero=>!draftHeroUsed(draft,hero.id)&&!draftRestriction(draft,slot.side,slot.action,hero.id));
       if(!pool.length) throw new Error(`No legal hero for ${key}; check player IDs and BP history`);
       output[key]=pool[Math.min(pool.length-1,Math.floor(random()*pool.length))].id;
     }

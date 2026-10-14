@@ -7,7 +7,6 @@ import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
 import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
-import heroes from '../src/components/HeroList.js';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
 import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/heroIdOrder.js';
 import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
@@ -346,14 +345,14 @@ export class Store {
         state[`${phase.team}Assignments`][assignmentIndex] = heroId;
         state.currentPhase++;
       }
-      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide).length;
+      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
     case 'draft_action': {
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (state.draftRuleMode === 'player' && [...state.blueTeam.players, ...state.redTeam.players].some(player => !playerIdentity(player))) throw new Error('playerMissing');
       if (state.currentPhase === 0 && (seriesFinished(state) || state.draftHistory.some(game => game.gameNumber >= state.gameNumber))) throw new Error('updateScoreBeforeNext');
-      const phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+      const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
       if (!phase || phase.team !== action.team || phase.action !== action.action) throw new Error('当前选禁阶段不支持此操作，请确认轮次和队伍');
       if (!heroAllowed(state.heroPool,action.heroId)) throw new Error('heroNotInPool');
       if (draftHeroUsed(state, action.heroId)) {
@@ -372,20 +371,20 @@ export class Store {
         state[`${phase.team}Assignments`][assignmentIndex] = action.heroId;
       }
       state.currentPhase++;
-      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide).length;
+      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
     case 'skip_ban': {
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (state.draftRuleMode === 'player' && [...state.blueTeam.players, ...state.redTeam.players].some(player => !playerIdentity(player))) throw new Error('playerMissing');
       if (state.currentPhase === 0 && (seriesFinished(state) || state.draftHistory.some(game => game.gameNumber >= state.gameNumber))) throw new Error('updateScoreBeforeNext');
-      const phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+      const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
       if (!phase || phase.team !== action.team || phase.action !== 'ban') throw new Error('emptyBanOnlyDuringBan');
       next.history.push(copy(state));
       state.draftGameNumber ??= state.gameNumber;
       state[`${phase.team}Bans`].push(null);
       state.currentPhase++;
-      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide).length;
+      state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
     case 'commit_game': {
@@ -648,7 +647,7 @@ export class Store {
       break;
     }
     case 'hero_art_override': {
-      if (!heroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
+      if (!allPoolHeroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
       const override = action.override;
       if (!override || typeof override !== 'object') throw new Error('heroArtOverrideInvalid');
       if (override.useLegacyImage !== undefined && typeof override.useLegacyImage !== 'boolean') throw new Error('heroArtOverrideInvalid');
@@ -659,7 +658,7 @@ export class Store {
       break;
     }
     case 'hero_data_override': {
-      const baseHero = heroes.find(hero => hero.id === action.heroId);
+      const baseHero = allPoolHeroes.find(hero => hero.id === action.heroId);
       if (!baseHero) throw new Error('找不到该英雄');
       const override = action.override;
       if (!override || typeof override !== 'object') throw new Error('heroDataOverrideInvalid');
@@ -704,7 +703,7 @@ export class Store {
       break;
     }
     case 'reset_hero_data_override': {
-      if (!heroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
+      if (!allPoolHeroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
       next.history.push(copy(state));
       const map = { ...(state.heroDataOverrides || {}) };
       delete map[String(action.heroId)];
@@ -712,7 +711,7 @@ export class Store {
       break;
     }
     case 'reset_hero_art_override': {
-      if (!heroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
+      if (!allPoolHeroes.some(hero => hero.id === action.heroId)) throw new Error('找不到该英雄');
       next.history.push(copy(state));
       const key = String(action.heroId);
       const current = { ...(state.heroArtOverrides?.[key] || {}) };
