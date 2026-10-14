@@ -14,7 +14,7 @@ function defaultLane(kind:number|undefined):string {
 const builtCnHeroes:Hero[]=[];
 /** Stable CN-only IDs are based on hero names, not a mutable upstream list position. */
 function cnStableId(name:string){let hash=2166136261;for(const ch of name){hash^=ch.codePointAt(0)!;hash=Math.imul(hash,16777619);}return 100000+(hash>>>0)%800000;}
-const blankHeroPortrait=(name:string)=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" rx="10" fill="#18263b"/><text x="80" y="88" font-size="37" fill="#f4f4f4" font-family="sans-serif" text-anchor="middle">${name.slice(0,2)}</text></svg>`);
+const blankHeroPortrait=(name:string)=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" rx="10" fill="#18263b"/><text x="80" y="88" font-size="37" fill="#f4f4f4" font-family="sans-serif" text-anchor="middle">${name.replace(/[<>&"']/g,'').slice(0,2)}</text></svg>`);
 const seen=new Set<string>();
 for(const entry of [...sourceEntries,...newNames.map((name:string,index:number)=>({officialId:1000+index,name,type:undefined}))]){
   const key=normalized(entry.name);if(!key||seen.has(key))continue;seen.add(key);

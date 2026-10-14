@@ -5,7 +5,7 @@ import { completedSimulatorSlots, migrateLegacySimulatorSlotHeroes, simulatorBan
 
 test('simulator match mode follows the production 18-phase HOK draft order', () => {
   const sequence=phases('match','blue');
-  assert.equal(sequence.length,20);
+  assert.equal(sequence.length,18);
   const keys=sequence.map((_,index)=>simulatorSlotKey(simulatorSlotForPhase('match','blue',index)!));
   assert.deepEqual(keys,[
     'blueBan1','redBan1','blueBan2','redBan2',

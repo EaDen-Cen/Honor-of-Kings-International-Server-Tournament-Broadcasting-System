@@ -290,7 +290,7 @@ export function randomizeSimulatorSlots(
   rules:MatchState, keys:ReadonlySet<string>, emptyBans:readonly string[]=[],
   random:()=>number=Math.random,
 ) {
-  const draft:MatchState={...rules,blueBans:[],redBans:[],bluePicks:[],redPicks:[],currentPhase:0};
+  const draft:MatchState={...rules,banCount:rules.banCount,blueBans:[],redBans:[],bluePicks:[],redPicks:[],currentPhase:0};
   const output={...assignments};
   for(let index=0;index<phases(mode,firstPickSide,rules.banCount).length;index++) {
     const slot=simulatorSlotForPhase(mode,firstPickSide,index,rules.banCount)!;

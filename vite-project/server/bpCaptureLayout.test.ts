@@ -14,7 +14,7 @@ import {
 test('capture layout exposes exactly 20 independently stored slots',()=>{
   assert.equal(captureSlotKeys.length,20);
   assert.equal(new Set(captureSlotKeys).size,20);
-  assert.equal(captureSlotKeys.filter(key=>key.includes('Ban')).length,8);
+  assert.equal(captureSlotKeys.filter(key=>key.includes('Ban')).length,10);
   assert.equal(captureSlotKeys.filter(key=>key.includes('Pick')).length,10);
 
   const changed=normalizeCaptureSlots(defaultCaptureSlots);

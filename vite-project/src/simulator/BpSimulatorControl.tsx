@@ -92,14 +92,14 @@ function pickLineup(slotHeroes:Record<string,number>,side:Side) {
   return [0,1,2,3,4].map(index=>slotHeroes[`${side}Pick${index+1}`]);
 }
 
-function createLineupFixtureActions(slotHeroes:Record<string,number>):Action[] {
+function createLineupFixtureActions(slotHeroes:Record<string,number>,heroPool:HeroPool):Action[] {
   const blue=pickLineup(slotHeroes,'blue');
   const red=pickLineup(slotHeroes,'red');
   if([...blue,...red].some(value=>!Number.isInteger(value)))throw new Error('10 个 Pick 槽必须都有英雄');
   if(new Set([...blue,...red]).size!==10)throw new Error('换英雄测试的 10 个 Pick 槽必须使用不同英雄');
 
   const reserved=new Set([...blue,...red]);
-  const banPool=heroesForPool('global').map(hero=>hero.id).filter(id=>!reserved.has(id));
+  const banPool=heroesForPool(heroPool).map(hero=>hero.id).filter(id=>!reserved.has(id));
   let banIndex=0;
   return phases('normal','blue').map((phase,index)=>{
     const slot=simulatorSlotForPhase('normal','blue',index)!;
@@ -337,7 +337,7 @@ export function BpSimulatorControl() {
     if(!snapshot||controlStatus!=='Connected'||controlPending){setIntegrationMessage('Control 尚未准备好。');return;}
     if(snapshot.state.committedGameId){setIntegrationMessage('当前 Control 已提交本局；请进入下一局或重置比赛。');return;}
     try{
-      const actions=createLineupFixtureActions(state.slotHeroes);
+      const actions=createLineupFixtureActions(state.slotHeroes,state.heroPool);
       const blue=pickLineup(state.slotHeroes,'blue');
       const red=pickLineup(state.slotHeroes,'red');
       setDraftSync({stage:'resetting',actions,index:0,targetBlue:blue,targetRed:red});
@@ -468,7 +468,7 @@ export function BpSimulatorControl() {
                   current.slotHeroes,
                   current.mode,
                   current.firstPickSide,
-                  rulesRef.current,
+                  {...rulesRef.current,heroPool:current.heroPool,banCount:current.banCount},
                   new Set(keys),
                   current.emptyBans,
                 ),
