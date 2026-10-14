@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
 import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
 import { decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
@@ -133,15 +134,25 @@ const server = createServer(async (req, res) => {
         const report=store.data.state.postGameReports.find(r=>r.id===input.reportId);
         if(!report){json(409,{error:'Prepare the game report first'});return;}
         if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
-        const result=await playerRecognition.recognizeNumbers(input.images);
+        const rowIds=postGameCaptureRowIds(report.players.map(p=>p.rowId),input.rowIds,input.images);
+        // Reject completely blank screen crops instead of storing black evidence.
+        const visible:number[]=[];
+        for(let index=0;index<input.images.length;index++){
+          const data=input.images[index];
+          if(typeof data!=='string'||!/^data:image\\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(data)||data.length>180000)throw new Error('Invalid numeric crop');
+          const {channels}=await sharp(Buffer.from(data.split(',')[1],'base64'),{limitInputPixels:1000000}).stats();
+          if(channels.some(c=>c.stdev>5))visible.push(index);
+        }
+        if(!visible.length){json(422,{error:'The selected number regions are blank; preview and redraw your crop boxes'});return;}
+        const result=await playerRecognition.recognizeNumbers(visible.map(index=>input.images[index]));
         if(!store.data.state.postGameReports.some(r=>r.id===input.reportId)){json(409,{error:'Report changed'});return;}
         await mkdir(uploadDirectory,{recursive:true});
         const candidates=await Promise.all(result.texts.map(async(text,index)=>{
-          const value=parsePostGameNumber(text,input.metric);
+          const sourceIndex=visible[index],value=parsePostGameNumber(text,input.metric);
           const name=`${randomUUID()}.png`;
           // Provider verified and decoded these bounded PNG crops before OCR.
-          await writeFile(resolve(uploadDirectory,name),await sharp(Buffer.from(input.images[index].split(',')[1],'base64')).png().toBuffer(),{flag:'wx'});
-          return {rowId:report.players[index].rowId,value,confidence:value===null?0:result.confidences[index],text,evidence:`/uploads/player-portraits/${name}`};
+          await writeFile(resolve(uploadDirectory,name),await sharp(Buffer.from(input.images[sourceIndex].split(',')[1],'base64')).png().toBuffer(),{flag:'wx'});
+          return {rowId:rowIds[sourceIndex],value,confidence:value===null?0:result.confidences[index],text,evidence:`/uploads/player-portraits/${name}`};
         }));
         json(200,{candidates,elapsedMs:result.elapsedMs});
       }catch{json(400,{error:'Post-game capture failed; check regions or retry after player OCR'});}
