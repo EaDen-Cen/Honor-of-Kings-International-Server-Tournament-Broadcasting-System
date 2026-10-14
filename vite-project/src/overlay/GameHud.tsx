@@ -1,6 +1,7 @@
 import type { MatchState, Side } from '../shared/types';
 import { currentGame, displaySides } from '../shared/draftRules';
 import { stageName } from '../shared/display';
+import { heroForState } from '../shared/heroData';
 import './gameHud.css';
 import { useEffect, useState } from 'react';
 export function GameHud({state}:{state:MatchState}){
@@ -16,7 +17,27 @@ export function GameHud({state}:{state:MatchState}){
     {data.logo&&<img className="game-hud-logo" src={data.logo} alt=""/>}<strong>{data.name}</strong>
     <span className="game-hud-series" aria-label={zh?'系列赛比分':'Series score'}>{state[`${side}Score`]}</span>
   </div>;}
+  const lineup=(side:Side)=><aside className={`game-hud-lineup ${side}`} aria-label={zh?'选手名单':'Player lineup'}>
+    <div className="game-hud-lineup-title">{state[`${side}Team`].name}</div>
+    {Array.from({length:5},(_,slot)=>{
+      const heroId=(state[`${side}Assignments`]?.[slot]??state[`${side}Picks`]?.[slot]) as number|undefined;
+      const hero=heroId!==undefined?heroForState(state,heroId):undefined;
+      const sourceSlot=state[`${side}PlayerSlotOrder`]?.[slot]??slot;
+      const player=state[`${side}Team`].players[sourceSlot]||`P${slot+1}`;
+      return <div key={slot} className="game-hud-roster-row">
+        <span className="game-hud-roster-position">{slot+1}</span>
+        {hero?.imageLink?<img src={hero.imageLink} alt=""/>:<span className="game-hud-roster-unknown"/>}
+        <strong>{player}</strong>
+      </div>;
+    })}
+  </aside>;
   return <div className={`game-hud ${stats.density}`}>
+    <div className="game-hud-opaque-top" aria-hidden="true"/>
+    <div className="game-hud-opaque-left" aria-hidden="true"/>
+    <div className="game-hud-opaque-right" aria-hidden="true"/>
+    <div className="game-hud-opaque-bottom" aria-hidden="true"/>
+    <div className="game-hud-map-cover"><strong>CHASING WIND</strong><span>{zh?'小地图画面：可使用 OBS 另加地图裁切源':'Map: place a cropped source above this layer in OBS'}</span></div>
+    {lineup(left)}{lineup(right)}
     <header>{team(left)}<div className="game-hud-center"><b>{zh?'第':'Game '}{currentGame(state)}{zh?'局':''} · {state.seriesFormat}</b><small>{stageName(state.stage,state.language)}</small><time>{time}</time></div>{team(right)}</header>
     <div className="game-hud-stats"><span><b>{stats[`${left}Kills`]}</b> {zh?'人头':'Kills'} <b>{stats[`${right}Kills`]}</b></span>
       <span><b>{stats[`${left}Towers`]}</b> {zh?'推塔':'Towers'} <b>{stats[`${right}Towers`]}</b></span>

@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { isBroadcastPageRoute } from './uiRoutes.js';
 import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
 import { decodeGameFrame, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
 import { settlementPages } from '../src/shared/gameCapture.js';
@@ -283,7 +284,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     const root = resolve(project, 'dist');
-    const route = ['/', '/control', '/caster', '/overlay/draft', '/overlay/game-hud', '/overlay/mvp', '/tools/bp-simulator', '/tools/bp-simulator-control'].includes(url.pathname);
+    const route = isBroadcastPageRoute(url.pathname);
     const file = resolve(root, route ? 'index.html' : `.${decodeURIComponent(url.pathname)}`);
     if (!file.startsWith(root + '/') && !file.startsWith(root + '\\')) { json(404, { error: '找不到请求的内容' }); return; }
     const mime: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
