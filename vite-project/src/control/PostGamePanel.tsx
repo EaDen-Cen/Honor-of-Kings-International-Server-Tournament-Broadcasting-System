@@ -13,7 +13,6 @@ interface Candidate { rowId:string; value:number|null; confidence:number; eviden
 function GoldTimelineEditor({report,zh,disabled,send}:{report:PostGameReport;zh:boolean;disabled:boolean;send:(action:Action)=>void}){
   const [text,setText]=useState(()=>timelineToText(report.goldTimeline??[]));
   const [message,setMessage]=useState('');
-  useEffect(()=>{setText(timelineToText(report.goldTimeline??[]));setMessage('');},[report.id]);
   function submit(){try{const points=parseGoldTimelineText(text);send({type:'post_game_gold_timeline',reportId:report.id,points});setMessage(zh?`已提交 ${points.length} 个回放采样点。`:`Saved ${points.length} replay samples.`);}catch(e){setMessage(e instanceof Error?e.message:String(e));}}
   return <details className="panel"><summary>{zh?'游戏进程 · 经济时间线（回放数据）':'Game progress · replay gold timeline'}</summary>
     <p className="muted">{zh?'每行填写「时间,蓝方经济,红方经济」，例如 02:00,3500,3600。支持 K、万。至少两个递增时间点，最多 240 个。仅画真实输入的点，不从结算数据推测历史。':'Enter time, blue gold, red gold per row (e.g. 02:00,3500,3600). K and 万 units accepted; 2–240 increasing samples. No history is fabricated from final totals.'}</p>
