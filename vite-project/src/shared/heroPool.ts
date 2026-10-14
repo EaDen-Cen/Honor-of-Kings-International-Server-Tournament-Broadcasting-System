@@ -1,11 +1,11 @@
 import globalHeroes from '../components/HeroList.js';
-import catalog from '../data/cnHeroCatalog.json';
+import { cnHeroCatalog as catalog } from '../data/cnHeroCatalog.js';
 import type { Hero } from '../data/heroTypes.js';
 export type HeroPool='global'|'cn';
 export type BanCount=0|1|2|3|4|5;
 const normalized=(name:string)=>name.replace(/[\s·（）()]/g,'').replace(/鎧/g,'铠').replace(/凱/g,'凯').replace(/雲/g,'云').trim();
 const globalNames=new Map(globalHeroes.filter(h=>h.chineseName.trim()).map(h=>[normalized(h.chineseName),h]));
-const sourceEntries=catalog.entries;
+const sourceEntries:ReadonlyArray<{officialId:number;name:string;type:number|undefined}>=catalog.entries;
 const newNames=catalog.contemporaryNames;
 function defaultLane(kind:number|undefined):string {
   return ({1:'Clash Lane',2:'Mid Lane',3:'Clash Lane',4:'Jungling',5:'Farm Lane',6:'Roaming'} as Record<number,string>)[kind??0]||'Clash Lane';
@@ -13,7 +13,7 @@ function defaultLane(kind:number|undefined):string {
 /** Preserve all global IDs. Distinct CN-only heroes live in a separate namespace. */
 const builtCnHeroes:Hero[]=[];
 const seen=new Set<string>();
-for(const entry of [...sourceEntries,...newNames.map((name,index)=>({officialId:1000+index,name,type:undefined}))]){
+for(const entry of [...sourceEntries,...newNames.map((name:string,index:number)=>({officialId:1000+index,name,type:undefined}))]){
   const key=normalized(entry.name);if(!key||seen.has(key))continue;seen.add(key);
   const shared=globalNames.get(key);
   if(shared){builtCnHeroes.push(shared);continue;}

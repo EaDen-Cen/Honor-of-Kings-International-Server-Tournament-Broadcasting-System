@@ -519,7 +519,7 @@ export function BpSimulatorControl() {
         setSwapCompletedAt(null);
         update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}));
       }}>
-        {heroes.map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}
+        {heroesForPool(state.heroPool).map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}
       </select>
     </label>;
   };
@@ -654,7 +654,7 @@ export function BpSimulatorControl() {
         <div className="sim-current-pick-group">
           {activeSlots.map(slot=>{
             const key=simulatorSlotKey(slot);
-            return <label key={key}>{slot.action==='ban'?'B':'P'}{slot.slotIndex+1}<select value={state.slotHeroes[key]??''} disabled={activeLocked} onChange={event=>update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}))}>{heroes.map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}</select></label>;
+            return <label key={key}>{slot.action==='ban'?'B':'P'}{slot.slotIndex+1}<select value={state.slotHeroes[key]??''} disabled={activeLocked} onChange={event=>update(current=>({...current,slotHeroes:{...current.slotHeroes,[key]:Number(event.target.value)}}))}>{heroesForPool(state.heroPool).map(hero=><option key={hero.id} value={hero.id}>{hero.chineseName} · {hero.englishName}</option>)}</select></label>;
           })}
           <button onClick={randomizeCurrent} disabled={!activeKeys.length||activeLocked}>随机当前组</button>
           <button onClick={randomizeAll}>随机完整 BP 配置</button>

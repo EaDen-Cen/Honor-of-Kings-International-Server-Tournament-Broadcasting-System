@@ -89,7 +89,7 @@ export function simulatorSlotForPhase(
   phaseIndex: number,
   banCount:BanCount=defaultBansForMode(mode),
 ): SimulatorPhaseSlot | undefined {
-  const sequence=phases(mode,firstPickSide);
+  const sequence=phases(mode,firstPickSide,banCount);
   const phase=sequence[phaseIndex];
   if(!phase) return undefined;
   const slotIndex=sequence

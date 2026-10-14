@@ -1,4 +1,5 @@
 import { phases, type MatchState, type Side } from '../shared/types.js';
+import { defaultBansForMode } from '../shared/heroPool.js';
 import { draftTurnAtPhase, nextDraftTurn, nextOpponentPickTurn } from '../shared/draftTurns.js';
 import { normalizeCaptureRegion, type NormalizedCaptureRegion } from './windowCaptureGeometry.js';
 
@@ -115,27 +116,27 @@ export function slotMeta(key:CaptureSlotKey) {
 }
 
 function previousSlotIndexAtPhase(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'>&{banCount?:MatchState['banCount']},
   phaseIndex:number,
   side:Side,
   action:'ban'|'pick',
 ) {
-  return phases(state.draftMode,state.firstPickSide,state.banCount)
+  return phases(state.draftMode,state.firstPickSide,(state.banCount??defaultBansForMode(state.draftMode)))
     .slice(0,phaseIndex)
     .filter(phase=>phase.team===side&&phase.action===action)
     .length;
 }
 
-export function slotCountFor(state:Pick<MatchState,'draftMode'|'banCount'>, action:'ban'|'pick') {
-  return action==='pick' ? 5 : state.banCount;
+export function slotCountFor(state:Pick<MatchState,'draftMode'>&{banCount?:MatchState['banCount']}, action:'ban'|'pick') {
+  return action==='pick' ? 5 : (state.banCount??defaultBansForMode(state.draftMode));
 }
 
 export function captureTargetForPhaseIndex(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'>&{banCount?:MatchState['banCount']},
   slots:CaptureSlots,
   phaseIndex:number,
 ):CaptureTarget|undefined {
-  const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[phaseIndex];
+  const phase=phases(state.draftMode,state.firstPickSide,(state.banCount??defaultBansForMode(state.draftMode)))[phaseIndex];
   if(!phase) return undefined;
   const slotIndex=previousSlotIndexAtPhase(state,phaseIndex,phase.team,phase.action);
   const slotCount=slotCountFor(state,phase.action);
@@ -151,17 +152,17 @@ export function captureTargetForPhaseIndex(
 }
 
 export function captureTargetForState(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>&{banCount?:MatchState['banCount']},
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
   return captureTargetForPhaseIndex(state,slots,state.currentPhase);
 }
 
 export function captureTargetsForCurrentTurn(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>&{banCount?:MatchState['banCount']},
   slots:CaptureSlots,
 ):CaptureTarget[] {
-  const turn=draftTurnAtPhase(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
+  const turn=draftTurnAtPhase(state.draftMode,state.firstPickSide,state.currentPhase,(state.banCount??defaultBansForMode(state.draftMode)));
   if(!turn) return [];
   return turn.phaseIndexes
     .map(phaseIndex=>captureTargetForPhaseIndex(state,slots,phaseIndex))
@@ -169,18 +170,18 @@ export function captureTargetsForCurrentTurn(
 }
 
 export function captureProbeForNextTurn(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>&{banCount?:MatchState['banCount']},
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
-  const turn=nextDraftTurn(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
+  const turn=nextDraftTurn(state.draftMode,state.firstPickSide,state.currentPhase,(state.banCount??defaultBansForMode(state.draftMode)));
   return turn ? captureTargetForPhaseIndex(state,slots,turn.startPhase) : undefined;
 }
 
 
 export function captureProbeForNextOpponentPick(
-  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'|'banCount'>,
+  state:Pick<MatchState,'draftMode'|'firstPickSide'|'currentPhase'>&{banCount?:MatchState['banCount']},
   slots:CaptureSlots,
 ):CaptureTarget|undefined {
-  const turn=nextOpponentPickTurn(state.draftMode,state.firstPickSide,state.currentPhase,state.banCount);
+  const turn=nextOpponentPickTurn(state.draftMode,state.firstPickSide,state.currentPhase,(state.banCount??defaultBansForMode(state.draftMode)));
   return turn ? captureTargetForPhaseIndex(state,slots,turn.startPhase) : undefined;
 }

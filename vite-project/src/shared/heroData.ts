@@ -16,6 +16,6 @@ export function heroForState(state: Pick<MatchState, 'heroDataOverrides'>, id: n
   };
 }
 
-export function heroesForState(state: Pick<MatchState, 'heroDataOverrides'|'heroPool'>): Hero[] {
+export function heroesForState(state: Pick<MatchState, 'heroDataOverrides'> & {heroPool?:MatchState['heroPool']}): Hero[] {
   return heroesForPool(state.heroPool).map(hero => heroForState(state, hero.id) ?? hero);
 }
