@@ -9,3 +9,6 @@
 .pg-roi-bottom{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:13px}
 .pg-roi-crop{width:auto;max-width:400px;max-height:110px;image-rendering:auto;vertical-align:middle;margin-left:10px;border:1px solid #9cb0c7;background:#070d16}
 .pg-roi-bottom input{width:90px}.pg-roi-bottom summary{cursor:pointer}
+
+.pg-roi-scroll{max-width:1152px;width:100%;overflow:auto;border:1px solid #324a63;max-height:660px}
+.pg-roi-scroll .pg-roi-frame{flex-shrink:0;max-width:none!important}

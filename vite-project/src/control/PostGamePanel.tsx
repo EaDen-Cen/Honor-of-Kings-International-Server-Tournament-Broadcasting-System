@@ -57,7 +57,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
       let min=255,max=0;
       for(let i=0;i<data.length;i+=4){const v=(data[i]+data[i+1]+data[i+2])/3;min=Math.min(min,v);max=Math.max(max,v);}
       if(max-min<13)throw new Error(zh?'采集到的是空白/黑屏，请重新选择正确的游戏窗口或结算截图。':'Capture was blank; choose the actual game window or screenshot.');
-      setSnapshot(frame.toDataURL('image/jpeg',.92));setCandidates([]);
+      setSnapshot(frame.toDataURL('image/png'));setCandidates([]);
       setMessage(zh?'画面已冻结供框选。选择选手，直接拖框数字；可复制到同队五行后检查。':'Frame frozen for calibration. Draw over one number; copy to five same-team rows if aligned.');
     }catch(e){setMessage(e instanceof Error?e.message:'Capture failed');}
   }

@@ -12,6 +12,7 @@ export function PostGameRegionPicker({zh,snapshot,players,selected,onSelect,regi
   onSelect:(i:number)=>void;regions:(NormalizedCaptureRegion|undefined)[];
   onRegion:(index:number,region:NormalizedCaptureRegion)=>void;onCopyTeam:()=>void;
 }){
+  const [zoom,setZoom]=useState(1);
   const [start,setStart]=useState<{x:number;y:number}|null>(null);
   const [end,setEnd]=useState<{x:number;y:number}|null>(null);
   const [cropPreview,setCropPreview]=useState('');
@@ -47,9 +48,10 @@ export function PostGameRegionPicker({zh,snapshot,players,selected,onSelect,regi
         </select>
       </label>
       <button type="button" disabled={!validPostGameRegion(selectedRegion)} onClick={onCopyTeam}>{zh?'按行距复制本队 5 个框':'Copy region to this team (5 rows)'}</button>
+      <label>{zh?'放大框选画面':'Preview zoom'}<select aria-label="Post-game crop zoom" value={zoom} onChange={e=>setZoom(Number(e.target.value))}><option value={1}>100%</option><option value={1.5}>150%</option><option value={2}>200%</option></select></label>
     </div>
     <p className="muted">{zh?'直接在下面截图上拖动黄色方框，只框选数字。蓝红两队各选 5 人；已经框好的区域会显示边框。复制行距后请检查每个框是否准确。':'Drag a box around digits only. Existing regions remain visible; review all five copied boxes.'}</p>
-    {snapshot?<div className="pg-roi-frame" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);const p=point(e);setStart(p);setEnd(p);}}
+    {snapshot?<div className="pg-roi-scroll"><div className="pg-roi-frame" style={{width:(zoom*100)+'%',maxWidth:(1152*zoom)+'px'}} onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);const p=point(e);setStart(p);setEnd(p);}}
       onPointerMove={e=>{if(start)setEnd(point(e));}} onPointerUp={finish} onPointerCancel={()=>{setStart(null);setEnd(null);}}>
       <img src={snapshot} alt={zh?'游戏截图：请直接框选评分数字':'Captured game screen for selecting OCR digits'} draggable={false}/>
       {regions.map((region,index)=>{
@@ -57,7 +59,7 @@ export function PostGameRegionPicker({zh,snapshot,players,selected,onSelect,regi
         if(!validPostGameRegion(shown))return null;
         return <div className={'pg-roi-outline '+(index===selected?'current':'')} key={players[index].rowId} style={{left:shown.x*100+'%',top:shown.y*100+'%',width:shown.width*100+'%',height:shown.height*100+'%'}}><b>{index<5?'B':'R'}{index%5+1}</b></div>;
       })}
-    </div>:<p className="notice">{zh?'先点「预览/刷新当前游戏画面」，或在上方加载结算截图。':'Preview the actual screenshot or shared game window first.'}</p>}
+    </div></div>:<p className="notice">{zh?'先点「预览/刷新当前游戏画面」，或在上方加载结算截图。':'Preview the actual screenshot or shared game window first.'}</p>}
     <div className="pg-roi-bottom">
       <div>{zh?'选中区域预览':'Selected numeric crop'}：{cropPreview?<img className="pg-roi-crop" src={cropPreview} alt="Selected digits preview"/>:<span>{zh?'尚未框选':'No region selected'}</span>}</div>
       {validPostGameRegion(selectedRegion)&&<details><summary>{zh?'精确调整坐标（高级）':'Advanced ROI coordinates'}</summary>
