@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeSync, f
 import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import heroes from '../src/components/HeroList.js';
+import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
 import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/heroIdOrder.js';
 import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
@@ -323,15 +324,15 @@ export class Store {
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (state.draftRuleMode === 'player' && [...state.blueTeam.players, ...state.redTeam.players].some(player => !playerIdentity(player))) throw new Error('playerMissing');
       if (state.currentPhase === 0 && (seriesFinished(state) || state.draftHistory.some(game => game.gameNumber >= state.gameNumber))) throw new Error('updateScoreBeforeNext');
-      const turn = draftTurnAtPhase(state.draftMode, state.firstPickSide, state.currentPhase);
+      const turn = draftTurnAtPhase(state.draftMode, state.firstPickSide, state.currentPhase,state.banCount);
       if (!turn || turn.action !== 'pick' || turn.team !== action.team) throw new Error('当前选禁阶段不支持此操作，请确认轮次和队伍');
       if (!Array.isArray(action.heroIds) || action.heroIds.length !== turn.phaseIndexes.length || action.heroIds.length < 1 || action.heroIds.length > 2) throw new Error('pickGroupInvalid');
       next.history.push(copy(state));
       state.draftGameNumber ??= state.gameNumber;
       for (const heroId of action.heroIds) {
-        const phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+        const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
         if (!phase || phase.action !== 'pick' || phase.team !== action.team) throw new Error('pickGroupInvalid');
-        if (!heroes.some(h => h.id === heroId)) throw new Error('找不到该英雄');
+        if (!heroAllowed(state.heroPool,heroId)) throw new Error('heroNotInPool');
         if (draftHeroUsed(state, heroId)) {
           const selected = [...state.blueBans, ...state.redBans, ...state.bluePicks, ...state.redPicks]
             .find(id => id !== null && draftHeroGroupKey(state, id) === draftHeroGroupKey(state, heroId));
@@ -354,7 +355,7 @@ export class Store {
       if (state.currentPhase === 0 && (seriesFinished(state) || state.draftHistory.some(game => game.gameNumber >= state.gameNumber))) throw new Error('updateScoreBeforeNext');
       const phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
       if (!phase || phase.team !== action.team || phase.action !== action.action) throw new Error('当前选禁阶段不支持此操作，请确认轮次和队伍');
-      if (!heroes.some(h => h.id === action.heroId)) throw new Error('找不到该英雄');
+      if (!heroAllowed(state.heroPool,action.heroId)) throw new Error('heroNotInPool');
       if (draftHeroUsed(state, action.heroId)) {
         const selected = [...state.blueBans, ...state.redBans, ...state.bluePicks, ...state.redPicks]
           .find(id => id !== null && draftHeroGroupKey(state, id) === draftHeroGroupKey(state, action.heroId));
@@ -393,7 +394,7 @@ export class Store {
       validateLineup(state, true);
       next.history.push(copy(state));
       state.draftHistory.push({
-        id, firstPickSide: state.firstPickSide, gameNumber: currentGame(state), committedAt: this.clock(),
+        id, firstPickSide: state.firstPickSide, heroPool:state.heroPool,banCount:state.banCount,gameNumber: currentGame(state), committedAt: this.clock(),
         blueTeam: copy(state.blueTeam), redTeam: copy(state.redTeam),
         bluePlayerSlotOrder: [...state.bluePlayerSlotOrder], redPlayerSlotOrder: [...state.redPlayerSlotOrder],
         blueBans: [...state.blueBans], redBans: [...state.redBans],
@@ -494,6 +495,8 @@ export class Store {
       reset.draftMode = state.draftMode;
       reset.draftRuleMode = state.draftRuleMode;
       reset.flowbornFormsIndependent = state.flowbornFormsIndependent;
+      reset.heroPool = state.heroPool;
+      reset.banCount = state.banCount;
       reset.firstPickSide = state.firstPickSide;
       reset.sideSwapMode = state.sideSwapMode;
       reset.language = state.language;
@@ -536,10 +539,13 @@ export class Store {
       if (s.blueScore > wins || s.redScore > wins || (s.blueScore === wins && s.redScore === wins) || s.gameNumber > Number(s.seriesFormat.slice(2))) throw new Error('比分或局数不符合当前赛制');
       shortText(s.stage, 80);
       const draftRuleMode = s.draftRuleMode ?? state.draftRuleMode;
+      const heroPool=s.heroPool??state.heroPool;
+      const banCount=s.banCount??defaultBansForMode(s.draftMode);
+      if(!['cn','global'].includes(heroPool)||!isBanCount(banCount))throw new Error('Invalid hero pool or bans per team');
       const firstPickSide = s.firstPickSide ?? state.firstPickSide;
       const flowbornFormsIndependent = s.flowbornFormsIndependent ?? state.flowbornFormsIndependent;
       if (state.currentPhase > 0 && firstPickSide !== state.firstPickSide) throw new Error('firstPickLocked');
-      if (ruleLocked(state) && (draftRuleMode !== state.draftRuleMode || flowbornFormsIndependent !== state.flowbornFormsIndependent)) throw new Error('rulesLocked');
+      if (ruleLocked(state) && (draftRuleMode !== state.draftRuleMode || flowbornFormsIndependent !== state.flowbornFormsIndependent || heroPool!==state.heroPool || banCount!==state.banCount)) throw new Error('rulesLocked');
       if (state.draftHistory.length && s.seriesFormat !== state.seriesFormat) throw new Error('rulesLocked');
       for (const team of [s.blueTeam, s.redTeam]) {
         if (!team) throw new Error('请填写队伍信息');
@@ -627,6 +633,7 @@ export class Store {
         artSourceMode: s.artSourceMode ?? state.artSourceMode ?? 'auto',
 
         draftMode: s.draftMode,
+        heroPool,banCount,
         draftRuleMode,
         flowbornFormsIndependent,
         firstPickSide,
