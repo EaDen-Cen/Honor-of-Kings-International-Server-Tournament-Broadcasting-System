@@ -626,7 +626,7 @@ export class Store {
         overlayLayout: s.overlayLayout,
         scoreDisplay: s.scoreDisplay ?? state.scoreDisplay ?? 'number',
         bpInputMode: s.bpInputMode ?? state.bpInputMode ?? 'manual',
-        recognitionAutoAccept: s.recognitionAutoAccept ?? state.recognitionAutoAccept ?? false,
+        recognitionAutoAccept: heroPool==='cn'?false:(s.recognitionAutoAccept ?? state.recognitionAutoAccept ?? false),
         recognitionThreshold: s.recognitionThreshold ?? state.recognitionThreshold ?? 90,
         showHeroName: s.showHeroName ?? state.showHeroName ?? true,
         artSourceMode: s.artSourceMode ?? state.artSourceMode ?? 'auto',

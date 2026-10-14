@@ -147,7 +147,7 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
         <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'],banCount:e.target.value==='normal'?2:4 })}>
           <option value="match">{t('matchMode')}</option><option value="normal">{t('normalMode')}</option>
         </select></label>
-        <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={ruleLocked(state)} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool']})}>
+        <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={ruleLocked(state)} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool'],recognitionAutoAccept:false})}>
           <option value="global">{state.language==='zh'?'国际服 · Honor of Kings':'Global · Honor of Kings'}</option>
           <option value="cn">{state.language==='zh'?'国服 · 王者荣耀':'CN · 王者荣耀'}</option>
         </select><small>{state.language==='zh'?'国服英雄资料使用独立目录；若使用屏幕识别，请先校准国服头像模板。':'CN heroes use a separate catalog. Calibrate CN hero recognition before auto capture.'}</small></label>
@@ -176,9 +176,9 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
         <label>{t('scoreDisplay')}<select value={form.scoreDisplay || 'number'} onChange={e => setForm({ ...form, scoreDisplay: e.target.value as MatchSettings['scoreDisplay'] })}><option value="number">{t('scoreNumber')}</option><option value="boxes">{t('scoreBoxes')}</option></select></label>
         <label>{t('bpInputMode')}<select value={form.bpInputMode || 'manual'} onChange={e => setForm({ ...form, bpInputMode: e.target.value as MatchSettings['bpInputMode'] })}><option value="manual">{t('manualInput')}</option><option value="screen">{t('screenInput')}</option></select></label>
         {form.bpInputMode === 'screen' && <details className="advanced-options"><summary>{state.language === 'zh' ? '屏幕识别 · 高级选项' : 'Screen recognition · advanced'}</summary>
-          <label className="settings-checkbox"><span>{state.language === 'zh' ? '高相似度自动输入' : 'Automatically accept high similarity'}</span><input type="checkbox" checked={form.recognitionAutoAccept ?? false} onChange={e => setForm({...form, recognitionAutoAccept:e.target.checked})} /></label>
+          <label className="settings-checkbox"><span>{state.language === 'zh' ? '高相似度自动输入' : 'Automatically accept high similarity'}</span><input type="checkbox" disabled={form.heroPool==='cn'} checked={form.heroPool!=='cn'&&(form.recognitionAutoAccept ?? false)} onChange={e => setForm({...form, recognitionAutoAccept:e.target.checked})} /></label>
           <label>{state.language === 'zh' ? '相似度阈值 (%)' : 'Similarity threshold (%)'}<input type="number" min={50} max={100} step={1} value={form.recognitionThreshold ?? 90} onChange={e => setForm({...form, recognitionThreshold:Number(e.target.value)})} /></label>
-          <small>{state.language === 'zh' ? '相似度不是准确率；仍需稳定帧和锁定证据。低于或等于阈值、空 Ban 均需审核。' : 'Similarity is not accuracy. Stable frames and lock evidence remain required. At or below the threshold, and empty bans, require review.'}</small>
+          <small>{state.language === 'zh' ? '国服暂未训练独有英雄模板，因此自动输入强制关闭。相似度不是准确率；仍需稳定帧和锁定证据。低于或等于阈值、空 Ban 均需审核。' : 'Similarity is not accuracy. Stable frames and lock evidence remain required. At or below the threshold, and empty bans, require review.'}</small>
         </details>}
         <label>{t('overlayLayout')}<select value={form.overlayLayout} onChange={e => setForm({ ...form, overlayLayout: e.target.value as MatchSettings['overlayLayout'] })}>
           <option value="panel">{t('panelLayout')}</option><option value="side">{t('sideLayout')}</option>

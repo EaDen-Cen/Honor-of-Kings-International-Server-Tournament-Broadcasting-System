@@ -121,6 +121,7 @@ export function normalizeState(raw: MatchState): MatchState {
   state.displayLeftSide = raw.displayLeftSide ?? 'blue';
   state.firstPickSide = raw.firstPickSide ?? 'blue';
   state.heroPool = raw.heroPool === 'cn' ? 'cn' : 'global';
+  if(state.heroPool==='cn')state.recognitionAutoAccept=false;
   state.banCount = Number.isInteger(raw.banCount)&&raw.banCount>=0&&raw.banCount<=5 ? raw.banCount : defaultBanCount(raw.draftMode);
   state.draftHistory=state.draftHistory.map(record=>({...record,heroPool:record.heroPool??'global',banCount:record.banCount??defaultBanCount(raw.draftMode)}));
   state.sideSwapMode = raw.sideSwapMode ?? 'moveTeams';
