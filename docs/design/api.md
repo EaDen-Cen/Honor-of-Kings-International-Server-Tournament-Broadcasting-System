@@ -22,9 +22,9 @@
 
 未来 AI 实现 `HeroRecognitionProvider`，保持证据结构、修订号和 BP 校验流程；提供者只识别，不直接修改比赛。当前未提供 AI 模型、云端凭据或 AI 推理功能。
 
-整页接口接受 PNG/JPEG data URL，限制 5 MiB 请求、4 MiB 编码图像和 900 万像素；`region` 为 0–1 的 `{x,y,width,height}`，必须选中 16:9 游戏内容，服务端统一到 1920×1080。模板基于当前提供的中文版结算 UI；自动判页不明确时返回错误，允许指定 page 兜底。未通过身份匹配的行返回 `rowId:null`，须人工逐行确认；不默认沿用 BP 行序。recap 返回按 left/right 的 `teamCandidates`，应用前须确认队伍方向。
+整页接口接受 PNG/JPEG data URL，限制 5 MiB 请求、4 MiB 编码图像和 900 万像素；`region` 为 0–1 的 `{x,y,width,height}`，必须选中 16:9 游戏内容，服务端统一到 1920×1080。模板基于当前提供的中文版结算 UI；自动判页不明确时返回错误，允许指定 page 兜底。未通过身份匹配的行返回 `rowId:null`，须人工逐行确认；不默认沿用 BP 行序。PR #67 的 Control 使用 `report.id` 对应的唯一 0–9 行身份映射，跨六种选手结算页面复用，之后的新 OCR 不会自动覆盖已确认行序；映射保存在当前浏览器 `localStorage` 的 `hok-settlement-mapping-v1:<reportId>` 中，不随服务器比赛备份迁移。recap 返回按 left/right 的 `teamCandidates`，应用前须确认队伍方向。
 
-`post_game_fields` 合并逐选手数据，`post_game_team_fields` 合并逐队 recap；字段可带 `capturedAt`、`evidence`，可信冲突和人工值受到保护。`live_game_ocr` 提交 `{context, previous, sample}`，两个样本均为 `{capturedAt,candidates}`，服务端复核两帧一致性、置信度、合理趋势、30 秒有效期与冻结状态；单样本不直接写入播出。`live_game_freeze` 接收 `{key,frozen}`；人工改值自动冻结该项。WebSocket 单消息上限 64 KiB，支持最多 100 项字段批次。
+`post_game_fields` 合并逐选手数据，`post_game_team_fields` 合并逐队 recap；字段可带 `capturedAt`、`evidence`，可信冲突和人工值受到保护。Rating 仍是 `PostGameMetric` 中的现有数值字段；PR #67 增加十人评分人工补录（`manual:true, sourcePage:'overview'`），固定整页模板尚不自动识别评分位置，也不读取 S/A/SSS 字母评级。`live_game_ocr` 提交 `{context, previous, sample}`，两个样本均为 `{capturedAt,candidates}`，服务端复核两帧一致性、置信度、合理趋势、30 秒有效期与冻结状态；单样本不直接写入播出。`live_game_freeze` 接收 `{key,frozen}`；人工改值自动冻结该项。WebSocket 单消息上限 64 KiB，支持最多 100 项字段批次。
 
 密码 8–256 字符，保存盐和 scrypt 哈希；修改后已连接页面通过 `access_token_update` 获取本角色新 token。离线页面重新登录。密码可取得 Control 权限，只读成员应使用角色分享 token。环境变量 `ACCESS_PASSWORD` 只在尚未配置密码时初始化。
 
@@ -42,4 +42,9 @@ Control action `set_player_slot_orders` 接收 `blue` / `red` 两个五人排列
 | POST /api/recovery | 立即创建本机完整备份 |
 | GET /api/match-export | 导出比赛/队伍/上传媒体，排除 access.json |
 
-WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_player_slot_orders`（双方原子更新）、`live_game_stats`、`post_game_begin`、`post_game_fields`、`select_mvp`，沿用修订号校验、撤销、持久化及角色权限。选手 OCR 在 BP 并行推进时按阵容/当前局检验上下文，映射写入仍须使用当前 revision。新 OBS 路由 `/overlay/game-hud` 与 `/overlay/mvp` 使用 overlay 角色。**`/overlay/game-hud` 当前为 Experimental / 测试阶段**：接口与持久化已实现，但自动 HUD 数据读取尚未实现；真实比赛长时间稳定性待实机验收；正式比赛须保留官方/人工比分兜底。
+WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_player_slot_orders`（双方原子更新）、`live_game_stats`、`live_game_ocr`、`live_game_freeze`、`post_game_begin`、`post_game_fields`、`post_game_team_fields`、`post_game_gold_timeline`、`select_mvp`，沿用修订号校验、撤销、持久化及角色权限。选手 OCR 在 BP 并行推进时按阵容/当前局检验上下文，映射写入仍须使用当前 revision。OBS 路由 `/overlay/game-hud`、`/overlay/mvp`、`/overlay/postgame-compare?role=mid`、`/overlay/game-progress` 使用 overlay 角色。三种赛后图形在 1920×1080 设计画布中渲染；`role` 可用 `clash/jungle/mid/farm/roam`，默认 `clash`。雷达至少需要双方三个共同可信字段，每个轴以这两名选手的最大值为比例尺，不代表官方评分。**GHUD 的七项顶栏 OCR 已有实验原型，但真实长时间 OBS 验收未完成**，正式比赛须保留官方/人工比分兜底。
+
+
+## PR #67：经济时间线与赛后图形契约
+
+`post_game_gold_timeline` 为 Control WebSocket Action：`{type:"post_game_gold_timeline",reportId,points:[{timeSeconds,blueGold,redGold},...]}`。服务器验证 2–240 个样本、时间严格递增且为 0–7200 的整数秒、双方经济为 0–1,000,000 的非负整数。通过后写入本局 `PostGameReport.goldTimeline`，走修订号、Undo 与持久化。导播文本输入允许 `mm:ss,blueGold,redGold`，数字支持 `K/万`；最终局总经济不能替代历史采样。详情参见 [回放工作流](../guides/player-alignment-recovery-hud.md#回放结算测试与全屏赛后图形开发-pr-67)。

@@ -301,3 +301,11 @@ Chrome 测试同时打开 Control、Caster、Overlay，完成选禁、刷新、�
 - 清理当前 release notes 中意外提交的冲突标记与重复旧稿，保留面向用户的发布说明及阅读路径。
 
 真实游戏连续采集、不同版本/皮肤/光效与 OBS 压缩仍待现场验证。少像素、强遮挡或锁孔消失时仍应人工确认；以上静态样本不证明所有 Ban 均可自动识别。
+
+
+## 2026-10-13 / PR #67 — 回放赛后图形与文档同步
+
+- 代码分支 `feature/replay-postgame-broadcast-v2`，在本局维度复用十行身份、补录 Rating、增加 1920×1080 MVP、五位置对位/雷达与基于真实观测点的经济时间线；不存在全自动评分或截图曲线数字化。
+- [CI run 38498427299](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions/runs/38498427299) 对应修复后代码 SHA `a3e0568`：hero validate、生产 build、lint 成功；`npm test` **182 项、179 通过、3 跳过、0 失败**。此为 Linux CI 结果，不代表在真实赛事机上运行。
+- 本次文档提交同步核对索引、操作流程、安装入口、API、架构、README、里程碑及发布说明；删除“自动 HUD/固定模板判页未实现”的过时现状描述。只改文档不算新的实机验收。
+- **未执行**：实际 10 人比赛、完整真实回放各页连贯性、OBS 内置浏览器 1920×1080 安全区截图、长时间游戏/OBS 并发、经济图原生截图提取、评分固定模板 OCR。既有依赖审计风险、旧浏览器测试问题不因本次合并自动消失。

@@ -6,8 +6,8 @@
 | --- | --- |
 | `vite-project/src/main.tsx` → `BroadcastApp.tsx` | 当前前端入口、Control / Caster / Overlay |
 | `vite-project/src/control/` | 导播工作区、Auto BP、Player ID 对齐、最终阵容、设置、照片、队伍库 |
-| `vite-project/src/overlay/` | Draft Overlay、MVP Overlay、实验性 Game HUD 与英雄揭示动画 |
-| `vite-project/src/shared/` | 类型、BP 规则、显示、语言与比赛连接 |
+| `vite-project/src/overlay/` | Draft Overlay、1920×1080 MVP、赛后对位/雷达/经济进程、实验性 Game HUD 与英雄揭示动画 |
+| `vite-project/src/shared/` | 类型、BP 规则、显示、语言与比赛连接；结算行序共享映射及经济时间序列的解析/验证 |
 | `vite-project/src/components/`、`src/data/` | 既有组件与英雄数据；旧单机组件保留 |
 | `vite-project/server/server.ts` | HTTP / WebSocket、权限、静态文件与上传入口 |
 | `vite-project/server/store.ts` | 比赛状态、修订号、Undo、历史、延迟和落盘 |
@@ -47,7 +47,7 @@
 
 开局 Player ID 对齐复用 Auto BP 的共享窗口流：Control 一次裁剪双方 10 个 ID，后端使用英文/简中常驻 OCR worker 生成候选，再在每队已知 5 人 roster 中求 120 种一一映射。双方都可信时通过 `set_player_slot_orders` 原子提交；单帧边缘结果可在连续相同排列下做两帧时间一致性复核。人工采用、人工交换、恢复自动和 ID 区域独立预设都不会修改 TeamPreset 本身。
 
-`/overlay/game-hud` 与 `LiveGameStats` 已接入状态、持久化和 OBS Overlay，但 **HUD 仍处于测试阶段**。当前人头、推塔和中立资源主要由 Control 人工维护；自动读取真实游戏 HUD、长时间 OBS 稳定性和版本 UI 变化尚未完成验收，因此架构上将其视为 Experimental 模块，而不是 v1.0.0 的唯一官方比分源。
+`/overlay/game-hud` 与 `LiveGameStats` 已接入状态、持久化和 OBS Overlay，但 **HUD 仍处于测试阶段**。人头、推塔和经济已有顶栏七项 OCR 原型及两帧核验；中立资源主要由 Control 人工维护；真实游戏连续识别、长时间 OBS 稳定性和版本 UI 变化尚未完成验收，因此架构上将其视为 Experimental 模块，而不是 v1.0.0 的唯一官方比分源。
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
 
@@ -62,3 +62,10 @@ M21–M25 将逐步构建基于现有 MatchState 的统一数据模型：`MatchD
 OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可信快照渲染。KPL 的图形排版是信息展示参考，不意味着存在我们可直接使用的比赛官方 API。后续音频自动化应通过可控的 OBS/音频总线接口实现 Fade、Ducking 和场景控制，必须有手动覆盖、音量安全状态和断连保护，不得阻塞 Auto BP、直播画面采集或造成音画不同步。
 
 见 [M21–M25 具体里程碑与验收标准](../../MILESTONES.md)。**M19 Game HUD 仍为实验功能，M20 自动判页尚未通过实机验收。**
+
+
+## PR #67：回放结算与赛后展示的数据边界
+
+`SettlementCapturePanel.tsx` 将某局的 0–9 屏幕行号映射到已确认 `rowId`，在六种选手页复用，同页 OCR 不可静默覆写已有映射；这层 UI 映射只在当前浏览器 localStorage 中。真正保存的 `PostGameReport.players[].fields` 仍经 `post_game_fields` 按 `rowId` 校验、合并并进入 Store。固定模板评分 ROI 未验实，导播补录评分仍使用原来的数值字段与人工可信标记。
+
+`postGameTimeline.ts` 接受 2–240 个真实回放时间/双方经济样本，`store.ts` 写入 `PostGameReport.goldTimeline`；`PostGameBroadcast.tsx` 在 `/overlay/game-progress` 画折线，在 `/overlay/postgame-compare` 使用已核实的同角色双方字段生成对位表及相对数值雷达。三种赛后 Overlay（包括重设计的 MVP）复用 `ViewportCanvas` 的 1920×1080 空间，不用截图拼图，也不会因缺失数据生成假值。

@@ -26,6 +26,8 @@ npm run server
 - Draft Overlay：http://127.0.0.1:3001/overlay/draft
 - 实验性 Game HUD：http://127.0.0.1:3001/overlay/game-hud
 - MVP Overlay：http://127.0.0.1:3001/overlay/mvp
+- 五位置对位分析：http://127.0.0.1:3001/overlay/postgame-compare?role=mid （将 mid 换成 clash/jungle/farm/roam）
+- 经济进程曲线：http://127.0.0.1:3001/overlay/game-progress
 
 开发热更新：另一个终端运行 `npm run dev`，打开 http://localhost:5173/control。
 Vite 转发 `/api` 与 `/ws` 到 3001 端口。浏览器通过 `/api/access` 获取经服务器验证的本机角色凭据，前端不包含固定口令。前端默认同域连接，跨域地址可通过 `.env` 中的
@@ -140,9 +142,9 @@ token 经 Authorization 头和 WS 初始认证消息发送，分享链接使用 
 
 屏幕识别模式会复用 Auto BP 的采集窗口，在开局并行识别双方 10 个 Player ID，并把游戏画面的 P1–P5 映射到赛前 roster。ID 区域可以独立保存命名预设；手动修正后可以用“恢复自动识别”重新交给 OCR。当前 Simulator 最佳完整核查约 1.8 秒，边缘帧会在不降低原阈值的前提下做两帧一致性复核。
 
-`/overlay/game-hud` 已支持队伍身份、系列赛进度、人头、推塔和中立资源，但**仍处于测试阶段**。当前局内统计主要由 Control 人工维护，自动读取真实游戏 HUD 尚未实现；赛事机长期运行和 OBS 遮挡/缩放仍需实机验收。正式比赛应继续保留官方观战 UI 或人工比分兜底。
+`/overlay/game-hud` 已支持队伍身份、系列赛进度、人头、推塔和中立资源，但**仍处于测试阶段**。当前局内统计主要由 Control 人工维护，七项顶栏 OCR 原型已经加入并支持连续两帧审核；赛事机长期运行和 OBS 遮挡/缩放仍需实机验收。正式比赛应继续保留官方观战 UI 或人工比分兜底。
 
-`/overlay/mvp` 与赛后报告基础链路已接入，可在投票确定 MVP 后展示结构化数据卡；自动判页尚未实现；手动指定页的真实结算画面识别仍需实机验收。
+`/overlay/mvp` 使用 1920×1080 全屏包装；已加入六种十人结算页与 recap 的模板判页/稳定帧采集草稿，识别弱项须审核。PR #67 的回放工作流增加跨页共用一次身份映射、手工确认评分、五位置对位雷达与经济时间线导入。赛后整局/OBS 验收仍未完成。
 
 ## 验证
 

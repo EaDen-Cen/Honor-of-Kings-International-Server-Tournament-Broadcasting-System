@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md)
 
-> **v1.0.0 发布准备状态（2026-10-10）**：核心 BP / Auto BP / Player ID / 换英雄链路已进入 Release Candidate。局内 HUD `/overlay/game-hud` 仍为 **Experimental / 测试阶段**，可用于彩排和 OBS 预览。自动 HUD 识别尚未实现，真实比赛长时间稳定性待实机验收；正式比赛保留官方/人工比分兜底。
+> **v1.0.0 发布准备状态（2026-10-10）**：核心 BP / Auto BP / Player ID / 换英雄链路已进入 Release Candidate。局内 HUD `/overlay/game-hud` 仍为 **Experimental / 测试阶段**，可用于彩排和 OBS 预览。顶栏七项 HUD OCR 与两帧核验已有实验原型，真实比赛长时间稳定性待实机验收；正式比赛保留官方/人工比分兜底。
 
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
@@ -26,13 +26,15 @@
 - 版本交接归入 `archive/handoffs/`，历史计划归入 `archive/planning/`；日期使用 YYYY-MM-DD。
 - 测试结果写入验证记录并注明日期、环境、实际执行和未验证范围，不能混入当前操作步骤。
 - 研究叙述放在 `docs/research/`，原始证据继续放在根目录 `research/`。
+- **任何 GitHub 源码、界面、API、数据结构或操作流程改动，必须在同一个 PR 中同步检查并更新相关文档**，不可只提交代码。默认检查根 README、用户/操作指南、设计/API、`MILESTONES.md`、Release Notes 与验证记录；不相关的文档可不更改，但须确认。
 - 新增或移动文档同步修改本索引及相对链接；旧资料保留，不把历史需求当现状。
+- 发布前检查文档中“已实现 / Experimental / 规划”的状态一致性；只写实际执行过的测试，CI 不等于真实游戏或 OBS 验收。
 - 文中源码、运行数据和产物路径默认以仓库根目录为基准；npm 命令在 `vite-project/` 执行。历史原文的路径仍按其注明的原上下文理解。
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
 
-已接入每局选手槽位映射、常驻本地 OCR、双队原子顺序更新、时间一致性复核、ID 区域预设、备份/停机恢复与赛后数据草稿/MVP 页面。局内 HUD 已有人工统计与 OBS Overlay，但**仍处于测试阶段**；其自动识别、真实比赛长时间运行和正式比分可靠性尚未验收。参见 [功能与操作说明](guides/player-alignment-recovery-hud.md) 与 [项目里程碑](../MILESTONES.md)。
+已接入每局选手槽位映射、常驻本地 OCR、双队原子顺序更新、时间一致性复核、ID 区域预设、备份/停机恢复与赛后数据草稿/MVP 页面。局内 HUD 已有人工统计、顶栏 OCR 与 OBS Overlay，但**仍处于测试阶段**；其真实比赛长时间运行和正式比分可靠性尚未验收。参见 [功能与操作说明](guides/player-alignment-recovery-hud.md) 与 [项目里程碑](../MILESTONES.md)。
 
 ## 后续广播图形发展路线（M21–M25）
 
-参考 2026 KPL 转播的信息结构，后续优先完成 [M21 赛后多页 OCR、M22 赛后图形/MVP、M23 局内 HUD 实时数据、M24 OBS/音乐自动化和 M25 高级视觉包装](../MILESTONES.md#后续开发规划参考-kpl-2026-转播信息体系2026-10-08)。均属于规划目标，不能视为 v1.0.0 已交付。架构约束见 [系统结构](design/architecture.md#后续-broadcast-data-engine-设计方向)。
+参考 2026 KPL 转播的信息结构，后续优先完成 [M21 赛后多页 OCR、M22 赛后图形/MVP、M23 局内 HUD 实时数据、M24 OBS/音乐自动化和 M25 高级视觉包装](../MILESTONES.md#后续开发规划参考-kpl-2026-转播信息体系2026-10-08)。其中 M21 的固定模板识别和 M22 的对位/全屏 MVP 基础图形已在 PR #67 开发分支实现，其余完整验收与扩展功能仍为规划目标；这些功能不能视为已发布的 v1.0.0-rc.1 内容。架构约束见 [系统结构](design/architecture.md#后续-broadcast-data-engine-设计方向)。

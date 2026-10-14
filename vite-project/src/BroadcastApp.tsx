@@ -1,5 +1,6 @@
 import { PostGamePanel } from './control/PostGamePanel';
 import { MvpOverlay } from './overlay/MvpOverlay';
+import { PostGameBroadcast } from './overlay/PostGameBroadcast';
 import { LiveGamePanel } from './control/LiveGamePanel';
 import { GameHud } from './overlay/GameHud';
 import { RecoveryPanel } from './control/RecoveryPanel';
@@ -258,7 +259,7 @@ export default function BroadcastApp() {
       </form><p>{accessError || connectionLabel(status, lang)}</p>
     </main>;
   }
-  if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
+  if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:location.pathname==='/overlay/postgame-compare'?<PostGameBroadcast state={state} mode="compare"/>:location.pathname==='/overlay/game-progress'?<PostGameBroadcast state={state} mode="progress"/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
   return <main className={`workspace ${role === 'control' ? 'control-workspace' : ''}`}>
     <header className="topbar">
       <div><span className="eyebrow">{t(role === 'caster' ? 'casterEyebrow' : 'controlEyebrow')}</span><h1>{t('brandTitle')} <span>{t('brandSubtitle')}</span></h1></div>

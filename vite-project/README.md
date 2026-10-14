@@ -24,7 +24,8 @@ npm run hero:crop-sync
 - [运行、部署与备份](../docs/guides/getting-started.md)
 - [比赛操作及队伍资料库](../docs/guides/operator-guide.md)
 - [Auto BP / Player ID / 屏幕识别](../docs/guides/screen-recognition.md)
-- [选手对齐、恢复、实验性 HUD 与 MVP](../docs/guides/player-alignment-recovery-hud.md)
+- [选手对齐、恢复、实验性 HUD 与赛后图形](../docs/guides/player-alignment-recovery-hud.md)
+- [赛后全高清 OBS 页面/API](../docs/design/api.md#pr-67经济时间线与赛后图形契约)
 - [Windows 启动器](../docs/guides/windows-launcher.md)
 - [v1.0.0 发布说明](../docs/releases/v1.0.0.md)
 - [系统结构](../docs/design/architecture.md)
@@ -39,3 +40,8 @@ npm run hero:crop-sync
 - `start-bp-simulator.bat`：后台启动 BP Simulator，启动窗口完成后自动关闭；控制页提供 **选手 ID 排序 → BP 模拟 → 角色交换** 三种独立测试，并可用“从 Control 同步模拟器数据”快速复用当前比赛状态。
 - `stop-bp-simulator.bat`：停止 BP Simulator。
 - `sync-hero-crops.bat`：把当前 `data/match.json` 中的 Panel / Side 英雄裁切提升到 Git 跟踪的 `src/data/heroArtFocusOverrides.ts`；只生成本地 diff，不自动 push。
+
+
+## PR #67：回放赛后图形预览
+
+启动本地服务器后，Control 准备本局报告，再依次打开 `/overlay/mvp`（1920×1080 全屏 MVP）、`/overlay/postgame-compare?role=mid`（更换 role 为 clash/jungle/mid/farm/roam）与 `/overlay/game-progress`（导入回放实测经济时间序列后绘图）。共享十人身份映射只保存在当前浏览器 localStorage，数字统计和时间序列存入服务器比赛状态。任何未核对的评分、缺失的雷达维度或中断的时间曲线均不可补造数值。完整操作见 [回放流程](../docs/guides/player-alignment-recovery-hud.md#回放结算测试与全屏赛后图形开发-pr-67)。
