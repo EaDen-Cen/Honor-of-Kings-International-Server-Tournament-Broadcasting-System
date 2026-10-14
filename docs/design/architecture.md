@@ -76,3 +76,9 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 `src/shared/heroPool.ts` 维护国际服已存在 ID 和独立国服工作目录，CN-only ID 用稳定的英雄名字哈希命名空间生成，**不因源文件排序、官方 ID 变化而覆盖历史国际服 ID**。`src/shared/types.ts` 的 `phases(draftMode,firstPickSide,banCount)` 定义可复现的 0–5 Ban 顺序；`src/shared/draftTurns.ts` 负责同步多选回合聚合。`server/store.ts` 对每个 Action 以当前英雄池和 Ban 数执行合法性验证，提交有效局时写入这些字段并锁定配置。Control、OBS Draft Overlay、20 槽可校准截图、Simulator、Hero Picker 都读取同一设置，不应再分散写死固定 Ban 数。
 
 旧存档无新字段按 Match=4/Normal=2 归一化。国服2026-08-19 国服官方接口存档和近代候选仍是可人工更新的截至 2026-08-19 的 132 条存档目录；自动识别器尚未获得 CN-only 全套图像模板，不应因数据目录已经能显示而宣称具备真实国服自动 BP 能力。
+
+
+## PR #69：UI 路由与 GHUD 采集安全边界
+`server/uiRoutes.ts` 是 Node/Vite 单页壳路由的完整枚举，`BroadcastApp.tsx` 按 `location.pathname` 选择具体 Overlay。通过这一双向清单避免组件写好了但生产服务器 404。MVP 画布对美术插画采用包含式构图，保持焦点完整。
+`LiveHudCalibration.tsx` 是 Control 内的七字段按图框选 UI；由 `useGameDataCapture.tsx` 提供严格选择的 16:9 图像（不会误把下方回放工具栏当作顶部偏移），按 ROI map 请求 `server/gameDataRecognition.ts`。服务端拒绝无效 ROI 并返回 profile；`shared/liveGame.ts` 验证同一 profile、时钟增长及稳定合理的两次数值后才能写入 Store。正式比赛数据仍应以裁判/游戏界面为准。
+`GameHud.tsx` 采用全画布不透明 matte 盖住顶部、底部、左右原生 UI 并绘制已有可靠的团队与十人信息；地图本身在默认纯色遮罩之下，OBS 需要一个附加地图裁切源才能恢复真实地图。

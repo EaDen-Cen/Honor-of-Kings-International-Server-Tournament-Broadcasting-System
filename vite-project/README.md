@@ -50,3 +50,7 @@ npm run hero:crop-sync
 ## 双服英雄池与 0–5 Ban（开发 PR #68）
 
 `Control → 比赛设置` 可单独选择 `global / cn` 英雄池、每队 Ban 数 0–5。Simulator 的 BP 测试也必须使用同样设置，或通过「从 Control 同步」复制。国服候选可尝试用 `npm run hero:cn-sync` 从官网刷新（失败时不覆写旧数据）；此功能尚未完成真实国服截图 OCR 适配与国服全量英雄清单验收。规则和来源见 [双服操作指南](../docs/guides/hero-pool-and-ban-rules.md)。
+
+
+## PR #69 赛后路由与 GHUD 画面/OCR 修复
+本地运行 3001 生产服务必须先执行 `npm run build` 并重启后端；`/overlay/postgame-compare?role=mid`、`/overlay/game-progress` 由同一 `dist/index.html` 入口载入而非多个 `.html`。OBS 游戏源和完整不透明 GHUD 层按 1920×1080 叠放，地图区域默认是缺源占位，需要 OBS 上层另行叠加真实地图裁切。Control →「GHUD 顶栏识别」必须预览实际图像、画出七项数字框、保存确认，并人工核对两次 OCR 后再开启自动推送。详见 [彩排文档](../docs/guides/postgame-ghud-overlay-fixes.md)。

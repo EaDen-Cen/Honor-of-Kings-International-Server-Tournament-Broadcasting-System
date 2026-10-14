@@ -2,7 +2,7 @@
 
 # 安装、运行与部署指南
 
-> v1.0.0 Release Candidate 状态：核心 BP / Auto BP / Player ID / 换英雄链路已完成软件验证。**局内 HUD 仍是测试功能**，自动 HUD 数据读取尚未实现，真实 OBS 长时间运行待实机验收。
+> v1.0.0 Release Candidate 状态：核心 BP / Auto BP / Player ID / 换英雄链路已完成软件验证。**局内 HUD 仍是测试功能**，顶栏 OCR 已有实验版本并要求七项重新校准，真实 OBS 长时间运行待实机验收。
 
 第一次使用建议先看 [新手上手教程](beginner-guide.md)。当前比赛操作以 [操作指南](operator-guide.md) 为准；Auto BP 见 [屏幕识别指南](screen-recognition.md)；版本交接与旧实施计划见 [历史归档](../archive/README.md)。
 
@@ -182,3 +182,7 @@ Auto BP 已支持浏览器窗口采集、18 槽位校准/预设、Pick/Ban 识�
 ## 国服英雄目录同步（开发 PR #68）
 
 在 `vite-project/` 运行 `npm run hero:cn-sync`，请求国服官网英雄列表并生成版本受控的 `src/data/cnHeroCatalog.ts`。脚本失败时不会覆盖旧文件；成功后人工核对差异、重跑 build/test，再提交 PR。由于本项目开发环境无法直接读取国服官网实时数据，**本次内置国服目录不应当成完整、实时的官方名单**。启动后 Control → 比赛设置 → 英雄池服务器可选 CN/Global，每队 Ban 另选 0–5；具体操作和禁止自动化声称见 [双服指南](hero-pool-and-ban-rules.md)。
+
+
+## PR #69 赛后 URL 和 GHUD 的验证入口
+生产 `server.ts` 现在明确登记 `/overlay/postgame-compare` 与 `/overlay/game-progress`，不必额外的 Vite 多页面入口。更新代码之后重新执行 `npm run build` 并重启 3001 Node 服务器，避免继续从旧服务器得到「找不到页面或文件」。GHUD 首次使用须预览当前帧，校准并确认七项 OCR 区域；OBS 的游戏源与 HUD 浏览器源保持 1920×1080 同步，地图源须额外裁切。参见 [可复现的彩排步骤](postgame-ghud-overlay-fixes.md)。

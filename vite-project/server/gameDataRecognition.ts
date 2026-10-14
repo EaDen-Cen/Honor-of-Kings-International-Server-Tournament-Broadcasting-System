@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { fullGameRect, liveCaptureKeys, liveCaptureRects, parseLiveNumber, pixelRect, recapRegions, settlementColumns, settlementNameRect, settlementPages, settlementTabRects, validCaptureRect, type CaptureRect } from '../src/shared/gameCapture.js';
+import { fullGameRect, liveCaptureKeys, liveCaptureRects, parseLiveNumber, pixelRect, recapRegions, settlementColumns, settlementNameRect, settlementPages, settlementTabRects, validCaptureRect, type LiveCaptureKey, type CaptureRect } from '../src/shared/gameCapture.js';
 import { parsePostGameNumber, type PostGamePage, type PostGameReport, type PostGameTeamMetric } from '../src/shared/postGame.js';
 import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import type { PlayerRecognitionProvider } from './playerRecognition.js';
@@ -59,17 +59,27 @@ export async function recognizeSettlement(frame:Buffer,page:PostGamePage|'auto',
   }),candidates:jobs.map((job,index)=>({screenRow:job.screenRow,metric:job.metric,value:parsePostGameNumber(numeric.texts[index],job.metric),confidence:numeric.confidences[index],text:numeric.texts[index]})),elapsedMs:performance.now()-start};
 }
 
-export async function recognizeLiveHud(frame:Buffer,provider:PlayerRecognitionProvider){
-  const images=await Promise.all(liveCaptureKeys.map(async key=>{
-    if(!key.startsWith('blue'))return crop(frame,liveCaptureRects[key]);
-    const {data,info}=await sharp(frame).extract(pixelRect(liveCaptureRects[key],1920,1080)).removeAlpha().raw().toBuffer({resolveWithObject:true});
-    const mask=Buffer.alloc(info.width*info.height,255);
-    for(let i=0;i<mask.length;i++){
-      const r=data[i*info.channels],g=data[i*info.channels+1],b=data[i*info.channels+2];
-      if(g>85&&b>130&&g>r*1.3&&b>r*1.3)mask[i]=255-Math.min(255,(g-85)*4);
+/** Keep the proven bright-cyan suppression only when the crop actually
+ * contains blue native HUD accent pixels. For color-neutral themes use
+ * unchanged images; a forced cyan mask caused different UI layouts to fail.
+ * Snapshot OCR remains experimental and must be operator-calibrated. */
+async function liveHudCrop(frame:Buffer,key:LiveCaptureKey,region:CaptureRect){
+  if(!key.startsWith('blue'))return crop(frame,region);
+  const {data,info}=await sharp(frame).extract(pixelRect(region,1920,1080)).removeAlpha().raw().toBuffer({resolveWithObject:true});
+  const mask=Buffer.alloc(info.width*info.height,255);
+  let cyanPixels=0;
+  for(let i=0;i<mask.length;i++){
+    const r=data[i*info.channels],g=data[i*info.channels+1],b=data[i*info.channels+2];
+    if(g>85&&b>130&&g>r*1.3&&b>r*1.3){
+      cyanPixels++;
+      mask[i]=255-Math.min(255,(g-85)*4);
     }
-    return 'data:image/png;base64,'+(await sharp(mask,{raw:{width:info.width,height:info.height,channels:1}}).png().toBuffer()).toString('base64');
-  }));
+  }
+  if(cyanPixels<Math.max(8,mask.length*.012))return crop(frame,region);
+  return 'data:image/png;base64,'+(await sharp(mask,{raw:{width:info.width,height:info.height,channels:1}}).png().toBuffer()).toString('base64');
+}
+export async function recognizeLiveHud(frame:Buffer,provider:PlayerRecognitionProvider,regions:Record<LiveCaptureKey,CaptureRect>=liveCaptureRects){
+  const images=await Promise.all(liveCaptureKeys.map(key=>liveHudCrop(frame,key,regions[key])));
   const result=await provider.recognizeNumbers(images);
   return {candidates:liveCaptureKeys.map((key,index)=>({key,value:parseLiveNumber(result.texts[index],key),confidence:result.confidences[index],text:result.texts[index]})),elapsedMs:result.elapsedMs};
 }
