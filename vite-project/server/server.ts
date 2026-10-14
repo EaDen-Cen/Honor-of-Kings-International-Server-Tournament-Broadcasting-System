@@ -139,7 +139,7 @@ const server = createServer(async (req, res) => {
         const visible:number[]=[];
         for(let index=0;index<input.images.length;index++){
           const data=input.images[index];
-          if(typeof data!=='string'||!/^data:image\\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(data)||data.length>180000)throw new Error('Invalid numeric crop');
+          if(typeof data!=='string'||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(data)||data.length>180000)throw new Error('Invalid numeric crop');
           const {channels}=await sharp(Buffer.from(data.split(',')[1],'base64'),{limitInputPixels:1000000}).stats();
           if(channels.some(c=>c.stdev>5))visible.push(index);
         }
