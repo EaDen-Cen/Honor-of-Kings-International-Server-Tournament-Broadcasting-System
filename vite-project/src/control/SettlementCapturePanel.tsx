@@ -56,7 +56,7 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
   },[auto,capture.ready,capture.isStill,disabled,zh,page]);
   const result=results[selected];
   const mappings=result?.rows.map(row=>mapping[String(row.screenRow)]||'')??[];
-  const complete=mappings.length===10&&mappings.every(Boolean)&&new Set(mappings).size===10&&mappings.every((id,index)=>report.players.some(p=>p.rowId===id&&p.side===(index<5?'blue':'red'));
+  const complete=mappings.length===10&&mappings.every(Boolean)&&new Set(mappings).size===10&&mappings.every((id,index)=>report.players.some(p=>p.rowId===id&&p.side===(index<5?'blue':'red')));
   const updates=result?.candidates.filter(c=>c.value!==null&&c.confidence>=.85).map(c=>({rowId:mappings[c.screenRow],metric:c.metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:result.page,evidence:result.evidence,capturedAt:result.capturedAt}}))??[];
   return <details className="panel" open><summary>{zh?'结算整页采集 · 实机模板':'Full-page settlement capture · game template'}</summary>
     <p className="muted">{zh?'同一局十行身份映射跨所有结算页复用，首次核对即可；发现页面行序变化时请人工修改。对局页仍须确认左右队伍。评分可在下方单独补录；经济曲线通过时间点导入。':'One ten-row identity mapping is shared across settlement pages; review once, adjust only if the order changes. Confirm recap sides separately. Rating can be entered below; gold trends use time-series samples.'}</p>
