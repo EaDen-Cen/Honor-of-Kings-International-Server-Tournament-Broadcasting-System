@@ -35,6 +35,8 @@ for(const hero of globalHeroes){
   seen.add(key);builtCnHeroes.push(hero);
 }
 export const cnHeroes:Hero[]=builtCnHeroes;
+// Working CN snapshot is not a claim of complete live-server release parity.
+export const cnPoolCatalogStatus='partial-snapshot' as const;
 export const allPoolHeroes:Hero[]=Array.from(new Map([...globalHeroes,...cnHeroes].map(hero=>[hero.id,hero])).values());
 const cnIds=new Set(cnHeroes.map(h=>h.id));
 export function heroesForPool(pool:HeroPool='global'):Hero[]{return pool==='cn'?cnHeroes:globalHeroes;}

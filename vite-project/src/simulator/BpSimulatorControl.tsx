@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { allPoolHeroes,heroesForPool } from '../shared/heroPool';
+import { allPoolHeroes,heroesForPool,type BanCount,type HeroPool } from '../shared/heroPool';
 import { useAccess } from '../shared/access';
 import { useMatch } from '../shared/useMatch';
 import { initialState, phases, type Action, type MatchSettings, type MatchState, type Side } from '../shared/types';
@@ -147,7 +147,7 @@ export function BpSimulatorControl() {
 
   const randomize=(current:typeof state,keys:string[],autoPlay=current.autoPlay)=>{
     try{
-      const slotHeroes=randomizeSimulatorSlots(current.slotHeroes,current.mode,current.firstPickSide,rules,new Set(keys),current.emptyBans);
+      const slotHeroes=randomizeSimulatorSlots(current.slotHeroes,current.mode,current.firstPickSide,{...rules,heroPool:current.heroPool,banCount:current.banCount},new Set(keys),current.emptyBans);
       setRuleError('');
       return {...current,slotHeroes,autoPlay};
     }catch(error){
@@ -216,7 +216,9 @@ export function BpSimulatorControl() {
     }
   };
 
-  const setDraftMode=(mode:typeof state.mode)=>update(current=>({...current,mode,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setDraftMode=(mode:typeof state.mode)=>update(current=>({...current,mode,banCount:mode==='match'?4:2,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setHeroPool=(heroPool:HeroPool)=>update(current=>({...current,heroPool,slotHeroes:{},phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
+  const setBanCount=(banCount:BanCount)=>update(current=>({...current,banCount,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
   const setFirstPickSide=(firstPickSide:Side)=>update(current=>({...current,firstPickSide,phaseIndex:0,emptyBans:[],locked:[],autoPlay:false}));
 
   const toggleCurrentLock=()=>{
@@ -620,7 +622,9 @@ export function BpSimulatorControl() {
         <p className="sim-control-note">{snapshot?'已连接 Control，随机选角可参考当前比赛规则。':'未连接 Control，按普通 BP 规则模拟。'}</p>
         {ruleError&&<p role="alert">{ruleError}</p>}
         <div className="sim-control-grid separated">
-          <label>BP 模式<select value={state.mode} onChange={event=>setDraftMode(event.target.value as typeof state.mode)}><option value="match">Match · 4 Ban</option><option value="normal">Normal · 2 Ban</option></select></label>
+          <label>BP 模式<select value={state.mode} onChange={event=>setDraftMode(event.target.value as typeof state.mode)}><option value="match">Match · 分段禁用</option><option value="normal">Normal · 集中禁用</option></select></label>
+          <label>英雄池<select aria-label="Simulator hero pool" value={state.heroPool} onChange={event=>setHeroPool(event.target.value as HeroPool)}><option value="global">国际服</option><option value="cn">国服（预览目录）</option></select></label>
+          <label>每队 Ban<select aria-label="Simulator bans per team" value={state.banCount} onChange={event=>setBanCount(Number(event.target.value) as BanCount)}>{([0,1,2,3,4,5] as const).map(n=><option key={n} value={n}>{n} Ban</option>)}</select></label>
           <label>先手方<select value={state.firstPickSide} onChange={event=>setFirstPickSide(event.target.value as Side)}><option value="blue">蓝方</option><option value="red">红方</option></select></label>
           <div className="sim-interval-range"><span>自动脚本随机等待</span>
             <label>最短<input type="number" min={0.3} max={15} step={0.1} value={(state.intervalMinMs/1000).toFixed(1)} onChange={event=>patch({intervalMinMs:Math.round(Number(event.target.value)*1000)})}/><small>秒</small></label>
