@@ -10,7 +10,7 @@ import { PostGameRegionPicker } from './PostGameRegionPicker';
 import { useGameDataCapture } from './useGameDataCapture';
 const storage='hok-post-game-regions-v1';
 type Regions=Record<string,NormalizedCaptureRegion>;
-function readRegions():Regions{try{return JSON.parse(localStorage.getItem(storage)||'{}');}catch{return {};}}
+function readRegions():Regions{try{const value=JSON.parse(localStorage.getItem(storage)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
 interface Candidate { rowId:string; value:number|null; confidence:number; evidence:string; text:string }
 function GoldTimelineEditor({report,zh,disabled,send}:{report:PostGameReport;zh:boolean;disabled:boolean;send:(action:Action)=>void}){
   const [text,setText]=useState(()=>timelineToText(report.goldTimeline??[]));
