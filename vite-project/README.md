@@ -45,3 +45,8 @@ npm run hero:crop-sync
 ## PR #67：回放赛后图形预览
 
 启动本地服务器后，Control 准备本局报告，再依次打开 `/overlay/mvp`（1920×1080 全屏 MVP）、`/overlay/postgame-compare?role=mid`（更换 role 为 clash/jungle/mid/farm/roam）与 `/overlay/game-progress`（导入回放实测经济时间序列后绘图）。共享十人身份映射只保存在当前浏览器 localStorage，数字统计和时间序列存入服务器比赛状态。任何未核对的评分、缺失的雷达维度或中断的时间曲线均不可补造数值。完整操作见 [回放流程](../docs/guides/player-alignment-recovery-hud.md#回放结算测试与全屏赛后图形开发-pr-67)。
+
+
+## 双服英雄池与 0–5 Ban（开发 PR #68）
+
+`Control → 比赛设置` 可单独选择 `global / cn` 英雄池、每队 Ban 数 0–5。Simulator 的 BP 测试也必须使用同样设置，或通过「从 Control 同步」复制。国服候选可尝试用 `npm run hero:cn-sync` 从官网刷新（失败时不覆写旧数据）；此功能尚未完成真实国服截图 OCR 适配与国服全量英雄清单验收。规则和来源见 [双服操作指南](../docs/guides/hero-pool-and-ban-rules.md)。

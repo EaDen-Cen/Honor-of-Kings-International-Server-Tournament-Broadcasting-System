@@ -69,3 +69,10 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 `SettlementCapturePanel.tsx` 将某局的 0–9 屏幕行号映射到已确认 `rowId`，在六种选手页复用，同页 OCR 不可静默覆写已有映射；这层 UI 映射只在当前浏览器 localStorage 中。真正保存的 `PostGameReport.players[].fields` 仍经 `post_game_fields` 按 `rowId` 校验、合并并进入 Store。固定模板评分 ROI 未验实，导播补录评分仍使用原来的数值字段与人工可信标记。
 
 `postGameTimeline.ts` 接受 2–240 个真实回放时间/双方经济样本，`store.ts` 写入 `PostGameReport.goldTimeline`；`PostGameBroadcast.tsx` 在 `/overlay/game-progress` 画折线，在 `/overlay/postgame-compare` 使用已核实的同角色双方字段生成对位表及相对数值雷达。三种赛后 Overlay（包括重设计的 MVP）复用 `ViewportCanvas` 的 1920×1080 空间，不用截图拼图，也不会因缺失数据生成假值。
+
+
+## PR #68：双服英雄身份与 BP 阶段抽象
+
+`src/shared/heroPool.ts` 维护国际服已存在 ID 和独立国服工作目录，CN-only ID 用稳定的英雄名字哈希命名空间生成，**不因源文件排序、官方 ID 变化而覆盖历史国际服 ID**。`src/shared/types.ts` 的 `phases(draftMode,firstPickSide,banCount)` 定义可复现的 0–5 Ban 顺序；`src/shared/draftTurns.ts` 负责同步多选回合聚合。`server/store.ts` 对每个 Action 以当前英雄池和 Ban 数执行合法性验证，提交有效局时写入这些字段并锁定配置。Control、OBS Draft Overlay、20 槽可校准截图、Simulator、Hero Picker 都读取同一设置，不应再分散写死固定 Ban 数。
+
+旧存档无新字段按 Match=4/Normal=2 归一化。国服历史官方列表镜像和近代候选仍是可人工更新的部分目录；自动识别器尚未获得 CN-only 全套图像模板，不应因数据目录已经能显示而宣称具备真实国服自动 BP 能力。

@@ -6,7 +6,7 @@
 
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
-| 当前操作 | [新手上手](guides/beginner-guide.md)、[运行指南](guides/getting-started.md)、[操作指南](guides/operator-guide.md)、[Auto BP / Player ID](guides/screen-recognition.md)、[选手对齐 / 恢复 / HUD / MVP](guides/player-alignment-recovery-hud.md)、[Windows 启动器](guides/windows-launcher.md) | 第一次使用、安装部署、现场操作、屏幕识别、恢复与实验功能 |
+| 当前操作 | [新手上手](guides/beginner-guide.md)、[运行指南](guides/getting-started.md)、[操作指南](guides/operator-guide.md)、[Auto BP / Player ID](guides/screen-recognition.md)、[选手对齐 / 恢复 / HUD / MVP](guides/player-alignment-recovery-hud.md)、[国服/国际服英雄池与 0–5 Ban](guides/hero-pool-and-ban-rules.md)、[Windows 启动器](guides/windows-launcher.md) | 第一次使用、安装部署、现场操作、屏幕识别、恢复与实验功能 |
 | 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md) | 代码职责、状态流与存储边界 |
 | 发布说明 | [v1.0.0](releases/v1.0.0.md) | Release Candidate 功能、发布检查、升级和已知边界 |
 | 验证记录 | [历次验证](validation/history.md) | 按日期/版本保留结果和未验收范围 |
@@ -38,3 +38,8 @@
 ## 后续广播图形发展路线（M21–M25）
 
 参考 2026 KPL 转播的信息结构，后续优先完成 [M21 赛后多页 OCR、M22 赛后图形/MVP、M23 局内 HUD 实时数据、M24 OBS/音乐自动化和 M25 高级视觉包装](../MILESTONES.md#后续开发规划参考-kpl-2026-转播信息体系2026-10-08)。其中 M21 的固定模板识别和 M22 的对位/全屏 MVP 基础图形已在 PR #67 开发分支实现，其余完整验收与扩展功能仍为规划目标；这些功能不能视为已发布的 v1.0.0-rc.1 内容。架构约束见 [系统结构](design/architecture.md#后续-broadcast-data-engine-设计方向)。
+
+
+## 国服 / 国际服英雄池与可配置 Ban 数量（开发 PR #68）
+
+入口：[国服英雄池与 0–5 Ban 规则说明](guides/hero-pool-and-ban-rules.md)。此功能在开发分支中提供独立 `heroPool`、`banCount`，历史状态默认行为不改变。国服英雄名单为**待与官方实时目录核对的工作快照**，国服专属英雄头像识别与真实 5 Ban 游戏 UI 尚未经过实机/OBS 验收，不属于已发布 RC 的承诺。
