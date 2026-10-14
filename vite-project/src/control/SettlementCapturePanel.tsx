@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Action, Side } from '../shared/types';
 import { canMergePostGameField, postGameMetricLabel, postGameTeamMetricLabel, type PostGameMetric, type PostGamePage, type PostGameReport, type PostGameTeamMetric } from '../shared/postGame';
 import { settlementPages, settlementPageLabel, type NumericCandidate } from '../shared/gameCapture';
+import { mergeSettlementIdentityMapping } from '../shared/settlementIdentity';
 import { frameDifference, frameFingerprint, framePageHint, useGameDataCapture } from './useGameDataCapture';
 
 interface SettlementResult {
@@ -10,13 +11,15 @@ interface SettlementResult {
   candidates:Array<NumericCandidate&{screenRow:number;metric:PostGameMetric}>;
   teamCandidates?:Array<NumericCandidate&{side:'left'|'right';metric:PostGameTeamMetric}>;
 }
+function readMapping(reportId:string){try{const value=JSON.parse(localStorage.getItem('hok-settlement-mapping-v1:'+reportId)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,string>:{};}catch{return {};}}
 export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:PostGameReport;zh:boolean;token:string;disabled:boolean;send:(action:Action)=>void}){
   const capture=useGameDataCapture(zh),[page,setPage]=useState<PostGamePage|'auto'>('auto'),[results,setResults]=useState<Partial<Record<PostGamePage,SettlementResult>>>({}),[selected,setSelected]=useState<PostGamePage>('overview');
-  const [mapping,setMapping]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[auto,setAuto]=useState(false),[message,setMessage]=useState('');
+  const [mapping,setMapping]=useState<Record<string,string>>(()=>readMapping(report.id)),[busy,setBusy]=useState(false),[auto,setAuto]=useState(false),[message,setMessage]=useState('');
   const [recapLeft,setRecapLeft]=useState<Side|''>('');
   const active=useRef(''),running=useRef(false),epoch=useRef(0);
   active.current=`${report.id}:${page}:${capture.generation.current}`;
-  useEffect(()=>{setResults({});setMapping({});setRecapLeft('');setAuto(false);epoch.current++;},[report.id]);
+  useEffect(()=>{setResults({});setMapping(readMapping(report.id));setRecapLeft('');setAuto(false);epoch.current++;},[report.id]);
+  useEffect(()=>{localStorage.setItem('hok-settlement-mapping-v1:'+report.id,JSON.stringify(mapping));},[report.id,mapping]);
   useEffect(()=>()=>{epoch.current++;},[]);
   async function recognize(canvas:HTMLCanvasElement){
     if(running.current||disabled)return false;
@@ -27,7 +30,7 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
       if(active.current!==signature||epoch.current!==version)return false;
       const data=result as SettlementResult;
       setResults(old=>({...old,[data.page]:data}));setSelected(data.page);
-      setMapping(old=>{const next={...old};for(const row of data.rows){const key=`${data.page}:${row.screenRow}`;if(row.rowId)next[key]=row.rowId;else delete next[key];}return next;});
+      setMapping(old=>mergeSettlementIdentityMapping(old,data.rows));
       setMessage(zh?`已采集${settlementPageLabel(data.page,true)}页；请核对身份及数字后应用。`:`Captured ${data.page}; review identities and values before applying.`);
       return true;
     }catch(e){if(epoch.current===version&&active.current===signature)setMessage(e instanceof Error?e.message:'Capture failed');return false;}
@@ -52,18 +55,18 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
     return()=>window.clearInterval(timer);
   },[auto,capture.ready,capture.isStill,disabled,zh,page]);
   const result=results[selected];
-  const mappings=result?.rows.map(row=>mapping[`${selected}:${row.screenRow}`]||'')??[];
-  const complete=mappings.length===10&&mappings.every(Boolean)&&new Set(mappings).size===10;
+  const mappings=result?.rows.map(row=>mapping[String(row.screenRow)]||'')??[];
+  const complete=mappings.length===10&&mappings.every(Boolean)&&new Set(mappings).size===10&&mappings.every((id,index)=>report.players.some(p=>p.rowId===id&&p.side===(index<5?'blue':'red'));
   const updates=result?.candidates.filter(c=>c.value!==null&&c.confidence>=.85).map(c=>({rowId:mappings[c.screenRow],metric:c.metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:result.page,evidence:result.evidence,capturedAt:result.capturedAt}}))??[];
   return <details className="panel" open><summary>{zh?'结算整页采集 · 实机模板':'Full-page settlement capture · game template'}</summary>
-    <p className="muted">{zh?'支持六种十人结算页及对局汇总。切页后自动生成草稿；选手身份未匹配时须逐行指定。对局页须确认左右队伍；资源按画面槽位记录，不猜测名称。不读取经济曲线、装备与字母评级。':'Supports six player pages and game recap. Unmatched identities require row review. Confirm recap sides; resources use screen slot numbers. Graphs, equipment and letter grades are not read.'}</p>
+    <p className="muted">{zh?'同一局十行身份映射跨所有结算页复用，首次核对即可；发现页面行序变化时请人工修改。对局页仍须确认左右队伍。评分可在下方单独补录；经济曲线通过时间点导入。':'One ten-row identity mapping is shared across settlement pages; review once, adjust only if the order changes. Confirm recap sides separately. Rating can be entered below; gold trends use time-series samples.'}</p>
     {capture.controls}
     <div className="toolbar"><label>{zh?'页面类型':'Page type'}<select aria-label="Settlement page type" value={page} onChange={e=>{epoch.current++;setPage(e.target.value as PostGamePage|'auto');}}><option value="auto">{zh?'自动判页':'Detect automatically'}</option>{settlementPages.map(p=><option key={p} value={p}>{settlementPageLabel(p,zh)}</option>)}</select></label>
       <button disabled={disabled||busy||!capture.ready} onClick={()=>{try{void recognize(capture.frame());}catch(e){setMessage(String(e));}}}>{busy?(zh?'整页识别中…':'Reading page…'):(zh?'采集整页':'Capture full page')}</button>
       <label><input type="checkbox" checked={auto} disabled={disabled||capture.isStill} onChange={e=>{epoch.current++;setAuto(e.target.checked);}}/>{zh?'稳定画面后自动采集草稿':'Collect drafts when frames stabilize'}</label>
     </div>
     <div className="toolbar">{settlementPages.map(p=><button disabled={!results[p]} key={p} onClick={()=>setSelected(p)}>{settlementPageLabel(p,zh)} {results[p]?'✓':'—'}</button>)}</div>
-    {result&&<><p>{Math.round(result.elapsedMs)} ms · <a href={result.evidence} target="_blank" rel="noreferrer">{zh?'整页原图证据':'Page evidence'}</a></p>
+    {result&&<><p className="muted">{zh?'本局统一选手顺序：第一次确认后，切换输出、生存、经济等页不必重复选择。':'Shared player order for this game: no remapping needed on each page.'}</p><p>{Math.round(result.elapsedMs)} ms · <a href={result.evidence} target="_blank" rel="noreferrer">{zh?'整页原图证据':'Page evidence'}</a></p>
       {result.page==='recap'&&<><label>{zh?'对局页左侧「我方」对应':'Recap left / friendly side maps to'}<select aria-label="Recap left side" value={recapLeft} onChange={e=>setRecapLeft(e.target.value as Side|'')}><option value="">{zh?'请确认队伍':'Confirm team'}</option>{(['blue','red'] as const).map(side=><option value={side} key={side}>{report.players.find(p=>p.side===side)?.teamName} ({side})</option>)}</select></label>
         <div className="post-game-table">{result.teamCandidates?.map(c=>{
           const side=recapLeft?(c.side==='left'?recapLeft:recapLeft==='blue'?'red':'blue'):null,stored=side?report.teamFields?.[side]?.[c.metric]:undefined;
@@ -73,7 +76,7 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
       </>}
       <div className="post-game-table">{result.rows.map(row=>{
         const rowId=mappings[row.screenRow],player=report.players.find(p=>p.rowId===rowId),side=row.screenRow<5?'blue':'red';
-        return <div key={row.screenRow} className="panel"><label>{side} · {zh?'画面第':'Screen row '}{row.screenRow%5+1} · OCR: {row.text||'—'} <select aria-label={`Settlement identity ${row.screenRow}`} value={rowId} disabled={disabled} onChange={e=>setMapping(old=>({...old,[`${selected}:${row.screenRow}`]:e.target.value}))}><option value="">{zh?'请确认对应选手':'Confirm player identity'}</option>{report.players.filter(p=>p.side===side).map(p=><option value={p.rowId} key={p.rowId}>{p.teamName} · {p.playerId||`P${p.slot+1}`}</option>)}</select></label>
+        return <div key={row.screenRow} className="panel"><label>{side} · {zh?'画面第':'Screen row '}{row.screenRow%5+1} · OCR: {row.text||'—'} {row.rowId&&rowId&&row.rowId!==rowId&&<small className="error">{zh?'本页 OCR 与已保存排序不同，请核实':'This page OCR differs from the saved order; review'}</small>} <select aria-label={`Settlement identity ${row.screenRow}`} value={rowId} disabled={disabled} onChange={e=>setMapping(old=>({...old,[String(row.screenRow)]:e.target.value}))}><option value="">{zh?'请确认对应选手':'Confirm player identity'}</option>{report.players.filter(p=>p.side===side).map(p=><option value={p.rowId} key={p.rowId}>{p.teamName} · {p.playerId||`P${p.slot+1}`}</option>)}</select></label>
           <div className="toolbar">{result.candidates.filter(c=>c.screenRow===row.screenRow).map(c=><span key={c.metric} className={c.value===null||c.confidence<.85?'error':''}>{postGameMetricLabel(c.metric,zh)}: {c.value??'—'} ({Math.round(c.confidence*100)}%){player&&c.value!==null&&!canMergePostGameField(player.fields[c.metric],{value:c.value,confidence:c.confidence,manual:false,sourcePage:selected})&&<small> · {zh?'保留已有值':'Existing value protected'}</small>}</span>)}</div>
         </div>;
       })}</div>

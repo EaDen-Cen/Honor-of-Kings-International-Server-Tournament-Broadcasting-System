@@ -39,12 +39,21 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
   }
   function field(rowId:string,value:number){if(!report)return;send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric,field:{value,sourcePage:page,confidence:1,manual:true}}]});}
   const region=regionFor(row);
+  const ratingPlayers=report?.players??[];
+  function saveRating(rowId:string,value:string){if(!report||value.trim()==='')return;const rating=Number(value);if(!Number.isFinite(rating)||rating<0||rating>100)return;send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric:'rating',field:{value:rating,confidence:1,manual:true,sourcePage:'overview'}}]});}
   return <details className="panel"><summary>{zh?'赛后数据与 MVP':'Post-game data and MVP'}</summary>
     <video ref={video} className="lineup-capture-video" playsInline muted/>
     <p className="muted">{zh?'先确认有效局。MVP 由赛事方投票决定，程序仅展示。OBS：/overlay/mvp（1920×1080）。':'Commit the game first. Organizers vote for MVP; the app only displays the result. OBS: /overlay/mvp (1920×1080).'}</p>
     <button disabled={disabled||!state.committedGameId} onClick={()=>send({type:'post_game_begin'})}>{zh?'准备本局 10 人报告':'Prepare ten-player report'}</button>
     {report&&<><p>{zh?'第':'Game '}{report.gameNumber}{zh?'局 · 草稿':''}</p>
       <SettlementCapturePanel report={report} zh={zh} token={token} disabled={disabled} send={send}/>
+      <details className="panel"><summary>{zh?'选手评分 / Rating · 补录与识别':'Player rating · capture or manual entry'}</summary>
+        <p className="muted">{zh?'当前整页固定模板没有可靠的评分坐标。可在下方补录回放结算评分，或选择字段「游戏评分」并校准十行数字区域进行 OCR；未核实的数据不会被虚构为 0。':'The fixed full-page template does not yet have a verified rating region. Enter confirmed replay scores here, or choose Rating in the field OCR and calibrate the ten numeric regions. Unknown ratings remain blank.'}</p>
+        <div className="post-game-table">{ratingPlayers.map(player=><label className="toolbar" key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}
+          <input aria-label={`Rating ${player.rowId}`} type="number" min="0" max="100" step="0.1" key={`${player.rowId}:${player.fields.rating?.value}`} defaultValue={player.fields.rating?.value??''} placeholder="—" disabled={disabled} onBlur={e=>{if(e.target.value!==''&&Number(e.target.value)!==player.fields.rating?.value)saveRating(player.rowId,e.target.value);}}/>
+        </label>)}</div>
+        <button disabled={disabled} onClick={()=>{setPage('overview');setMetric('rating');}}>{zh?'选择评分 OCR 字段（下方校准）':'Select rating OCR field (calibrate below)'}</button>
+      </details>
       <div className="toolbar"><label>{zh?'数据页':'Source page'}<select value={page} onChange={e=>setPage(e.target.value as PostGamePage)}>{settlementPages.map(key=><option key={key} value={key}>{settlementPageLabel(key,zh)}</option>)}</select></label>
         <label>{zh?'字段':'Field'}<select value={metric} onChange={e=>setMetric(e.target.value as PostGameMetric)}>{postGameMetrics.map(key=><option key={key} value={key}>{postGameMetricLabel(key,zh)}</option>)}</select></label>
         <button disabled={disabled||busy||!ready} onClick={()=>void capture()}>{busy?(zh?'识别中…':'Recognizing…'):(zh?'捕获当前页字段':'Capture current field')}</button>
