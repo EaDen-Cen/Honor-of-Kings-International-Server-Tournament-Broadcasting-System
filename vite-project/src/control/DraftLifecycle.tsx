@@ -8,7 +8,7 @@ export function DraftLifecycle({ state, disabled, send }: { state: MatchState; d
   const t = translator(state.language);
   const maxWins = seriesWins(state);
 
-  return <section className="panel lifecycle">
+  return <section id="game-lifecycle" className="panel lifecycle">
     <p className="side-summary">
       {displaySides(state).map((side, index) =>
         <span key={side} className={side}>

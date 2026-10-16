@@ -8,5 +8,5 @@ export function ControlDraftWorkspace({ monitor, children }: {monitor:ReactNode;
     const observer = new ResizeObserver(() => root.current?.style.setProperty('--monitor-height', (board.getBoundingClientRect().height + 8) + 'px'));
     observer.observe(board); return () => observer.disconnect();
   }, []);
-  return <div ref={root} className="control-draft-workspace"><aside className="control-monitor">{monitor}</aside>{children}</div>;
+  return <div id="draft-workspace" ref={root} className="control-draft-workspace"><aside className="control-monitor">{monitor}</aside>{children}</div>;
 }

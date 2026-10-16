@@ -37,6 +37,7 @@ const HeroArtEditorDialog=lazy(()=>import('./control/HeroArtEditorDialog').then(
 import { LineupAssignments } from './control/LineupAssignments';
 import { Score } from './shared/Score';
 import { DraftHistory } from './shared/DraftHistory';
+import { OperatorGuide } from './control/OperatorGuide';
 import { DraftLifecycle } from './control/DraftLifecycle';
 import { DraftOverlay } from './overlay/DraftOverlay';
 const name = (state: MatchState, id: number, lang: Language) => { const h = heroForState(state, id); return h ? (lang === 'zh' ? h.chineseName : h.englishName) : '—'; };
@@ -286,6 +287,7 @@ export default function BroadcastApp() {
     {state ? <>
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
+        <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
         <ControlDraftWorkspace monitor={<>
           <Board state={state} lang={lang} compact />
           <section className="operator-bar panel">
@@ -304,7 +306,7 @@ export default function BroadcastApp() {
                 disabled={disabled || (snapshot?.casterDelaySeconds || 0) + n < 0 || (snapshot?.casterDelaySeconds || 0) + n > 3600}
                 onClick={() => send({ type: 'delay', seconds: (snapshot?.casterDelaySeconds || 0) + n })}>{n > 0 ? '+' : ''}{n} {t('secondsShort')}</button>)}
               <input aria-label={t('delayInput')} type="number" min={0} max={3600} value={delayInput} onChange={e => setDelayInput(Number(e.target.value))} />
-              <button disabled={disabled} onClick={() => send({ type: 'delay', seconds: delayInput })}>{t('setDelay')}</button>
+              <button disabled={disabled || !Number.isInteger(delayInput) || delayInput < 0 || delayInput > 3600} onClick={() => send({ type: 'delay', seconds: delayInput })}>{t('setDelay')}</button>
             </div>
           </section>
 
@@ -321,16 +323,16 @@ export default function BroadcastApp() {
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>
-                <ControlHeroPicker state={state} disabled={disabled} active={manualFallbackOpen && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />
+                <ControlHeroPicker state={state} disabled={disabled} active={manualFallbackOpen && !showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />
               </details>
             </div>
-            : <ControlHeroPicker state={state} disabled={disabled} active={!showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
+            : <ControlHeroPicker state={state} disabled={disabled} active={!showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
         </ControlDraftWorkspace>
         {showTeamSettings && <TeamSettingsDialog label={t('teamSettings')} closeLabel={t('closeTeamSettings')} onClose={() => setShowTeamSettings(false)}>
           <TeamSettingsPanel key={JSON.stringify([state.blueTeam, state.redTeam])} state={state} send={send} disabled={disabled} token={token} />
         </TeamSettingsDialog>}
         {showHeroArtEditor && <Suspense fallback={<p>{t('connectingServer')}</p>}><HeroArtEditorDialog state={state} send={send} disabled={disabled} onClose={() => setShowHeroArtEditor(false)} /></Suspense>}
-        <section className="control-secondary-tools" aria-label={lang==='zh'?'赛后与维护工具':'Post-game and maintenance tools'}>
+        <section id="postgame-tools" className="control-secondary-tools" aria-label={lang==='zh'?'赛后与维护工具':'Post-game and maintenance tools'}>
           <PostGamePanel state={state} token={token} disabled={disabled} send={send} />
           <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />
           <RecoveryPanel token={token} zh={state.language==='zh'} />
