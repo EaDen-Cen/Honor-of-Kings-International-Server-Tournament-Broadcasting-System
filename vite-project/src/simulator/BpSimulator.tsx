@@ -41,7 +41,7 @@ export function BpSimulator() {
       if(slot) map.set(simulatorSlotKey(slot),index);
     });
     return map;
-  },[sequence,state.firstPickSide,state.mode]);
+  },[sequence,state.firstPickSide,state.mode,state.banCount]);
 
   const visibleState=(key:string)=>{
     if(state.testMode==='lineup'&&key.includes('Pick')) return {visible:true,isCurrent:false,isLocked:true,empty:false};
@@ -58,7 +58,7 @@ export function BpSimulator() {
     if(activeHeroId===undefined||base.some(hero=>hero.id===activeHeroId)) return base;
     const activeHero=allPoolHeroes.find(hero=>hero.id===activeHeroId);
     return activeHero?[activeHero,...base.slice(1)]:base;
-  },[activeHeroId]);
+  },[activeHeroId,state.heroPool]);
 
   useEffect(()=>{
     const listener=(event:KeyboardEvent)=>{

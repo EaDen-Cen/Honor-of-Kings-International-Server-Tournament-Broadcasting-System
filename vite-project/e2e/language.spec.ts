@@ -21,7 +21,7 @@ async function expectEnglishInterface(page: Page) {
   expect(visibleLabels.filter(label => chineseCharacters.test(label.replaceAll('蓝方队伍', '').replaceAll('红方队伍', '').replaceAll('社区赛事', '')))).toEqual([]);
 }
 
-test('language switches every interface, persists on refresh, and follows the caster timeline', async ({ browser, baseURL }) => {
+test('language updates all interfaces immediately while draft data follows the caster timeline', async ({ browser, baseURL }) => {
   // Keep all mutations on Playwright's disposable match server.
   expect(baseURL).toBe('http://127.0.0.1:3101');
   const context = await browser.newContext();
@@ -56,7 +56,8 @@ test('language switches every interface, persists on refresh, and follows the ca
   await expect(control.locator('.status')).toHaveText('Connected');
   await expect(control.getByLabel('Interface language', { exact: true })).toHaveValue('eng');
   await expect(overlay.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(caster.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  // Presentation settings are live; only gameplay follows caster delay.
+  await expect(caster.locator('html')).toHaveAttribute('lang', 'en');
   await expect(caster.locator('.analysis[data-side="blue"] h2')).toHaveText('蓝方队伍');
   await expect(caster.locator('.blue .bans img')).toHaveCount(0);
 
