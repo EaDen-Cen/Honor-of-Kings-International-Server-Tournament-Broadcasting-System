@@ -47,6 +47,9 @@ jobs:
           mkdir -p artifacts/ci
           npm ci 2>&1 | tee artifacts/ci/install.log
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev 2>&1 | tee artifacts/ci/dependency-audit.log
+
       - name: Build production application
         run: npm run build 2>&1 | tee artifacts/ci/build.log
 
