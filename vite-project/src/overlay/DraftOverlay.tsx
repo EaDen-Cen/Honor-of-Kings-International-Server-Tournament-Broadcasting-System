@@ -5,6 +5,7 @@ import { heroForState } from '../shared/heroData';
 import { Score } from '../shared/Score';
 import { HeroReveal } from './HeroReveal';
 import { PlayerPortrait } from '../shared/PlayerPortrait';
+import { portraitAssetURL } from '../shared/config';
 import { currentGame, displaySides } from '../shared/draftRules';
 import { DraftHistory } from '../shared/DraftHistory';
 import { draftRuleName, phaseName, stageName } from '../shared/display';
@@ -119,7 +120,7 @@ export function DraftOverlay({ state }: { state: MatchState }) {
       <div className="broadcast-brand">{t('gameTitle')}</div>
       <div className="broadcast-meta">{stageName(state.stage, state.language)} · {state.seriesFormat} · {t('gameNumber', { number: currentGame(state) })} · {draftRuleName(state)}</div>
       {sides.map((side, position) => <div key={state[`${side}Team`].id} className={`broadcast-team ${side} display-${position === 0 ? 'left' : 'right'}`}>
-        {state[`${side}Team`].logo && <img src={state[`${side}Team`].logo} alt="" />}
+        {state[`${side}Team`].logo && <img src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}
         <h2>{state[`${side}Team`].name}</h2><small className="color-label">{t(side === 'blue' ? 'blueSide' : 'redSide')}</small>
       </div>)}
       <div className="broadcast-score" aria-label={t('seriesScore')}><Score state={state} side={left} /><span>:</span><Score state={state} side={right} /></div>

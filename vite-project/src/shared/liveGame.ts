@@ -19,8 +19,12 @@ export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sa
     if(!consistentLiveValue(key,prior.value,incoming.value,elapsed))continue;
     if(source){
       const since=sample.capturedAt-source.capturedAt,current=stats[key]??0;
-      if(since<=0||since>30000||incoming.value<current)continue;
-      const maxDelta=key.endsWith('Gold')?Math.max(1500,since*.3):key==='gameTimeSeconds'?Math.ceil(since/1000)+2:key.endsWith('Towers')?3:5;
+      if(since<=0||incoming.value<current)continue;
+      // A disconnected capture may resume after 30 seconds. The two new
+      // samples still need a progressing clock and agreement; compare them
+      // with the last published value using the actual elapsed interval.
+      const windows=Math.max(1,Math.ceil(since/15000));
+      const maxDelta=key.endsWith('Gold')?Math.max(1500,since*.3):key==='gameTimeSeconds'?Math.ceil(since/1000)+2:key.endsWith('Towers')?3*windows:5*windows;
       if(incoming.value-current>maxDelta)continue;
     }
     updates[key]=incoming.value;

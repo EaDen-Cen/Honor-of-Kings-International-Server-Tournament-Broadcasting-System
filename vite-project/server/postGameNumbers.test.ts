@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePostGameNumber, canMergePostGameField, type PostGameField } from '../src/shared/postGame.js';
+import { parsePostGameNumber, postGameNumberResolution, formatPostGameValue, canMergePostGameField, type PostGameField } from '../src/shared/postGame.js';
 
 test('post-game units normalize without guessing ambiguous OCR',()=>{
   for(const [text,metric,expected] of [
@@ -9,6 +9,22 @@ test('post-game units normalize without guessing ambiguous OCR',()=>{
     ['101%','damageShare',null],['3K','kills',null],['12%','gold',null],['1,2','gold',null],
     ['3 7','gold',null],['O.5','rating',null],['1.2','kills',null],['-1','deaths',null],
   ] as const)assert.equal(parsePostGameNumber(text,metric),expected,`${metric}: ${text}`);
+});
+
+test('exact economy refines rounded totals, never the reverse; shares and ratios stay distinct',()=>{
+  const rounded:PostGameField={value:7600,resolution:postGameNumberResolution('7.6k','gold'),confidence:.96,manual:false,sourcePage:'economy'};
+  const exact:PostGameField={value:7589,resolution:1,confidence:.91,manual:false,sourcePage:'summary'};
+  assert.equal(canMergePostGameField(rounded,exact),true);
+  assert.equal(canMergePostGameField(exact,rounded),false);
+  assert.equal(canMergePostGameField(rounded,{...exact,value:7600}),true,'same-value exact read should also refine precision');
+  assert.equal(canMergePostGameField({...exact,value:7600},exact),false,'two different exact totals remain a real conflict');
+  assert.equal(canMergePostGameField(rounded,{...exact,value:7463}),false);
+  assert.equal(canMergePostGameField({...rounded,manual:true},exact),false);
+  assert.equal(postGameNumberResolution('1.25万','gold'),100);
+  assert.equal(formatPostGameValue(18,'goldShare'),'18%');
+  assert.equal(formatPostGameValue(.8,'damageConversion'),'0.8 ×');
+  assert.equal(parsePostGameNumber('B','rating'),null);
+  assert.equal(parsePostGameNumber('18%','damageConversion'),null);
 });
 
 test('repeated pages cannot degrade or replace trusted fields; manual corrections win',()=>{

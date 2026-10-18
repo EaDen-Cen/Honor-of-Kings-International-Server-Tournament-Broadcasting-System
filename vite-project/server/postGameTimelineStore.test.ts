@@ -19,6 +19,8 @@ test('timeline observations are per-game, validated, persisted and undoable',()=
   const points=[{timeSeconds:120,blueGold:3000,redGold:3100},{timeSeconds:600,blueGold:13000,redGold:12800}];
   apply(s,{type:'post_game_gold_timeline',reportId:id,points});
   assert.deepEqual(s.data.state.postGameReports[0].goldTimeline,points);
+  assert.deepEqual(s.data.state.postGameReports[0].goldDifference?.points,[{timeSeconds:120,difference:-100},{timeSeconds:600,difference:200}]);
+  assert.equal(s.data.state.postGameReports[0].goldDifference?.source,'manual');
   assert.throws(()=>apply(s,{type:'post_game_gold_timeline',reportId:id,points:[points[1],points[0]]}));
   apply(s,{type:'undo'});assert.equal(s.data.state.postGameReports[0].goldTimeline,undefined);
 });

@@ -38,7 +38,7 @@ test('recognition requires review; rejection and stale results cannot submit; ma
     await h.send({type:'reset_match'});await h.send({type:'settings',settings:{...h.state(),language:'eng',bpInputMode:'screen',recognitionAutoAccept:false}});
     const page=await context.newPage();let fail=false;
     await page.addInitScript(()=>{
-      localStorage.setItem('hok-capture-auto-watch','0');localStorage.setItem('hok-player-slot-auto','0');
+      localStorage.setItem('hok-capture-auto-watch','0');localStorage.setItem('hok-player-slot-auto','0');localStorage.setItem('hok-lineup-auto','0');
       Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{value:async()=>{
         const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
         canvas.getContext('2d')!.fillRect(0,0,1920,1080);return canvas.captureStream(10);

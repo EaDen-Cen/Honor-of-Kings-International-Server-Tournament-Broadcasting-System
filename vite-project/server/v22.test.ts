@@ -141,6 +141,7 @@ test('legacy hero IDs migrate atomically across state, history, events and overr
     resultingState: JSON.parse(JSON.stringify(legacy.state)),
     revision: 1,
   }];
+  legacy.revision = 1;
 
   const file = join(mkdtempSync(join(tmpdir(), 'hok-release-id-')), 'match.json');
   writeFileSync(file, JSON.stringify(legacy));

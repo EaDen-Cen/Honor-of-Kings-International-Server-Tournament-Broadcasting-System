@@ -35,6 +35,33 @@ test('settlement page review requires unique identities and protects trusted fie
   }finally{h.close();}
 });
 
+test('page-first workflow retains uploaded drafts and stores exact economy and letter grades independently',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  try{
+    await h.send({type:'reset_match'});const state=initialState();state.language='eng';await h.send({type:'settings',settings:state});await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
+    const report=h.state().postGameReports[0];let calls=0;
+    await page.route('**/api/v1/recognition/settlement',async route=>{
+      calls++;const summary=calls===2;
+      await route.fulfill({json:{reportId:report.id,page:summary?'summary':'economy',capturedAt:Date.now(),elapsedMs:10,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:p.rowId,suggestedRowId:p.rowId})),candidates:report.players.flatMap((_,screenRow)=>[{screenRow,metric:'gold',value:summary?7589:7600,resolution:summary?1:100,confidence:.95,text:summary?'7589':'7.6k'},...(!summary?[{screenRow,metric:'goldShare',value:18,resolution:1,confidence:.95,text:'18%'}]:[])]),grades:summary?report.players.map((_,screenRow)=>({screenRow,value:'B',confidence:.95,text:'B'})):undefined}});
+    });
+    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
+    const advanced=page.getByText('Advanced: field OCR · draw boxes on the actual screenshot',{exact:true}).locator('..');
+    expect(await advanced.evaluate(e=>(e as HTMLDetailsElement).open)).toBe(false);
+    const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
+    const upload=capture.getByLabel('Game data screenshot'),read=capture.getByRole('button',{name:'Capture full page',exact:true}),apply=capture.getByRole('button',{name:'Apply reviewed high-confidence fields',exact:true});
+    await upload.setInputFiles({name:'economy.png',mimeType:'image/png',buffer:Buffer.from(fixture.tabs[3],'base64')});await read.click();await expect(capture.getByRole('columnheader',{name:'Gold share',exact:true})).toBeVisible();await apply.click();
+    await expect.poll(()=>h.state().postGameReports[0].players[0].fields.gold?.value).toBe(7600);
+    await upload.setInputFiles({name:'summary.png',mimeType:'image/png',buffer:Buffer.from(fixture.tabs[0],'base64')});await expect(capture.getByRole('button',{name:'Economy ✓',exact:true})).toBeEnabled();await read.click();
+    await expect(capture.getByRole('columnheader',{name:'Letter grade',exact:true})).toBeVisible();await apply.click();
+    await expect.poll(()=>h.state().postGameReports[0].players[0].fields.gold?.value).toBe(7589);
+    await expect.poll(()=>h.state().postGameReports[0].players[0].grade?.value).toBe('B');expect(h.state().postGameReports[0].players[0].fields.rating).toBeUndefined();
+    await capture.getByRole('button',{name:'Economy ✓',exact:true}).click();await expect(apply).toBeDisabled();expect(h.state().postGameReports[0].players[0].fields.gold?.value).toBe(7589);
+    await capture.getByRole('button',{name:'Settlement summary ✓',exact:true}).click();await capture.getByLabel('Settlement 0 gold',{exact:true}).fill('7590');await capture.getByLabel('Settlement 0 gold',{exact:true}).press('Tab');
+    await expect.poll(()=>h.state().postGameReports[0].players[0].fields.gold?.manual).toBe(true);
+    await page.screenshot({path:'artifacts/game-data/settlement-page-first.png',fullPage:true});
+  }finally{h.close();}
+});
+
 test('GHUD actual frame API checks access/context and screenshot review cannot directly publish',async({page,baseURL})=>{
   const h=await harness(baseURL);
   try{
@@ -54,7 +81,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
     await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
     await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
-    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await expect(capture.getByLabel('GHUD digit selection',{exact:true})).toBeVisible();
     await capture.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
     await expect(sample).toBeEnabled();await sample.click();await expect(capture.getByText('1500 · 91% · OCR: 1.5k').first()).toBeVisible();
     await expect(sample).toBeEnabled();await sample.click();
@@ -89,11 +116,11 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
     });
     await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
-    await capture.getByRole('button',{name:'Choose shared game window',exact:true}).click();
+    await capture.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();
     const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
     await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
     await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
-    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await expect(capture.getByLabel('GHUD digit selection',{exact:true})).toBeVisible();
     await capture.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
     await expect(sample).toBeEnabled();await sample.click();
     await expect(capture.getByText('First read is a candidate; sample again to verify.',{exact:true})).toBeVisible();
@@ -132,7 +159,7 @@ test('stable settlement collection detects page changes even when the player tab
     });
     await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
-    await capture.getByRole('button',{name:'Choose shared game window',exact:true}).click();await capture.getByRole('checkbox',{name:'Collect drafts when frames stabilize',exact:true}).check();
+    await capture.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();await capture.getByRole('checkbox',{name:'Collect drafts when frames stabilize',exact:true}).check();
     await expect(capture.getByRole('button',{name:'Data ✓',exact:true})).toBeEnabled();
     await page.waitForTimeout(2200);expect(calls).toBe(1);
     await page.evaluate(async()=>{await (window as Window&{paintGamePage?:(index:number)=>Promise<void>}).paintGamePage?.(1);});
@@ -164,7 +191,7 @@ test('automatic HUD output remains enabled after its own state confirmations',as
     await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const panel=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
-    await panel.getByRole('button',{name:'Choose shared game window',exact:true}).click();
+    await panel.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();
     await panel.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
     await panel.getByRole('button',{name:'Preview captured frame',exact:true}).click();
     await panel.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();

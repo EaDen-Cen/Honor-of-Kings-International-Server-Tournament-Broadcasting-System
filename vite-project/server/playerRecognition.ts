@@ -37,11 +37,12 @@ export class PlayerRecognitionProvider {
   private numericLoading?:Promise<Worker>;
   private numericBusy=false;
 
-  constructor(private modelDirectory?:string,private languages='eng') {}
+  constructor(private modelDirectory?:string,private languages='eng',private workerFactory:typeof createWorker=createWorker) {}
 
   prepare() {
     if(this.loading)return this.loading;
     this.status='loading';
+    this.error='';
     this.loading=(async()=>{
       for(const language of this.languages.split('+')){
         if(!/^[a-z_]+$/.test(language))throw new Error('Invalid OCR language');
@@ -55,25 +56,35 @@ export class PlayerRecognitionProvider {
         }
         // Independent language workers avoid English-first segmentation
         // turning Chinese glyphs into Latin letters and preserve English IDs.
-        this.workers=await Promise.all(this.languages.split('+').map(language=>createWorker(language,OEM.LSTM_ONLY,{
+        // Wait for every creation before cleaning up a partial failure. A fast
+        // rejection must not leave a slower successful worker untracked.
+        const created=await Promise.allSettled(this.languages.split('+').map(language=>this.workerFactory(language,OEM.LSTM_ONLY,{
           langPath:resolve(this.modelDirectory||staging!),
           gzip:!this.modelDirectory,
           cacheMethod:'none',
           errorHandler:()=>{},
         })));
+        this.workers=created.flatMap(result=>result.status==='fulfilled'?[result.value]:[]);
+        const failure=created.find(result=>result.status==='rejected');
+        if(failure?.status==='rejected')throw failure.reason;
         this.worker=this.workers[0];
       }finally{
         if(staging)rmSync(staging,{recursive:true,force:true});
       }
-      await Promise.all(this.workers.map(worker=>worker.setParameters({
+      const configured=await Promise.allSettled(this.workers.map(worker=>worker.setParameters({
         tessedit_pageseg_mode:PSM.SINGLE_BLOCK,
         preserve_interword_spaces:'1',
         user_defined_dpi:'150',
       })));
+      const failure=configured.find(result=>result.status==='rejected');
+      if(failure?.status==='rejected')throw failure.reason;
       this.status='ready';
-    })().catch(error=>{
+    })().catch(async error=>{
+      await Promise.allSettled(this.workers.map(worker=>worker.terminate()));
+      this.workers=[];this.worker=undefined;
       this.status='error';
       this.error=error instanceof Error?error.message:'OCR unavailable';
+      this.loading=undefined;
     });
     return this.loading;
   }
@@ -153,7 +164,9 @@ export class PlayerRecognitionProvider {
       }
       return 255;
     };
-    const background=percentile(.5),ink=percentile(.995);
+    // Short right-aligned IDs occupy less than 0.5% of a wide strip. A 99.5th
+    // percentile mistook their background for ink and shrank the entire strip.
+    const background=percentile(.5),ink=percentile(.9995);
     if(ink-background<12)return crop;
     const cutoff=background+(ink-background)*.55;
     let left=info.width,top=info.height,right=-1,bottom=-1;
@@ -235,8 +248,13 @@ export class PlayerRecognitionProvider {
         for(const line of paragraph.lines){
           const row=Math.floor((line.bbox.y0+line.bbox.y1)/2/rowHeight);
           if(row<0||row>=crops.length)continue;
-          texts[row]+=(texts[row]?' ':'')+line.text.trim();
-          confidences[row]=Math.max(confidences[row],line.confidence/100);
+          const text=line.text.trim();
+          if(!text)continue;
+          const confidence=Number.isFinite(line.confidence)?Math.max(0,Math.min(1,line.confidence/100)):0;
+          // Combined glyph fragments are only as reliable as their weakest
+          // line. A confident prefix must not promote an uncertain suffix.
+          confidences[row]=texts[row]?Math.min(confidences[row],confidence):confidence;
+          texts[row]+=(texts[row]?' ':'')+text;
         }
       }
     }
@@ -260,6 +278,12 @@ export class PlayerRecognitionProvider {
 
   /** Numeric tables use bounded batches and a separate alphabet from player IDs. */
   async recognizeNumbers(images:string[],tableText=false) {
+    return this.recognizeCells(images,tableText,'0123456789.,:/%kK+万');
+  }
+  async recognizeGrades(images:string[]){
+    return this.recognizeCells(images,false,'SABCD+');
+  }
+  private async recognizeCells(images:string[],tableText:boolean,alphabet:string) {
     if(this.status!=='ready'||!this.worker)throw new Error('OCR provider is not ready');
     if(this.numericBusy)throw new Error('Numeric OCR is busy');
     if(!Array.isArray(images)||!images.length||images.length>100||images.some(image=>typeof image!=='string'||image.length>180000||!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)))throw new Error('Invalid numeric crops');
@@ -280,7 +304,7 @@ export class PlayerRecognitionProvider {
       })):decoded;
       const localized=await Promise.all(numeric.map(crop=>this.localizePlayerInk(crop)));
       const crops=await Promise.all(localized.map(crop=>this.preparePlayerVariant(crop,640,'soft')));
-      await worker.setParameters({tessedit_char_whitelist:'0123456789.,:/%kK+万',tessedit_pageseg_mode:PSM.SINGLE_BLOCK});
+      await worker.setParameters({tessedit_char_whitelist:alphabet,tessedit_pageseg_mode:PSM.SINGLE_BLOCK});
       const result=await this.readPage(crops,64,worker);
       // Batch segmentation can drop a solitary 1 or a small decimal point.
       // Retry only weak cells as isolated lines, keeping OCR cost bounded.
@@ -305,15 +329,20 @@ export class PlayerRecognitionProvider {
   private prepareNumericWorker(){
     if(this.numericWorker)return Promise.resolve(this.numericWorker);
     if(this.numericLoading)return this.numericLoading;
+    let created:Worker|undefined;
     this.numericLoading=(async()=>{
       const staging=this.modelDirectory?undefined:mkdtempSync(resolve(tmpdir(),'hok-numeric-ocr-'));
       try{
         if(staging)copyFileSync(resolve(dirnameOfModel('eng'),'4.0.0_best_int','eng.traineddata.gz'),resolve(staging,'eng.traineddata.gz'));
-        const worker=await createWorker('eng',OEM.LSTM_ONLY,{langPath:resolve(this.modelDirectory||staging!),gzip:!this.modelDirectory,cacheMethod:'none',errorHandler:()=>{}});
+        const worker=created=await this.workerFactory('eng',OEM.LSTM_ONLY,{langPath:resolve(this.modelDirectory||staging!),gzip:!this.modelDirectory,cacheMethod:'none',errorHandler:()=>{}});
         await worker.setParameters({user_defined_dpi:'150',preserve_interword_spaces:'1'});
         this.numericWorker=worker;return worker;
       }finally{if(staging)rmSync(staging,{recursive:true,force:true});}
-    })().catch(error=>{this.numericLoading=undefined;throw error;});
+    })().catch(async error=>{
+      if(created)await Promise.allSettled([created.terminate()]);
+      this.numericWorker=undefined;this.numericLoading=undefined;
+      throw error;
+    });
     return this.numericLoading;
   }
 
@@ -360,6 +389,23 @@ export class PlayerRecognitionProvider {
               confidence:result.confidences[index]??0,
               variant,
             });
+          }
+        }
+        if(players&&batch.length===1&&batch[0]==='soft'){
+          // Block segmentation can omit a short ID such as Fox entirely.
+          // Recover only missing rows with the same soft crop as a single line,
+          // before retrying a whole team with heavier threshold variants.
+          const missing=jobs.flatMap((job,index)=>candidates[job.slot].length?[]:[{slot:job.slot,input:crops[index]}]);
+          const worker=this.workers[this.languages.split('+').indexOf('eng')]??this.worker!;
+          if(missing.length){
+            await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
+            try{
+              for(const job of missing){
+                const image=await sharp(job.input).extend({top:12,bottom:12,left:16,right:16,background:'#fff'}).png().toBuffer();
+                const result=await worker.recognize(image),text=result.data.text.trim();
+                if(text)candidates[job.slot].push({text,confidence:result.data.confidence/100,variant:'soft'});
+              }
+            }finally{await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_BLOCK});}
           }
         }
         if(players)slots=[0,1].flatMap(side=>

@@ -1,16 +1,12 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import heroes from '../../src/components/HeroList.js';
+import { allPoolHeroes } from '../../src/shared/heroPool.js';
 import sharedHeroArtFocusOverrides from '../../src/data/heroArtFocusOverrides.js';
 import type { HeroArtOverride } from '../../src/shared/types.js';
 import { mergeRuntimeHeroArtFocus, renderHeroArtFocusOverrides } from './artFocusSync.js';
-
-interface RuntimeData {
-  state?: {
-    heroArtOverrides?: Record<string, HeroArtOverride>;
-  };
-}
+import { Store } from '../../server/store.js';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
 const outputPath = resolve(projectRoot, 'src/data/heroArtFocusOverrides.ts');
@@ -23,9 +19,11 @@ function runtimeFile() {
 
 async function main() {
   const inputPath = runtimeFile();
-  let parsed: RuntimeData;
+  let runtime: Record<string, HeroArtOverride>;
   try {
-    parsed = JSON.parse(await readFile(inputPath, 'utf8')) as RuntimeData;
+    if (!existsSync(inputPath)) throw new Error('Runtime match file does not exist');
+    // The store migrates legacy hero IDs before crop metadata is promoted.
+    runtime = new Store(inputPath).data.state.heroArtOverrides;
   } catch (error) {
     throw new Error(
       `Unable to read runtime match data from ${inputPath}. Start/save Broadcast first, or set DATA_FILE to the active match.json.`,
@@ -33,13 +31,12 @@ async function main() {
     );
   }
 
-  const runtime = parsed.state?.heroArtOverrides;
   if (!runtime || Object.keys(runtime).length === 0) {
     console.log('No runtime hero crop overrides found; shared defaults were not changed.');
     return;
   }
 
-  const validHeroIds = new Set(heroes.map(hero => hero.id));
+  const validHeroIds = new Set(allPoolHeroes.map(hero => hero.id));
   const merged = mergeRuntimeHeroArtFocus(sharedHeroArtFocusOverrides, runtime, validHeroIds);
   await writeFile(outputPath, renderHeroArtFocusOverrides(merged), 'utf8');
 

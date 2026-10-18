@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "hero:check": "tsx scripts/hero-sync/sync.ts --check",
     "hero:art-audit": "tsx scripts/hero-sync/auditArt.ts",
-    "hero:crop-sync": "tsx scripts/hero-sync/syncArtFocus.ts",
+    "hero:crop-sync": "node --env-file-if-exists=.env --import tsx scripts/hero-sync/syncArtFocus.ts",
     "hero:sync": "tsx scripts/hero-sync/sync.ts --update",
     "hero:validate": "tsx scripts/hero-sync/validate.ts",
     "simulator": "vite --open /tools/bp-simulator-control",

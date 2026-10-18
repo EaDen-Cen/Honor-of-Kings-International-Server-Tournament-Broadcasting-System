@@ -4,6 +4,23 @@ import sharp from 'sharp';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
 import { normalizePlayerText, solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import { readFileSync } from 'node:fs';
+test('batched OCR cannot promote an uncertain additional line with a confident prefix',async()=>{
+  const provider=new PlayerRecognitionProvider();
+  const crop=await sharp({create:{width:608,height:40,channels:3,background:'#fff'}}).png().toBuffer();
+  const worker={recognize:async()=>({data:{blocks:[{paragraphs:[{lines:[
+    {bbox:{y0:12,y1:24},text:'Alpha',confidence:99},
+    {bbox:{y0:25,y1:40},text:'8',confidence:22},
+    {bbox:{y0:76,y1:100},text:'Bravo',confidence:94},
+    {bbox:{y0:101,y1:105},text:'  ',confidence:0},
+  ]}]}]}})};
+  // Use deterministic OCR evidence: a model or font change must not turn an
+  // uncertain suffix into trustworthy identity evidence.
+  const reader=provider as unknown as {readPage(crops:Buffer[],rowHeight:number,worker:unknown):Promise<{texts:string[];confidences:number[]}>};
+  const result=await reader.readPage([crop,crop],64,worker);
+  assert.deepEqual(result.texts,['Alpha 8','Bravo']);
+  assert.deepEqual(result.confidences,[.22,.94]);
+});
+
 test('resident offline OCR batches ten names and ten numeric fields without model downloads',async()=>{
   const provider=new PlayerRecognitionProvider();
   try{
@@ -69,7 +86,7 @@ test('wide dim right-aligned ID strips retain ink and real Chinese screenshot te
       return 'data:image/png;base64,'+(await sharp(Buffer.from(svg)).png().toBuffer()).toString('base64');
     }));
     const result=await provider.recognizePlayerIds(images,[names.slice(0,5),names.slice(5)]);
-    assert.ok(result.candidates.every(row=>row.length>0&&row.every(candidate=>candidate.variant==='soft')),'confident first pass skips threshold retries');
+    assert.ok(result.candidates.every(row=>row.length>0&&row.every(candidate=>candidate.variant==='soft')),'confident first pass skips threshold retries: '+JSON.stringify(result.candidates));
     for(const offset of [0,5]){
       const solution=solvePlayerSlotCandidates(result.candidates.slice(offset,offset+5),names.slice(offset,offset+5))!;
       assert.deepEqual(solution.order,order);

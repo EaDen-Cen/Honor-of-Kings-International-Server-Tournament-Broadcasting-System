@@ -12,6 +12,8 @@ HOK Broadcast 是一套面向 **Honor of Kings / 王者荣耀国际服社区赛�
 
 当前技术栈为 **React + TypeScript + Node.js + WebSocket**。Node 服务端维护权威 MatchState、修订号、Undo/事件历史、Caster 延迟时间线与持久化；浏览器端分别提供导播、解说、OBS Browser Source 和 Simulator。
 
+2026-10-18 开发增量：识别模块默认共享 BP 窗口并用鼠标框选，结算按八种页面收集；MVP 使用选手位置和照片，经济优势曲线从对局截图读取并保留完整时间刻度。云端连接、设置草稿和 Windows 启动器保护继续保留。操作步骤见 [赛后与 HUD 指南](docs/guides/player-alignment-recovery-hud.md)，本地与 GitHub 的选择依据见 [验证记录](docs/validation/history.md#2026-10-18本地与-github-逐功能整合)。
+
 ```text
 HOK 游戏画面 / BP Simulator
           │

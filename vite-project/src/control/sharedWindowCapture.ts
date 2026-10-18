@@ -1,7 +1,11 @@
+import { getSharedGameStill, publishSharedGameStill } from './sharedGameStill.js';
+import { setSharedCaptureContent } from './sharedCaptureContent.js';
 let sharedStream:MediaStream|undefined;
 const listeners=new Set<(stream:MediaStream|undefined)=>void>();
 let detachStreamListeners:()=>void=()=>{};
 let selectionVersion=0;
+let connecting:Promise<MediaStream>|undefined;
+let connectionVersion=0;
 
 type CursorConstraints=MediaTrackConstraints & {cursor:ConstrainDOMString};
 
@@ -40,20 +44,38 @@ export function setSharedWindowCaptureStream(stream:MediaStream|undefined){
   const previous=sharedStream;
   detachStreamListeners();
   sharedStream=stream;
+  if(stream||!getSharedGameStill())setSharedCaptureContent(undefined);
   if(stream){
     invalidateWindowCaptureSelection();
+    publishSharedGameStill(undefined);
     const ended=()=>{if(sharedStream===stream)setSharedWindowCaptureStream(undefined);};
     const tracks=stream.getVideoTracks();
     for(const track of tracks)track.addEventListener('ended',ended);
-    stream.addEventListener('inactive',ended);
+    stream.addEventListener?.('inactive',ended);
     detachStreamListeners=()=>{
       for(const track of tracks)track.removeEventListener('ended',ended);
-      stream.removeEventListener('inactive',ended);
+      stream.removeEventListener?.('inactive',ended);
     };
   }else detachStreamListeners=()=>{};
-  previous?.getTracks().forEach(track=>track.stop());
   for(const listener of listeners) listener(stream);
+  previous?.getTracks().forEach(track=>track.stop());
 }
+
+/** One BP source for every consumer; reuse it unless BP explicitly replaces it. */
+export function connectSharedBpWindow(replace=false,signal?:AbortSignal):Promise<MediaStream>{
+  if(signal?.aborted)return Promise.reject(new DOMException('Capture cancelled','AbortError'));
+  if(!replace&&sharedStream?.getVideoTracks().some(track=>track.readyState==='live'))return Promise.resolve(sharedStream);
+  if(connecting)return connecting;
+  const version=connectionVersion;
+  const pending=requestWindowCapture(signal).then(stream=>{
+    if(version!==connectionVersion){stream.getTracks().forEach(track=>track.stop());throw new DOMException('Capture cancelled','AbortError');}
+    setSharedWindowCaptureStream(stream);return stream;
+  });
+  connecting=pending;
+  void pending.finally(()=>{if(connecting===pending)connecting=undefined;}).catch(()=>{});
+  return pending;
+}
+export function stopSharedBpWindow(){connectionVersion++;invalidateWindowCaptureSelection();setSharedWindowCaptureStream(undefined);}
 
 export function subscribeSharedWindowCapture(listener:(stream:MediaStream|undefined)=>void){
   listeners.add(listener);

@@ -1,4 +1,5 @@
 import type { Snapshot } from './types.js';
+import {postGameGrades} from './postGame.js';
 
 type Check = (value: unknown) => boolean;
 const text: Check = value => typeof value === 'string';
@@ -18,7 +19,9 @@ const slots = list(nullable(hero));
 const playerOrder = list(integer);
 const team = object({ id: text, name: text, logo: text, players: list(text), playerRoles: optional(list(role)), playerPortraits: optional(list(text)) });
 const crop = object({ x: number, y: number, scale: number });
-const field = object({ value: number, sourcePage: text, confidence: number, manual: boolean, evidence: optional(text), capturedAt: optional(number) });
+const field = object({ value: number, sourcePage: text, confidence: number, manual: boolean, evidence: optional(text), capturedAt: optional(number), resolution: optional(number) });
+const grade = object({value:choices(...postGameGrades),sourcePage:choices('summary'),confidence:number,manual:boolean,evidence:optional(text),capturedAt:optional(number)});
+const difference = object({points:list(object({timeSeconds:integer,difference:number})),source:choices('settlement','manual'),confidence:number,maxDifference:number,evidence:optional(text),capturedAt:optional(number),partial:optional(boolean),durationSeconds:optional(integer)});
 const timeline = list(object({ timeSeconds: number, blueGold: number, redGold: number }));
 const history = object({
   id: text, gameNumber: integer, committedAt: number, firstPickSide: optional(side),
@@ -32,8 +35,8 @@ const history = object({
 const report = object({
   id: text, gameNumber: integer, seriesFormat: choices('BO1', 'BO3', 'BO5'), stage: text,
   selectedMvpPlayerId: nullable(text), selectedMvpRowId: nullable(text),
-  teamFields: optional(record(record(field))), goldTimeline: optional(timeline),
-  players: list(object({ rowId: text, playerId: text, side, slot: integer, rosterIndex: integer, teamName: text, portrait: text, role, heroId: hero, fields: record(field) })),
+  teamFields: optional(record(record(field))), goldTimeline: optional(timeline),goldDifference:optional(difference),mvpArtScale:optional(number),
+  players: list(object({ rowId: text, playerId: text, side, slot: integer, rosterIndex: integer, teamName: text, portrait: text, role, heroId: hero, fields: record(field),grade:optional(grade) })),
 });
 const liveStats = object({
   blueKills: number, redKills: number, blueTowers: number, redTowers: number,

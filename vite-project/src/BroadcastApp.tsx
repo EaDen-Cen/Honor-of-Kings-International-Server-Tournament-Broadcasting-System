@@ -22,6 +22,7 @@ import { ViewportCanvas } from './shared/ViewportCanvas';
 import { useAccess } from './shared/access';
 import { AccessSettings } from './control/AccessSettings';
 import { useMatch } from './shared/useMatch';
+import { portraitAssetURL } from './shared/config';
 import { connectionLabel, phaseName, seriesName, stageName, teamName, draftRuleName } from './shared/display';
 import { translator } from './shared/i18n';
 import { errorMessage } from './shared/errorMessages';
@@ -54,7 +55,7 @@ function Board({ state, lang, compact = false }: { state: MatchState; lang: Lang
   const t = translator(lang);
   const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
   return <section className={`board ${compact ? 'compact-board' : ''}`}><div className="match-strip"><span>{t('gameTitle')}</span><span>{stageName(state.stage, lang)} · {t('gameNumber', { number: currentGame(state) })} · {seriesName(state.seriesFormat, lang)} · {draftRuleName(state, lang)}</span></div>
-    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={state[`${side}Team`].logo} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
+    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
     <footer className={`phase ${phase?.team || ''}`} key={state.currentPhase}>{phase ? `${phaseName(state, lang)} · ${t('phaseStep', { step: state.currentPhase + 1, total: phases(state.draftMode, state.firstPickSide,state.banCount).length })}` : t('draftComplete')}</footer></section>;
 }
 function TeamAnalysis({
@@ -77,7 +78,7 @@ function TeamAnalysis({
   ];
   return <section className={`panel analysis analysis-${side}`} data-side={side}>
     <header className="analysis-team-header">
-      {state[`${side}Team`].logo && <img className="analysis-logo" src={state[`${side}Team`].logo} alt="" />}
+      {state[`${side}Team`].logo && <img className="analysis-logo" src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}
       <div><span className="analysis-side">{t(side === 'blue' ? 'blueAnalysis' : 'redAnalysis')}</span><h2>{teamName(state, side)}</h2></div>
       <span className="analysis-opponent">{t('opponent', { team: teamName(state, side === 'blue' ? 'red' : 'blue') })}</span>
     </header>

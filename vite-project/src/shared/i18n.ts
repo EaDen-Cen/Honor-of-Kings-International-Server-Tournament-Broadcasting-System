@@ -1,4 +1,4 @@
-import type { Language } from './types';
+import type { Language } from './types.js';
 
 const messages = {
   heroSort: {zh:'排序方式',eng:'Sort by'},

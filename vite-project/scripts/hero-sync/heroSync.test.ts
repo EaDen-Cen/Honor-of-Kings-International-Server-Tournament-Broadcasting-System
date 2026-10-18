@@ -13,6 +13,7 @@ import { mergeRuntimeHeroArtFocus, renderHeroArtFocusOverrides } from './artFocu
 import type { CatalogHero, SourceSnapshot } from './types.js';
 import heroes from '../../src/components/HeroList.js';
 import { sortHeroes } from '../../src/control/heroSort.js';
+import { allPoolHeroes, cnHeroes, heroAllowed } from '../../src/shared/heroPool.js';
 
 const local = (overrides: Partial<Hero> = {}): Hero => ({
   id: 1,
@@ -238,6 +239,13 @@ test('runtime hero crop metadata can be promoted into tracked shared defaults', 
   const rendered = renderHeroArtFocusOverrides(merged);
   assert.match(rendered, /heroArtFocusOverrides/);
   assert.doesNotMatch(rendered, /"useLegacyImage"\s*:/);
+});
+
+test('crop promotion supports separately namespaced CN-only heroes',()=>{
+  const hero=cnHeroes.find(item=>!heroAllowed('global',item.id));assert.ok(hero);
+  const crop={x:44,y:29,scale:1.3};
+  const merged=mergeRuntimeHeroArtFocus({}, {[String(hero.id)]:{panel:crop}},new Set(allPoolHeroes.map(item=>item.id)));
+  assert.deepEqual(merged[hero.id]?.panel,crop);
 });
 
 

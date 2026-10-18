@@ -5,18 +5,25 @@ import type { Role } from '../src/shared/types.js';
 
 const roles: Role[] = ['control', 'caster', 'overlay'];
 interface AccessData { tokens: Record<Role,string>; salt?: string; passwordHash?: string }
+export function validateAccessData(input: unknown): asserts input is AccessData {
+  if (!input || typeof input !== 'object') throw new Error('Invalid access data');
+  const data = input as AccessData;
+  const tokens = roles.map(role => data.tokens?.[role]);
+  if (tokens.some(token => typeof token !== 'string' || token.length < 8 || token.length > 256) || new Set(tokens).size !== roles.length || ((data.passwordHash !== undefined || data.salt !== undefined) && (typeof data.passwordHash !== 'string' || !/^[a-f0-9]{64}$/.test(data.passwordHash) || typeof data.salt !== 'string' || !/^[a-f0-9]{32}$/.test(data.salt)))) throw new Error('Invalid access data');
+}
 export class AccessStore {
   private data: AccessData;
   constructor(private file: string) {
     this.data = existsSync(file) ? JSON.parse(readFileSync(file,'utf8')) : {
       tokens: Object.fromEntries(roles.map(role=>[role,randomBytes(32).toString('hex')])) as Record<Role,string>,
     };
+    validateAccessData(this.data);
     // Explicit environment tokens remain supported for existing deployments.
     for (const role of roles) {
       const configured = process.env[`${role.toUpperCase()}_TOKEN`];
       if (configured && configured !== `local-${role}` && !this.data.passwordHash) this.data.tokens[role] = configured;
     }
-    if (new Set(Object.values(this.data.tokens)).size !== roles.length) throw new Error('Access tokens must be distinct');
+    validateAccessData(this.data);
     if(process.env.ACCESS_PASSWORD && !this.data.passwordHash) this.setPassword(process.env.ACCESS_PASSWORD);
     else this.save();
   }

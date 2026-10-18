@@ -17,10 +17,10 @@ test('player mapping renders correct owner, HUD reconnects, MVP switches and rec
     await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     const report=h.state().postGameReports[0],player=report.players[0];
     await h.send({type:'post_game_fields',reportId:report.id,updates:['kills','deaths','assists','rating','damageShare','gold','totalDamage'].map((metric,index)=>({rowId:player.rowId,metric:metric as 'kills',field:{value:[8,2,10,12.5,35,14000,72000][index],sourcePage:'overview',confidence:1,manual:true}}))});
-    await page.goto('/overlay/mvp');await expect(page.getByRole('heading',{name:'MVP',exact:true})).toHaveCount(0);
-    await h.send({type:'select_mvp',reportId:report.id,rowId:player.rowId});await expect(page.getByRole('heading',{name:'Echo',exact:true})).toHaveText('Echo');
+    await page.goto('/overlay/mvp');await expect(page.locator('.mvp-screen')).toHaveCount(0);
+    await h.send({type:'select_mvp',reportId:report.id,rowId:player.rowId});await expect(page.locator('.mvp-screen h2')).toHaveText('Echo');
     await page.screenshot({path:'artifacts/mvp.png',omitBackground:true});
-    await h.send({type:'select_mvp',reportId:report.id,rowId:report.players[5].rowId});await expect(page.getByRole('heading',{name:'Fox',exact:true})).toHaveText('Fox');
+    await h.send({type:'select_mvp',reportId:report.id,rowId:report.players[5].rowId});await expect(page.locator('.mvp-screen.red h2')).toHaveText('Fox');
     const exportResult=await page.request.get('/api/match-export',{headers:{Authorization:'Bearer e2e-control'}});expect(exportResult.ok()).toBe(true);const exported=await exportResult.json();expect(exported.entries.some((entry:{path:string})=>entry.path==='access.json')).toBe(false);
     expect((await page.request.get('/api/recovery',{headers:{Authorization:'Bearer e2e-caster'}})).status()).toBe(403);
     await page.goto('/control');await expect(page.locator('.player-slot-alignment')).toBeVisible();await page.screenshot({path:'artifacts/control-milestones.png',fullPage:true});
@@ -78,7 +78,9 @@ test('two matching borderline OCR frames combine into an automatic player-order 
       if(route.request().method()==='GET')return route.fulfill({json:{status:'ready'}});
       calls++;
       const order=[4,3,2,1,0];
-      const confidence=calls===1?[.95,.95,.76,.95,.95]:[.95,.76,.95,.95,.95];
+      // Individually safe slots but a mean below .90 can combine. Explicit
+      // anomalies remain a hard veto and must never be erased by repetition.
+      const confidence=calls===1?[.91,.91,.80,.91,.91]:[.91,.80,.91,.91,.91];
       const solution={order,confidence,average:confidence.reduce((a,b)=>a+b,0)/5,margin:.18,automatic:false,anomalies:[]};
       await route.fulfill({json:{
         texts:['Echo','Delta','Charlie','Bravo','Alpha','Juliet','India','Hotel','Golf','Fox'],
@@ -164,7 +166,7 @@ test('Simulator can pull the current Control lineup, then time one isolated hero
     const baselineRed=[...h.state().redAssignments] as number[];
 
     await page.goto('/tools/bp-simulator-control#token=e2e-control');
-    await page.getByRole('button',{name:/角色交换/}).click();
+    await page.getByRole('button',{name:'3 角色交换',exact:true}).click();
     await page.getByRole('button',{name:'从 Control 同步模拟器数据',exact:true}).click();
     await expect(page.getByRole('status')).toContainText('已从 Control 读取当前最终阵容');
 

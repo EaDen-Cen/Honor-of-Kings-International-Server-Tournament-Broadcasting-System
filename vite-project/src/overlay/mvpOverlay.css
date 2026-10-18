@@ -31,10 +31,8 @@
 .mvp-screen-highlights b{color:#fae3aa}
 .mvp-screen-footer{position:absolute;bottom:42px;left:72px;right:72px;display:flex;justify-content:space-between;color:#8c9eb2;font-size:15px;letter-spacing:2px}
 
-/* Keep a full hero illustration visible, independently of player portrait crop.
-   The blurred backing fills the card without chopping the subject's face/hands. */
-.mvp-screen-portrait-backdrop{position:absolute;inset:-34px;background-size:cover;background-position:center;filter:blur(31px) brightness(.34) saturate(.9);transform:scale(1.09)}
-.mvp-screen-portrait img.mvp-hero-art{z-index:1;object-fit:contain;object-position:center center;filter:drop-shadow(0 12px 35px #0007) saturate(.96)}
+/* Photos and hero art fill the portrait using their own focal positions. */
+.mvp-screen-portrait img.mvp-hero-art{z-index:1;object-fit:cover;object-position:center center;filter:contrast(1.04) saturate(.96)}
 .mvp-screen-portrait img.mvp-player-photo{z-index:1;object-fit:cover;object-position:center 24%;filter:contrast(1.04)}
 .mvp-screen-portrait:after{z-index:2;pointer-events:none;background:linear-gradient(0deg,#090d19ef 0%,#090d1944 20%,transparent 42%)}
 .mvp-screen-portrait-label{z-index:3}

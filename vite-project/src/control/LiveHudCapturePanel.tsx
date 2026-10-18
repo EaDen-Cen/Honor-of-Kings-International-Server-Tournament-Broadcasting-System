@@ -27,7 +27,7 @@ export function LiveHudCapturePanel({state,zh,token,disabled,send}:{state:MatchS
   function editRegions(next:Record<LiveCaptureKey,CaptureRect>){cancelCapture();last.current=undefined;setPrevious(undefined);setResult(undefined);setAuto(false);setPublish(false);setCalibrated(false);setRegions(next);}
   function confirmRegions(){
     if(!validLiveCaptureRects(regions)){setMessage(zh?'选框无效：检查七项不重叠、位置在画面内。':'Invalid seven-region calibration');return;}
-    try{localStorage.setItem('hok-ghud-calibration-v1',JSON.stringify(regions));}catch{/* Calibration remains valid for this source without browser storage. */}cancelCapture();last.current=undefined;setPrevious(undefined);setResult(undefined);setCalibrated(true);setMessage(zh?'采集位置已确认，请先手动采样两次核对 OCR。':'Calibration saved. Review two OCR readings manually before enabling automation.');
+    try{localStorage.setItem('hok-ghud-calibration-v1',JSON.stringify(regions));}catch{/* Calibration remains valid for this source without browser storage. */}cancelCapture();last.current=undefined;setPrevious(undefined);setResult(undefined);setAuto(false);setPublish(false);setCalibrated(true);setMessage(zh?'采集位置已确认，请先手动采样两次核对 OCR。':'Calibration saved. Review two OCR readings manually before enabling automation.');
   }
   useEffect(()=>{const request=pending.current;return()=>{request.cancel();};},[]);
   async function sample(){
