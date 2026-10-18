@@ -1,4 +1,3 @@
-import { initialState } from '../src/shared/types';
 import { test,expect } from './fixtures';
 import { harness } from './harness';
 import { defaultCaptureSlots, type CaptureSlotKey } from '../src/control/bpCaptureLayout';
@@ -25,7 +24,7 @@ test('player mapping renders correct owner, HUD reconnects, MVP switches and rec
     const exportResult=await page.request.get('/api/match-export',{headers:{Authorization:'Bearer e2e-control'}});expect(exportResult.ok()).toBe(true);const exported=await exportResult.json();expect(exported.entries.some((entry:{path:string})=>entry.path==='access.json')).toBe(false);
     expect((await page.request.get('/api/recovery',{headers:{Authorization:'Bearer e2e-caster'}})).status()).toBe(403);
     await page.goto('/control');await expect(page.locator('.player-slot-alignment')).toBeVisible();await page.screenshot({path:'artifacts/control-milestones.png',fullPage:true});
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('operator can apply the visible red proposal during a slow scan and late OCR cannot overwrite it',async({page,baseURL})=>{
@@ -52,7 +51,7 @@ test('operator can apply the visible red proposal during a slow scan and late OC
     await expect.poll(()=>lateCompleted).toBe(true);
     await expect(page.getByRole('button',{name:'Restore auto',exact:true})).toBeEnabled();
     await expect.poll(()=>h.state().redPlayerSlotOrder.join(',')).toBe('4,3,2,1,0');
-  }finally{release();await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{release();h.close();}
 });
 
 test('two matching borderline OCR frames combine into an automatic player-order decision',async({page,baseURL})=>{
@@ -95,8 +94,6 @@ test('two matching borderline OCR frames combine into an automatic player-order 
     await expect.poll(()=>`${h.state().bluePlayerSlotOrder}|${h.state().redPlayerSlotOrder}`).toBe('4,3,2,1,0|4,3,2,1,0');
     await expect(page.locator('.player-slot-summary')).toContainText('Both synced');
   }finally{
-    await h.send({type:'reset_match'});
-    await h.send({type:'settings',settings:initialState()});
     h.close();
   }
 });
@@ -125,7 +122,7 @@ test('real offline OCR captures and synchronizes both teams within two seconds',
     const start=Date.now();await page.getByRole('button',{name:'Choose game window',exact:true}).click();
     await expect.poll(()=>`${h.state().bluePlayerSlotOrder}|${h.state().redPlayerSlotOrder}`,{intervals:[20,30,50]}).toBe('4,3,2,1,0|4,3,2,1,0');
     const elapsed=Date.now()-start;console.log(`Real capture → OCR → both authoritative orders: ${elapsed} ms`);expect(elapsed).toBeLessThan(2000);
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('shared capture auto-aligns both teams once and manual correction remains authoritative',async({page,baseURL})=>{
@@ -150,7 +147,7 @@ test('shared capture auto-aligns both teams once and manual correction remains a
     await expect(page.locator('.player-slot-alignment input[type=checkbox]')).toBeChecked();
     await expect(page.locator('.player-slot-summary')).toContainText('Both synced');
     await expect(page.getByRole('combobox',{name:'red P1 player',exact:true})).toHaveCount(0);
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 
@@ -183,7 +180,6 @@ test('Simulator can pull the current Control lineup, then time one isolated hero
     await expect(page.locator('.sim-test-result').filter({hasText:'Control 已识别新英雄归属'})).toBeVisible();
     await expect(page.getByRole('button',{name:'交换并开始计时',exact:true})).toBeEnabled();
   }finally{
-    await h.send({type:'reset_match'});
     h.close();
   }
 });

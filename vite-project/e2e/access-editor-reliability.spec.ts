@@ -11,11 +11,8 @@ async function startMatch(baseURL: string | undefined, heroPool: 'global' | 'cn'
   return match;
 }
 
-async function finishMatch(match: Awaited<ReturnType<typeof harness>>) {
-  try {
-    await match.send({ type: 'reset_match' });
-    await match.send({ type: 'settings', settings: initialState() });
-  } finally { match.close(); }
+function finishMatch(match: Awaited<ReturnType<typeof harness>>) {
+  match.close();
 }
 
 test('sharing links validate the website address and follow website edits', async ({ page, baseURL }) => {

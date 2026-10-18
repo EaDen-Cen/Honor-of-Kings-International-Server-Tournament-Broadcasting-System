@@ -42,6 +42,7 @@ async function stopOwnedServer(child:ChildProcess,closed:Promise<void>) {
 
 // A new process and data directory isolate delayed caster events, access data,
 // uploads and team presets as well as settings. Product reset semantics stay intact.
+// Teardown only closes clients: resetting live state here can race automatic OCR.
 export const test=base.extend<{ isolatedServer:void }>({
   isolatedServer:[async({baseURL},use)=>{
     if(baseURL!==`http://${host}:${port}`)throw new Error('E2E baseURL must point to its disposable local server.');
