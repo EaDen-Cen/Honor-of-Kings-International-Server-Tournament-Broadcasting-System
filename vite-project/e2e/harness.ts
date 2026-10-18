@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import { WebSocket } from 'ws';
 import { randomUUID } from 'node:crypto';
-import heroes from '../src/components/HeroList';
+import {heroesForPool} from '../src/shared/heroPool';
 import { pickRestriction, banRestriction } from '../src/shared/draftRules';
 import { phases, type Action, type Snapshot } from '../src/shared/types';
 
@@ -31,9 +31,10 @@ export async function harness(baseURL: string | undefined) {
   };
   const fill = async () => {
     while (!snapshot.state.draftComplete) {
-      const state = snapshot.state, phase = phases(state.draftMode, state.firstPickSide)[state.currentPhase];
+      const state = snapshot.state, phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
       const used = [...state.blueBans, ...state.redBans, ...state.bluePicks, ...state.redPicks];
-      const hero = heroes.find(h => !used.includes(h.id) && (phase.action === 'ban' ? !banRestriction(state, phase.team, h.id) : !pickRestriction(state, phase.team, state[`${phase.team}Picks`].length, h.id)))!;
+      const hero = heroesForPool(state.heroPool).find(h => !used.includes(h.id) && (phase.action === 'ban' ? !banRestriction(state, phase.team, h.id) : !pickRestriction(state, phase.team, state[`${phase.team}Picks`].length, h.id)));
+      if(!hero)throw new Error(`No legal hero for ${phase.team} ${phase.action} at phase ${state.currentPhase}`);
       await send({ type: 'draft_action', ...phase, heroId: hero.id });
     }
   };

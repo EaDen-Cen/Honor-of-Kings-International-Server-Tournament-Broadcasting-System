@@ -35,10 +35,22 @@
 .pg-unavailable.pg-center{max-width:none;margin-top:200px}
 .pg-footer{font-size:18px;color:#99adc4;letter-spacing:.4px;margin-top:15px;text-align:center}
 .pg-progress-content{margin:0 20px}
-.pg-progress-legend{display:flex;gap:80px;align-items:center;margin:45px 40px 12px;font-size:23px}
+.pg-progress-legend{display:flex;gap:80px;align-items:center;margin:25px 40px 8px;font-size:23px}
 .pg-progress-legend div{display:flex;align-items:center;gap:15px}
 .pg-progress-legend b{font-variant-numeric:tabular-nums}
 .pg-progress-legend small{margin-left:auto;font-size:16px;color:#a9b8ca;max-width:470px}
 .pg-dot{display:inline-block;width:17px;height:17px;border-radius:50%}
 .pg-dot.blue{background:#55c2ff}.pg-dot.red{background:#ff778b}
-.pg-progress-chart{width:100%;height:620px;display:block}
+.pg-progress-chart{width:100%;height:550px;display:block}
+.pg-compare{padding-top:40px;padding-bottom:40px}
+.pg-compare .pg-broadcast-header h1{font-size:46px;margin:12px 0 8px}
+.pg-compare .pg-team-banner{margin:24px 0 12px;padding:17px 34px;min-height:76px}
+.pg-compare .pg-role-tabs{padding:8px 0}
+.pg-compare .pg-role-tabs a{padding:9px 30px}
+.pg-compare .pg-duel-top{padding:14px 24px}
+.pg-compare .pg-hero-icon{width:72px;height:72px}
+.pg-compare .pg-player span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg-compare .pg-compare-layout{gap:40px;margin-top:16px}
+.pg-compare .pg-stat-line{padding:7px 20px;min-height:44px}
+.pg-compare .pg-stat-line strong{font-size:22px}
+.pg-compare .pg-radar svg{width:450px;height:450px}

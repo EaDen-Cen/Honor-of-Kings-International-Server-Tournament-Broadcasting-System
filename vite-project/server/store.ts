@@ -1,10 +1,11 @@
-import { postGameMetrics, postGameTeamMetrics, postGamePercentMetrics, postGameDecimalMetrics, canMergePostGameField } from '../src/shared/postGame.js';
+import { canMergePostGameField } from '../src/shared/postGame.js';
 import { validGoldTimeline } from '../src/shared/postGameTimeline.js';
+import { validatePostGameField, validatePostGameGrade, validatePostGameCurve } from './postGameValidation.js';
 import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
 import { normalizePlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
-import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeSync, fsyncSync, closeSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeFileSync, fsyncSync, closeSync } from 'node:fs';
 import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
@@ -23,15 +24,16 @@ function validateSavedData(input: unknown): asserts input is Data | LegacyData {
   const invalid = () => new Error('比赛存档无效，请恢复有效备份');
   if (!savedObject(input) || input.version !== 1 && input.version !== 2 ||
     !savedObject(input.state) || !Array.isArray(input.history) || input.history.some(state => !savedObject(state)) ||
-    !Array.isArray(input.events) || !Array.isArray(input.ids) || input.ids.some(id => typeof id !== 'string') ||
+    !Array.isArray(input.events) || !Array.isArray(input.ids) || input.ids.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9-]{8,100}$/.test(id)) || new Set(input.ids).size !== input.ids.length ||
     !Number.isSafeInteger(input.revision) || Number(input.revision) < 0 ||
     !Number.isInteger(input.delay) || Number(input.delay) < 0 || Number(input.delay) > 3600) throw invalid();
-  let previousTimestamp = -1;
+  let previousTimestamp = -1, previousRevision = 0;
   for (const event of input.events) {
-    if (!savedObject(event) || typeof event.id !== 'string' || typeof event.type !== 'string' ||
+    if (!savedObject(event) || typeof event.id !== 'string' || !/^[a-zA-Z0-9-]{8,100}$/.test(event.id) || typeof event.type !== 'string' ||
       !savedObject(event.resultingState) || !Number.isSafeInteger(event.timestamp) || Number(event.timestamp) < 0 || Number(event.timestamp) < previousTimestamp ||
-      !Number.isSafeInteger(event.revision) || Number(event.revision) < 0) throw invalid();
+      !Number.isSafeInteger(event.revision) || Number(event.revision) <= previousRevision || Number(event.revision) > Number(input.revision)) throw invalid();
     previousTimestamp = Number(event.timestamp);
+    previousRevision = Number(event.revision);
   }
 }
 
@@ -95,7 +97,7 @@ function validateArtCrop(crop: unknown) {
   if (typeof value.y !== 'number' || !Number.isFinite(value.y) || value.y < 0 || value.y > 100) throw new Error('heroArtCropInvalid');
   if (typeof value.scale !== 'number' || !Number.isFinite(value.scale) || value.scale < 1 || value.scale > 3) throw new Error('heroArtCropInvalid');
 }
-function portraitURL(value: unknown): asserts value is string {
+export function portraitURL(value: unknown): asserts value is string {
   shortText(value, 1000);
   if (!value) return;
   if (/\s|\\/.test(value) || [...value].some(char => char.charCodeAt(0) < 32)) throw new Error('portraitInvalid');
@@ -240,28 +242,53 @@ export class Store {
     }
     case 'post_game_fields': {
       const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!Array.isArray(action.updates)||action.updates.length<1||action.updates.length>100)throw new Error('赛后报告无效 / Invalid post-game report');
+      if(!report||!Array.isArray(action.updates)||!action.updates.length&&!action.grades?.length||action.updates.length>100)throw new Error('赛后报告无效 / Invalid post-game report');
+      if(action.grades!==undefined){
+        if(!Array.isArray(action.grades)||action.grades.length>10)throw new Error('Invalid grade report');
+        for(const {rowId,field} of action.grades){
+          if(!report.players.some(p=>p.rowId===rowId))throw new Error('Invalid game grade');
+          validatePostGameGrade(field);
+        }
+      }
       for(const update of action.updates){
-        if(!report.players.some(p=>p.rowId===update.rowId)||!postGameMetrics.includes(update.metric))throw new Error('赛后字段无效 / Invalid post-game field');
-        const field=update.field;
-        if(!field||typeof field.value!=='number'||!Number.isFinite(field.value)||field.value<0||field.value>1e9||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1||typeof field.manual!=='boolean'||!['overview','survival','damage','team','economy','record'].includes(field.sourcePage))throw new Error('赛后数据无效 / Invalid post-game value');
-        if(postGamePercentMetrics.includes(update.metric)&&field.value>100)throw new Error('百分比必须在 0–100 / Percentage must be 0–100');
-        if(!postGameDecimalMetrics.includes(update.metric)&&!Number.isInteger(field.value))throw new Error('此项须输入整数 / Integer required');
-        if(field.capturedAt!==undefined)integer(field.capturedAt,0,Number.MAX_SAFE_INTEGER);
-        if(field.evidence!==undefined){shortText(field.evidence,200);if(!/^\/uploads\/player-portraits\/[a-f0-9-]{36}\.png$/.test(field.evidence))throw new Error('Invalid evidence');}
+        if(!report.players.some(p=>p.rowId===update.rowId))throw new Error('赛后字段无效 / Invalid post-game field');
+        validatePostGameField(update.metric, update.field, 'player');
       }
       next.history.push(copy(state));
-      for(const update of action.updates){const field=update.field,player=report.players.find(p=>p.rowId===update.rowId)!;if(!canMergePostGameField(player.fields[update.metric],field))continue;player.fields[update.metric]={value:field.value,confidence:field.confidence,manual:field.manual,sourcePage:field.sourcePage,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};}
+      for(const update of action.updates){const field=update.field,player=report.players.find(p=>p.rowId===update.rowId)!;if(!canMergePostGameField(player.fields[update.metric],field))continue;player.fields[update.metric]={value:field.value,confidence:field.confidence,manual:field.manual,sourcePage:field.sourcePage,...(field.resolution?{resolution:field.resolution}:{}),...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};}
+      for(const {rowId,field} of action.grades??[]){
+        const player=report.players.find(p=>p.rowId===rowId)!,old=player.grade;
+        if(field.manual||!old||!old.manual&&(old.confidence<.85||old.value===field.value)&&field.confidence>=old.confidence)player.grade={value:field.value,sourcePage:'summary',confidence:field.confidence,manual:field.manual,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
+      }
+      break;
+    }
+    case 'post_game_mvp_art_scale': {
+      const report=state.postGameReports.find(r=>r.id===action.reportId);
+      if(!report||typeof action.scale!=='number'||!Number.isFinite(action.scale)||action.scale<1||action.scale>2)throw new Error('Invalid MVP image scale');
+      next.history.push(copy(state));report.mvpArtScale=action.scale;
+      break;
+    }
+    case 'post_game_grades': {
+      const report=state.postGameReports.find(r=>r.id===action.reportId);
+      if(!report||!Array.isArray(action.updates)||!action.updates.length||action.updates.length>10)throw new Error('Invalid grade report');
+      for(const {rowId,field} of action.updates){
+        if(!report.players.some(p=>p.rowId===rowId))throw new Error('Invalid game grade');
+        validatePostGameGrade(field);
+      }
+      next.history.push(copy(state));
+      for(const {rowId,field} of action.updates){
+        const player=report.players.find(p=>p.rowId===rowId)!,old=player.grade;
+        if(field.manual||!old||!old.manual&&(old.confidence<.85||old.value===field.value)&&field.confidence>=old.confidence)player.grade={value:field.value,sourcePage:'summary',confidence:field.confidence,manual:field.manual,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
+      }
       break;
     }
     case 'post_game_team_fields': {
       const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!Array.isArray(action.updates)||!action.updates.length||action.updates.length>20)throw new Error('Invalid team report');
+      if(!report||!Array.isArray(action.updates)||!action.updates.length&&!action.goldDifference||action.updates.length>20)throw new Error('Invalid team report');
+      if(action.goldDifference!==undefined)validatePostGameCurve(action.goldDifference);
       for(const {side,metric,field} of action.updates){
-        if(!['blue','red'].includes(side)||!postGameTeamMetrics.includes(metric)||!field||field.sourcePage!=='recap'||typeof field.manual!=='boolean'||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1)throw new Error('Invalid team field');
-        integer(field.value,0,metric==='gold'?1000000:999);
-        if(field.capturedAt!==undefined)integer(field.capturedAt,0,Number.MAX_SAFE_INTEGER);
-        if(field.evidence!==undefined&&!/^\/uploads\/player-portraits\/[a-f0-9-]{36}\.png$/.test(field.evidence))throw new Error('Invalid evidence');
+        if(!['blue','red'].includes(side))throw new Error('Invalid team field');
+        validatePostGameField(metric, field, 'team');
       }
       next.history.push(copy(state));
       report.teamFields??={};
@@ -269,6 +296,8 @@ export class Store {
         const fields=report.teamFields[side]??={};
         if(canMergePostGameField(fields[metric],field))fields[metric]={value:field.value,sourcePage:'recap',manual:field.manual,confidence:field.confidence,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
       }
+      const curve=action.goldDifference;
+      if(curve&&(curve.source==='manual'||!report.goldDifference||report.goldDifference.source!=='manual'&&!(curve.partial&&!report.goldDifference.partial)&&(curve.confidence>=report.goldDifference.confidence||report.goldDifference.partial&&!curve.partial)))report.goldDifference={points:curve.points.map(p=>({timeSeconds:p.timeSeconds,difference:p.difference})),source:curve.source,confidence:curve.confidence,maxDifference:curve.maxDifference,...(curve.partial?{partial:true}:{}),...(curve.durationSeconds!==undefined?{durationSeconds:curve.durationSeconds}:{}),...(curve.evidence?{evidence:curve.evidence}:{}),...(curve.capturedAt!==undefined?{capturedAt:curve.capturedAt}:{})};
       break;
     }
     case 'post_game_gold_timeline': {
@@ -276,6 +305,8 @@ export class Store {
       if(!report||!validGoldTimeline(action.points))throw new Error('Invalid gold time-series; use verified, increasing replay samples');
       next.history.push(copy(state));
       report.goldTimeline=action.points.map(point=>({timeSeconds:point.timeSeconds,blueGold:point.blueGold,redGold:point.redGold}));
+      const differencePoints=action.points.map(point=>({timeSeconds:point.timeSeconds,difference:point.blueGold-point.redGold}));
+      report.goldDifference={points:differencePoints,source:'manual',confidence:1,maxDifference:Math.max(1,...differencePoints.map(point=>Math.abs(point.difference)))};
       break;
     }
     case 'select_mvp': {
@@ -573,7 +604,7 @@ export class Store {
         if (!team) throw new Error('请填写队伍信息');
 
         shortText(team.name, 60);
-        shortText(team.logo, 1000);
+        portraitURL(team.logo);
 
         if (!Array.isArray(team.players) || team.players.length !== 5) {
           throw new Error('每支队伍必须填写 5 个选手位置');
@@ -603,13 +634,6 @@ export class Store {
           throw new Error('队伍名称不能为空');
         }
 
-        if (
-          team.logo &&
-          !/^https:\/\//.test(team.logo) &&
-          !/^\/(?!\/)/.test(team.logo)
-        ) {
-          throw new Error('队标地址须使用加密网页链接，或以单个斜线开头的本地路径');
-        }
       }
       if (draftRuleMode === 'player') {
         const identities = [...s.blueTeam.players, ...s.redTeam.players].map(playerIdentity).filter(Boolean);
@@ -773,7 +797,7 @@ export class Store {
         mkdirSync(dirname(this.file), { recursive: true });
         const temporary = `${this.file}.tmp`;
         const fd = openSync(temporary, 'w');
-        try { writeSync(fd, JSON.stringify(next)); fsyncSync(fd); } finally { closeSync(fd); }
+        try { writeFileSync(fd, JSON.stringify(next)); fsyncSync(fd); } finally { closeSync(fd); }
         renameSync(temporary, this.file);
       } catch (cause) {
         throw new Error('比赛状态保存失败，本次操作未生效，请联系导播检查服务器存储后重试', { cause });

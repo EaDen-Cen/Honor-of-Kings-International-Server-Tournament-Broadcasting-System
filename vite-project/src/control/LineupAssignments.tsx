@@ -1,4 +1,5 @@
 import { playerAtSlot } from '../shared/playerSlots';
+import { apiURL } from '../shared/config';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heroForState } from '../shared/heroData';
 import type { Action, MatchState, Side } from '../shared/types';
@@ -11,9 +12,8 @@ import {
 import { regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import {
   getSharedWindowCaptureStream,
-  setSharedWindowCaptureStream,
+  connectSharedBpWindow,
   subscribeSharedWindowCapture,
-  requestWindowCapture,
 } from './sharedWindowCapture';
 import { solveLineupTeam as solveTeam, type Candidate, type SlotResult } from './lineupRecognition';
 
@@ -47,20 +47,21 @@ async function mapWithConcurrency<T,R>(
   worker:(item:T)=>Promise<R>,
 ):Promise<R[]> {
   const output=new Array<R>(items.length);
-  let cursor=0;
+  let cursor=0,failed=false;
   const runners=Array.from({length:Math.min(limit,items.length)},async()=>{
-    while(true){
+    while(!failed){
       const index=cursor++;
       if(index>=items.length) return;
-      output[index]=await worker(items[index]);
+      try{output[index]=await worker(items[index]);}
+      catch(error){failed=true;throw error;}
     }
   });
   await Promise.all(runners);
   return output;
 }
 
-function captureFrame(video:HTMLVideoElement,region:NormalizedCaptureRegion) {
-  const pixels=regionToPixels(region,video.videoWidth,video.videoHeight);
+function captureFrame(video:HTMLCanvasElement,region:NormalizedCaptureRegion) {
+  const pixels=regionToPixels(region,video.width,video.height);
   const maxSide=256;
   const scale=Math.min(1,maxSide/Math.max(pixels.width,pixels.height));
   const canvas=document.createElement('canvas');
@@ -100,7 +101,7 @@ export function LineupAssignments({
   const busyRef=useRef(false);
   const activeScan=useRef<AbortController>();
   const captureRequest=useRef<AbortController>();
-  const context=JSON.stringify([state.gameNumber,state.blueTeam.id,state.redTeam.id,state.bluePicks,state.redPicks,state.blueAssignments,state.redAssignments,state.bluePlayerSlotOrder,state.redPlayerSlotOrder,state.draftComplete,state.committedGameId,state.bpInputMode,disabled,token,auto,slots]);
+  const context=JSON.stringify([state.draftGameNumber??state.gameNumber,state.blueTeam.id,state.redTeam.id,state.blueTeam.players,state.redTeam.players,state.bluePicks,state.redPicks,state.blueAssignments,state.redAssignments,state.bluePlayerSlotOrder,state.redPlayerSlotOrder,state.draftComplete,state.committedGameId,state.bpInputMode,disabled,token,auto,slots]);
   const contextRef=useRef(context);
   contextRef.current=context;
 
@@ -147,20 +148,22 @@ export function LineupAssignments({
     const element=videoRef.current;
     void attachStream(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>{void attachStream(stream);});
+    const refresh=()=>{activeScan.current?.abort();stableRef.current={signature:'',count:0};setSlots(readCaptureSlots());setResults([]);};
+    const video=videoRef.current;
+    const resize=()=>{
+      activeScan.current?.abort();stableRef.current={signature:'',count:0};setResults([]);
+      setVideoReady(!!video?.videoWidth&&!!video.videoHeight&&!!streamRef.current?.getVideoTracks().some(track=>track.readyState==='live'));
+    };
+    video?.addEventListener('resize',resize);
+    window.addEventListener('hok-capture-slots-changed',refresh);
     return()=>{
       mounted.current=false;
-      unsubscribe();
+      unsubscribe();video?.removeEventListener('resize',resize);window.removeEventListener('hok-capture-slots-changed',refresh);
       captureRequest.current?.abort();
       activeScan.current?.abort();
       if(element)element.srcObject=null;
     };
   },[attachStream]);
-
-  useEffect(()=>{
-    const refresh=()=>setSlots(readCaptureSlots());
-    window.addEventListener('hok-capture-slots-changed',refresh);
-    return()=>window.removeEventListener('hok-capture-slots-changed',refresh);
-  },[]);
 
   useEffect(()=>{
     activeScan.current?.abort();
@@ -180,9 +183,7 @@ export function LineupAssignments({
     captureRequest.current=controller;
     setConnecting(true);
     try {
-      const stream=await requestWindowCapture(controller.signal);
-      if(!mounted.current){stream.getTracks().forEach(track=>track.stop());return;}
-      setSharedWindowCaptureStream(stream);
+      await connectSharedBpWindow(false,controller.signal);
     } catch {
       if(mounted.current&&!controller.signal.aborted)setMessage(zh?'未连接 BP 窗口，换英雄仍可手动修改。':'BP window was not connected; hero swaps can still be adjusted manually.');
     } finally {
@@ -193,16 +194,15 @@ export function LineupAssignments({
 
   const applyLineups=useCallback((blue:number[],red:number[])=>{
     if(disabled||!state.draftComplete||state.committedGameId) return;
+    activeScan.current?.abort();stableRef.current={signature:'',count:0};setResults([]);
     send({type:'set_lineup_assignments',blue,red});
   },[disabled,state.draftComplete,state.committedGameId,send]);
 
-  const recognizeSlot=useCallback(async(side:Side,index:number,signal:AbortSignal)=>{
+  const recognizeSlot=useCallback(async(side:Side,index:number,frame:HTMLCanvasElement,signal:AbortSignal)=>{
     signal.throwIfAborted();
-    const video=videoRef.current;
-    if(!videoReady||!video||!video.videoWidth||!video.videoHeight) throw new Error(zh?'BP 窗口未连接。':'BP window is not connected.');
     const key=pickKey(side,index);
-    const image=captureFrame(video,slots[key]);
-    const response=await fetch('/api/recognize-frame',{
+    const image=captureFrame(frame,slots[key]);
+    const response=await fetch(`${apiURL}/api/recognize-frame`,{
       method:'POST',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -221,7 +221,7 @@ export function LineupAssignments({
       preview:data.preview as string,
       candidates:(data.candidates??[]) as Candidate[],
     } satisfies SlotResult;
-  },[revision,slots,state,token,videoReady,zh]);
+  },[revision,slots,state,token,zh]);
 
   const scan=useCallback(async(forceApply=false)=>{
     if(busyRef.current||disabled||!state.draftComplete||state.committedGameId||state.bpInputMode!=='screen'||!videoReady) return;
@@ -233,11 +233,14 @@ export function LineupAssignments({
     activeScan.current=controller;
     const timeout=setTimeout(()=>controller.abort(),25000);
     try {
+      const video=videoRef.current;
+      if(!video?.videoWidth||!streamRef.current?.getVideoTracks().some(track=>track.readyState==='live'))throw new Error('BP window is not connected.');
+      const frame=document.createElement('canvas');frame.width=video.videoWidth;frame.height=video.videoHeight;frame.getContext('2d')!.drawImage(video,0,0);
       const work=(['blue','red'] as const).flatMap(side=>
         Array.from({length:5},(_,index)=>({side,index})));
       // Final-lineup swaps are not frame-critical. Keep only two recognition
       // requests in flight to avoid CPU spikes while OBS is encoding.
-      const scanned=await mapWithConcurrency(work,2,item=>recognizeSlot(item.side,item.index,controller.signal));
+      const scanned=await mapWithConcurrency(work,2,item=>recognizeSlot(item.side,item.index,frame,controller.signal));
       if(!mounted.current||controller.signal.aborted||capturedContext!==contextRef.current||capturedStream!==streamRef.current)return;
       setResults(scanned);
 

@@ -33,7 +33,7 @@ test('post-game rating drafts survive external edits and replay timelines stay i
     await h.send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric:'rating',field:{value:7,confidence:1,manual:true,sourcePage:'overview'}}]});
     await expect(rating).toHaveValue('12.5');await rating.press('Enter');await expect.poll(()=>h.state().postGameReports[0].players[0].fields.rating?.value).toBe(12.5);
     await expect(rating).toBeEnabled();await rating.fill('101');await rating.press('Tab');await expect(rating).toHaveAttribute('aria-invalid','true');expect(h.state().postGameReports[0].players[0].fields.rating?.value).toBe(12.5);
-    await page.getByText('Game progress · replay gold timeline',{exact:true}).click();
+    await page.getByText('Advanced: economy curve replay data',{exact:true}).click();
     const timeline=page.getByLabel('Replay gold timeline CSV'),points=[{timeSeconds:120,blueGold:3500,redGold:3600},{timeSeconds:300,blueGold:11000,redGold:11200}];
     await h.send({type:'post_game_gold_timeline',reportId:report.id,points});await expect(timeline).toHaveValue(timelineToText(points));
     const draft='02:00,4000,4100\n05:00,12000,12500\n10:00,25000,26000';await timeline.fill(draft);

@@ -1,8 +1,8 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import heroes from '../../src/components/HeroList.js';
-import { detectImage } from './assets.js';
+import globalHeroes from '../../src/components/HeroList.js';
+import { allPoolHeroes, cnHeroes } from '../../src/shared/heroPool.js';
+import { validateLocalImage } from './assets.js';
 import { LANES } from './types.js';
 
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -12,7 +12,9 @@ async function main() {
   const errors: string[] = [];
   const ids = new Set<number>();
   const campIds = new Map<number, number>();
+  const heroes = allPoolHeroes;
   const validIds = new Set(heroes.map(hero => hero.id));
+  if (new Set(cnHeroes.map(hero => hero.id)).size !== cnHeroes.length) errors.push('Duplicate CN hero ID');
 
   for (const hero of heroes) {
     if (ids.has(hero.id)) errors.push(`Duplicate local hero id: ${hero.id}`);
@@ -43,8 +45,7 @@ async function main() {
     if (hero.imageLink.startsWith('/heroesImg/')) {
       const file = resolve(publicDir, hero.imageLink.replace(/^\//, ''));
       try {
-        const data = new Uint8Array(await readFile(file));
-        if (!detectImage(data)) errors.push(`Hero #${hero.id} has an invalid image file: ${hero.imageLink}`);
+        if (!await validateLocalImage(file)) errors.push(`Hero #${hero.id} has an invalid image file: ${hero.imageLink}`);
       } catch {
         errors.push(`Hero #${hero.id} image is missing: ${hero.imageLink}`);
       }
@@ -57,7 +58,7 @@ async function main() {
     return;
   }
 
-  console.log(`Hero data valid: ${heroes.length} heroes, ${campIds.size} stable camp IDs, all relationship references and local images passed.`);
+  console.log(`Hero data valid: ${globalHeroes.length} global heroes, ${cnHeroes.length} CN heroes, ${heroes.length} distinct heroes, ${campIds.size} stable camp IDs; all relationship references and local images passed. Remote CN images were not fetched.`);
 }
 
 await main();

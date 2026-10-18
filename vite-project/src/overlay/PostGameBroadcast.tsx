@@ -1,7 +1,9 @@
 import type { MatchState, PlayerRole } from '../shared/types';
 import { heroForState } from '../shared/heroData';
-import { postGameMetricLabel, reliableField, type PostGameMetric, type PostGamePlayer, type PostGameReport } from '../shared/postGame';
-import { validGoldTimeline } from '../shared/postGameTimeline';
+import { formatPostGameValue, postGameMetricLabel, reliableField, type PostGameMetric, type PostGamePlayer, type PostGameReport } from '../shared/postGame';
+import { reportGoldDifference,formatEconomyTime } from '../shared/postGameTimeline';
+import {EconomyAdvantageChart} from './EconomyAdvantageChart';
+import {postGamePlayerIdentity} from '../shared/postGamePresentation';
 import './postGameBroadcast.css';
 
 const roles:PlayerRole[]=['clash','jungle','mid','farm','roam'];
@@ -10,7 +12,7 @@ const roleNames:Record<PlayerRole,[string,string]>={
 };
 const radarKeys:PostGameMetric[]=['totalDamage','damageTaken','gold','participation','towerDamage','healing'];
 const format=(player:PostGamePlayer|undefined,key:PostGameMetric)=>{
-  const field=player?.fields[key];return reliableField(field)?field!.value.toLocaleString()+(key==='participation'||key==='damageShare'?'%':''):'—';
+  const field=player?.fields[key];return formatPostGameValue(reliableField(field)?field!.value:null,key);
 };
 function DataRadar({blue,red,zh}:{blue?:PostGamePlayer;red?:PostGamePlayer;zh:boolean}){
   const fields=radarKeys.filter(key=>reliableField(blue?.fields[key])&&reliableField(red?.fields[key]));
@@ -33,17 +35,19 @@ function DataRadar({blue,red,zh}:{blue?:PostGamePlayer;red?:PostGamePlayer;zh:bo
 }
 function Competitor({player,state,zh}:{player?:PostGamePlayer;state:MatchState;zh:boolean}){
   const hero=player?heroForState(state,player.heroId):undefined;
+  const grade=player?.grade&&(player.grade.manual||player.grade.confidence>=.85)?player.grade.value:undefined;
   return <div className={`pg-player ${player?.side??''}`}>
     {hero?.imageLink&&<img className="pg-hero-icon" src={hero.imageLink} alt=""/>}
-    <div><small>{player?.teamName??'—'}</small><strong>{player?.playerId||'—'}</strong><span>{zh?hero?.chineseName:hero?.englishName}</span></div>
+    <div><small>{player?.teamName??'—'}</small><strong>{player?.playerId||'—'}</strong><span>{zh?hero?.chineseName:hero?.englishName}{grade&&` · ${zh?'游戏评级':'Game grade'} ${grade}`}</span></div>
   </div>;
 }
 function Comparison({state,report,zh}:{state:MatchState;report:PostGameReport;zh:boolean}){
   const wanted=new URLSearchParams(window.location.search).get('role');
   const selected=roles.includes(wanted as PlayerRole)?wanted as PlayerRole:'clash';
-  const pair=(side:'blue'|'red',role:PlayerRole)=>report.players.find(p=>p.side===side&&p.role===role);
+  const pair=(side:'blue'|'red',role:PlayerRole)=>report.players.map(player=>postGamePlayerIdentity(state,player)).find(p=>p.side===side&&p.role===role);
   const blue=pair('blue',selected),red=pair('red',selected);
-  const stats:PostGameMetric[]=['rating','kills','deaths','assists','gold','totalDamage','damageShare','damageTaken','participation','towerDamage'];
+  const stats:PostGameMetric[]=['kills','deaths','assists','gold','goldShare','totalDamage','damageShare','damageTaken','participation','towerDamage'];
+  if(reliableField(blue?.fields.rating)||reliableField(red?.fields.rating))stats.unshift('rating');
   return <>
     <nav className="pg-role-tabs" aria-label={zh?'对位位置':'Matchup role'}>{roles.map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}${window.location.hash}`} className={role===selected?'active':''} aria-current={role===selected?'page':undefined}>{roleNames[role][zh?0:1]}</a>)}</nav>
     <div className="pg-compare-body">
@@ -57,34 +61,23 @@ function Comparison({state,report,zh}:{state:MatchState;report:PostGameReport;zh
   </>;
 }
 function Progress({report,zh}:{report:PostGameReport;zh:boolean}){
-  const points=validGoldTimeline(report.goldTimeline)?report.goldTimeline:[];
-  if(points.length<2)return <div className="pg-unavailable pg-center">{zh?'尚无经济时间线。请在 Control 中导入回放的至少两个实际时间点；不能用结算总经济反推曲线。':'No verified time-series yet. Import at least two actual replay samples in Control; final totals cannot reconstruct a match.'}</div>;
-  const x0=110,y0=575,w=1430,h=440,last=points[points.length-1].timeSeconds,first=points[0].timeSeconds,span=Math.max(1,last-first),maxValue=Math.max(1,...points.flatMap(p=>[p.blueGold,p.redGold]));
-  const max=Math.ceil(maxValue/5000)*5000;
-  const xp=(s:number)=>x0+(s-first)/span*w,yp=(gold:number)=>y0-gold/max*h;
-  const lines=(team:'blueGold'|'redGold')=>points.map(p=>`${xp(p.timeSeconds)},${yp(p[team])}`).join(' ');
-  const fmtTime=(s:number)=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-  const newest=points.at(-1)!;
+  const points=reportGoldDifference(report);
+  if(points.length<2)return <div className="pg-unavailable pg-center">{zh?'尚无经济优势曲线。在 Control 采集游戏「对局」页，确认左右队伍后应用，即可自动显示。':'No economy advantage curve yet. Capture the game recap in Control, confirm sides, then apply.'}</div>;
+  const newest=points.at(-1)!,advantage=newest.difference;
   return <div className="pg-progress-content">
-    <div className="pg-progress-legend"><div><i className="pg-dot blue"/> {zh?'蓝方经济':'Blue gold'} <b>{newest.blueGold.toLocaleString()}</b></div><div><i className="pg-dot red"/> {zh?'红方经济':'Red gold'} <b>{newest.redGold.toLocaleString()}</b></div><small>{zh?'曲线只连接已导入的实测点，未采集时段没有被推算。':'Lines join imported observations only; missing intervals are not estimated.'}</small></div>
-    <svg className="pg-progress-chart" viewBox="0 0 1640 690" role="img" aria-label={zh?'经济随游戏时间变化的曲线':'Gold totals by game time'}>
-      {[0,.25,.5,.75,1].map(n=><g key={n}><line x1={x0} y1={yp(max*n)} x2={x0+w} y2={yp(max*n)} stroke="#a8b5c74d"/><text x={x0-20} y={yp(max*n)+7} fill="#c1ccdc" textAnchor="end" fontSize="18">{Math.round(max*n/1000)}K</text></g>)}
-      {[0,.25,.5,.75,1].map(n=><g key={n}><line x1={x0+w*n} y1={y0} x2={x0+w*n} y2={y0-h} stroke="#a8b5c722"/><text x={x0+w*n} y={y0+37} fill="#c1ccdc" textAnchor="middle" fontSize="18">{fmtTime(Math.round(first+span*n))}</text></g>)}
-      <polyline points={lines('blueGold')} fill="none" stroke="#55c2ff" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round"/>
-      <polyline points={lines('redGold')} fill="none" stroke="#ff778b" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round"/>
-      {points.map(p=><g key={p.timeSeconds}><circle cx={xp(p.timeSeconds)} cy={yp(p.blueGold)} r="5" fill="#55c2ff"/><circle cx={xp(p.timeSeconds)} cy={yp(p.redGold)} r="5" fill="#ff778b"/></g>)}
-      <text x={x0+w/2} y={y0+94} fill="#f1f5ff" fontSize="22" textAnchor="middle">{zh?'游戏时间':'Game time'}</text>
-    </svg>
-    <footer className="pg-footer">{zh?`共 ${points.length} 个实测数据点 · ${fmtTime(first)} 至 ${fmtTime(last)}`:`${points.length} observed samples · ${fmtTime(first)} to ${fmtTime(last)}`}</footer>
+    <div className="pg-progress-legend"><div><i className={advantage>=0?'pg-dot blue':'pg-dot red'}/> {advantage===0?(zh?'双方持平':'EVEN'):advantage>0?(zh?'蓝方领先':'Blue advantage'):(zh?'红方领先':'Red advantage')} <b>{Math.abs(advantage).toLocaleString()}</b></div><small>{zh?'中间为零，上蓝下红；显示双方经济优势差，不显示两条总经济曲线。':'Zero at the center; blue above, red below. Shows signed economy advantage, not cumulative gold totals.'}</small></div>
+    <EconomyAdvantageChart points={points} maxDifference={report.goldDifference?.maxDifference} durationSeconds={report.goldDifference?.durationSeconds} zh={zh} className="pg-progress-chart"/>
+    <footer className="pg-footer">{zh?`共 ${points.length} 个曲线点 · ${formatEconomyTime(points[0].timeSeconds)} 至 ${formatEconomyTime(newest.timeSeconds)} · ${report.goldDifference?.source==='settlement'?'截图刻度和标记估计':'人工回放数据'}`:`${points.length} curve samples · ${formatEconomyTime(points[0].timeSeconds)} to ${formatEconomyTime(newest.timeSeconds)} · ${report.goldDifference?.source==='settlement'?'estimated from screenshot markers and axes':'manual replay observations'}`}</footer>
+    {report.goldDifference?.partial&&<p className="pg-footer">{zh?'部分曲线：末尾标记被遮挡，仅显示已识别点。':'Partial screenshot curve: final marker obscured; observed points only.'}</p>}
   </div>;
 }
 export function PostGameBroadcast({state,mode}:{state:MatchState;mode:'compare'|'progress'}){
   const report=state.postGameReports.find(r=>r.id===state.activePostGameReportId),zh=state.language==='zh';
   if(!report)return <section className="pg-broadcast"><div className="pg-broadcast-glow"/><header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{zh?'暂无本局赛后报告':'NO POST-GAME REPORT'}</h1><p>{zh?'请在 Control 中确认本局有效并创建十人赛后报告，再打开此 OBS 场景。':'Confirm and prepare the ten-player report in Control before opening this scene.'}</p></header></section>;
   const blue=report.players.find(p=>p.side==='blue'),red=report.players.find(p=>p.side==='red');
-  return <section className="pg-broadcast">
+  return <section className={`pg-broadcast pg-${mode}`}>
     <div className="pg-broadcast-glow"/>
-    <header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{mode==='progress'?(zh?'游戏进程 · 经济走势':'GAME PROGRESS · GOLD'):(zh?'赛后对位分析':'POST-GAME MATCHUP')}</h1><p>{report.stage} · GAME {report.gameNumber} · {report.seriesFormat}</p></header>
+    <header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{mode==='progress'?(zh?'游戏进程 · 经济优势':'GAME PROGRESS · ECONOMY ADVANTAGE'):(zh?'赛后对位分析':'POST-GAME MATCHUP')}</h1><p>{report.stage} · GAME {report.gameNumber} · {report.seriesFormat}</p></header>
     <div className="pg-team-banner"><span>{blue?.teamName||'BLUE TEAM'}</span><em>VS</em><span>{red?.teamName||'RED TEAM'}</span></div>
     {mode==='progress'?<Progress report={report} zh={zh}/>:<Comparison state={state} report={report} zh={zh}/>}
   </section>;

@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
-import { parsePostGameNumber, postGameMetrics } from '../src/shared/postGame.js';
+import { parsePostGameNumber, postGameNumberResolution, postGameMetrics } from '../src/shared/postGame.js';
 import { decodeGameFrame, frameHasVisualContent, recognizeLiveHud, recognizeSettlement } from './gameDataRecognition.js';
 import { liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, settlementPages } from '../src/shared/gameCapture.js';
 import { liveGameContext } from '../src/shared/liveGame.js';
@@ -121,7 +121,8 @@ const server = createServer(async (req, res) => {
           const report=store.data.state.postGameReports.find(r=>r.id===input.reportId);
           if(!report){json(409,{error:'Prepare the game report first'});return;}
           if(input.page!=='auto'&&!settlementPages.includes(input.page)){json(400,{error:'Invalid settlement page'});return;}
-          const result=await recognizeSettlement(frame,input.page,report,playerRecognition);
+          if(input.leftSide!==undefined&&input.leftSide!=='blue'&&input.leftSide!=='red'){json(400,{error:'Invalid settlement left side'});return;}
+          const result=await recognizeSettlement(frame,input.page,report,playerRecognition,input.leftSide);
           if(!store.data.state.postGameReports.some(r=>r.id===report.id)){json(409,{error:'Report changed'});return;}
           await mkdir(uploadDirectory,{recursive:true});
           const name=`${randomUUID()}.png`;await writeFile(resolve(uploadDirectory,name),frame,{flag:'wx'});
@@ -159,7 +160,7 @@ const server = createServer(async (req, res) => {
           const name=`${randomUUID()}.png`;
           // Provider verified and decoded these bounded PNG crops before OCR.
           await writeFile(resolve(uploadDirectory,name),await sharp(Buffer.from(input.images[sourceIndex].split(',')[1],'base64')).png().toBuffer(),{flag:'wx'});
-          return {rowId:rowIds[sourceIndex],value,confidence:value===null?0:result.confidences[index],text,evidence:`/uploads/player-portraits/${name}`};
+          return {rowId:rowIds[sourceIndex],value,resolution:postGameNumberResolution(text,input.metric),confidence:value===null?0:result.confidences[index],text,evidence:`/uploads/player-portraits/${name}`};
         }));
         json(200,{candidates,elapsedMs:result.elapsedMs});
       }catch{json(400,{error:'Post-game capture failed; check regions or retry after player OCR'});}

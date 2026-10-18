@@ -1,5 +1,25 @@
 /** Genuine, time-stamped economy observations; no reconstruction from final totals. */
 export interface GoldTimelinePoint { timeSeconds:number; blueGold:number; redGold:number }
+export interface GoldDifferencePoint { timeSeconds:number; difference:number }
+export const formatEconomyTime=(seconds:number)=>`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+export interface GoldDifferenceTimeline { points:GoldDifferencePoint[]; source:'settlement'|'manual'; confidence:number; maxDifference:number; evidence?:string; capturedAt?:number; partial?:boolean; durationSeconds?:number }
+export function validGoldDifferencePoints(points:unknown):points is GoldDifferencePoint[]{
+  if(!Array.isArray(points)||points.length<2||points.length>240)return false;
+  let previous=-1;
+  for(const point of points){
+    if(!point||typeof point!=='object'||!Number.isInteger(point.timeSeconds)||point.timeSeconds<0||point.timeSeconds>7200||point.timeSeconds<=previous||!Number.isInteger(point.difference)||Math.abs(point.difference)>1000000)return false;
+    previous=point.timeSeconds;
+  }
+  return true;
+}
+export function validGoldDifferenceTimeline(value:unknown):value is GoldDifferenceTimeline {
+  if(!value||typeof value!=='object')return false;
+  const curve=value as GoldDifferenceTimeline;
+  return (curve.partial===undefined||typeof curve.partial==='boolean')&&validGoldDifferencePoints(curve.points)&&(curve.durationSeconds===undefined||Number.isInteger(curve.durationSeconds)&&curve.durationSeconds>=curve.points.at(-1)!.timeSeconds&&curve.durationSeconds<=7200)&&['settlement','manual'].includes(curve.source)&&Number.isFinite(curve.confidence)&&curve.confidence>=.85&&curve.confidence<=1&&Number.isFinite(curve.maxDifference)&&curve.maxDifference>0&&curve.maxDifference<=1000000&&curve.points.every(p=>Math.abs(p.difference)<=curve.maxDifference);
+}
+export function reportGoldDifference(report:{goldDifference?:GoldDifferenceTimeline;goldTimeline?:GoldTimelinePoint[]}):GoldDifferencePoint[]{
+  return validGoldDifferenceTimeline(report.goldDifference)?report.goldDifference.points:validGoldTimeline(report.goldTimeline)?report.goldTimeline.map(p=>({timeSeconds:p.timeSeconds,difference:p.blueGold-p.redGold})):[];
+}
 const goldValue=(text:string)=>{
   const match=/^(\d+(?:\.\d+)?)\s*([kK万]?)$/.exec(text.trim().normalize('NFKC'));
   if(!match)return null;

@@ -3,11 +3,13 @@ import { phases, type Side } from '../src/shared/types.js';
 import { normalizeState } from '../src/shared/draftRules.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { postGameMetrics, postGameTeamMetrics, type PostGameMetric, type PostGameTeamMetric } from '../src/shared/postGame.js';
+import { validatePostGameGrade, validatePostGameCurve } from './postGameValidation.js';
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync, renameSync, rmSync, statSync, openSync, closeSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { Store } from './store.js';
+import { Store, portraitURL } from './store.js';
 import { TeamPresetStore } from './teamPresets.js';
+import { validateAccessData } from './access.js';
 
 interface Entry { path:string; base64:string; sha256:string }
 export interface RecoveryArchive { format:'hok-backup-v1'|'hok-match-v1'; createdAt:string; matchFile:string; entries:Entry[] }
@@ -43,6 +45,10 @@ function validateStores(archive:RecoveryArchive,stage:string){
   const file=resolve(stage,archive.matchFile);
   const raw=JSON.parse(readFileSync(file,'utf8'));
   if(![1,2].includes(raw.version)||!raw.state||!Array.isArray(raw.events)||!Array.isArray(raw.history)||!Array.isArray(raw.ids)||!Number.isSafeInteger(raw.revision)||raw.revision<0||!Number.isInteger(raw.delay)||raw.delay<0||raw.delay>3600)throw new Error('Invalid saved match');
+  for(const state of [raw.state,...raw.history,...raw.events.map((event:{resultingState:unknown})=>event?.resultingState)]){
+    if(!state||typeof state!=='object')throw new Error('Invalid saved match state');
+    for(const side of ['blue','red'] as const)if(state[`${side}PlayerSlotOrder`]!==undefined&&!validPlayerSlotOrder(state[`${side}PlayerSlotOrder`]))throw new Error('Invalid player slot order');
+  }
   // Store is the authoritative schema upgrader. Validate the migrated v2 view so
   // recovery can safely import both pre-release-order v1 archives and new v2 ones.
   const data=new Store(file).data;
@@ -66,17 +72,19 @@ function validateStores(archive:RecoveryArchive,stage:string){
         if(!Array.isArray(picks)||picks.length!==5||!Array.isArray(assignments)||assignments.length!==5||new Set(assignments).size!==5||assignments.some(heroId=>!picks.includes(heroId)||!heroAllowed(record.heroPool,heroId)))throw new Error('Invalid committed lineup');
       }
     }
-    if(!Array.isArray(normalized.postGameReports)||normalized.postGameReports.length>20)throw new Error('Invalid post-game reports');
+    if(!Array.isArray(normalized.postGameReports)||normalized.postGameReports.length>20||new Set(normalized.postGameReports.map(report=>report.id)).size!==normalized.postGameReports.length)throw new Error('Invalid post-game reports');
+    if(normalized.activePostGameReportId!==null&&!normalized.postGameReports.some(report=>report.id===normalized.activePostGameReportId))throw new Error('Invalid active report');
     for(const report of normalized.postGameReports){
       if(!report||typeof report.id!=='string'||report.players?.length!==10||new Set(report.players.map(player=>player.rowId)).size!==10||!['BO1','BO3','BO5'].includes(report.seriesFormat)||!Number.isInteger(report.gameNumber)||report.gameNumber<1||report.gameNumber>5||typeof report.stage!=='string')throw new Error('Invalid post-game report');
       // Run stored observations through the same validators as live updates. This
       // keeps imports compatible with every supported page and field constraint.
       const fieldVerifier=new Store();fieldVerifier.data.state.postGameReports=[structuredClone(report)];
       for(const player of report.players){
-        if(typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!allPoolHeroes.some(hero=>hero.id===player.heroId)||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||typeof player.fields!=='object'||Array.isArray(player.fields)||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as PostGameMetric)))throw new Error('Invalid post-game player');
-        for(const asset of [player.portrait])if(asset&&!/^\/(?!\/)/.test(asset)&&!/^https:\/\//.test(asset))throw new Error('Invalid post-game asset');
+        if(typeof player.rowId!=='string'||!player.rowId||typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!allPoolHeroes.some(hero=>hero.id===player.heroId)||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||typeof player.fields!=='object'||Array.isArray(player.fields)||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as PostGameMetric)))throw new Error('Invalid post-game player');
+        portraitURL(player.portrait);
         const updates=Object.entries(player.fields).map(([metric,field])=>({rowId:player.rowId,metric:metric as PostGameMetric,field:field!}));
         if(updates.length)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_fields',reportId:report.id,updates});
+        if(player.grade!==undefined)validatePostGameGrade(player.grade);
       }
       if(report.teamFields!==undefined){
         if(!report.teamFields||typeof report.teamFields!=='object'||Array.isArray(report.teamFields)||Object.keys(report.teamFields).some(side=>!['blue','red'].includes(side)))throw new Error('Invalid post-game team fields');
@@ -87,15 +95,20 @@ function validateStores(archive:RecoveryArchive,stage:string){
         }
       }
       if(report.goldTimeline!==undefined)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_gold_timeline',reportId:report.id,points:report.goldTimeline});
-      if(report.selectedMvpRowId!==null&&!report.players.some(player=>player.rowId===report.selectedMvpRowId&&player.playerId===report.selectedMvpPlayerId))throw new Error('Invalid MVP identity');
+      for(const side of ['blue','red'] as const){
+        const players=report.players.filter(player=>player.side===side);
+        if(players.length!==5||new Set(players.map(player=>player.slot)).size!==5||new Set(players.map(player=>player.rosterIndex)).size!==5)throw new Error('Invalid report lineup');
+      }
+      if(report.selectedMvpRowId===null?report.selectedMvpPlayerId!==null:!report.players.some(player=>player.rowId===report.selectedMvpRowId&&player.playerId===report.selectedMvpPlayerId))throw new Error('Invalid MVP identity');
+      if(report.mvpArtScale!==undefined&&(!Number.isFinite(report.mvpArtScale)||report.mvpArtScale<1||report.mvpArtScale>2))throw new Error('Invalid MVP image scale');
+      if(report.goldDifference!==undefined)validatePostGameCurve(report.goldDifference);
     }
 
   }
   if(existsSync(resolve(stage,'team-presets.json')))new TeamPresetStore(resolve(stage,'team-presets.json'));
   if(existsSync(resolve(stage,'access.json'))){
     const access=JSON.parse(readFileSync(resolve(stage,'access.json'),'utf8'));
-    const tokens=['control','caster','overlay'].map(role=>access.tokens?.[role]);
-    if(tokens.some(t=>typeof t!=='string'||t.length<8||t.length>256)||new Set(tokens).size!==3||((access.passwordHash||access.salt)&&(!/^[a-f0-9]{64}$/.test(access.passwordHash)||!/^[a-f0-9]{32}$/.test(access.salt))))throw new Error('Invalid access data');
+    validateAccessData(access);
   }
 }
 export function assertBackendStopped(root:string){
@@ -113,10 +126,13 @@ export function acquireBackendLock(root:string){
 }
 export function restoreArchive(input:unknown,dataFile:string,uploadDirectory:string){
   const archive=validateArchive(input), root=dirname(resolve(dataFile));
-  mkdirSync(root,{recursive:true});assertBackendStopped(root);
-  const stage=resolve(root,`.restore-${randomUUID()}`);mkdirSync(stage);
+  // Reserve the backend lock throughout validation and replacement, otherwise
+  // a server can start between the initial check and the final file rename.
+  const release=acquireBackendLock(root);
+  const stage=resolve(root,`.restore-${randomUUID()}`);
   const replaced:Array<{target:string;old:string;existed:boolean}>=[];
   try {
+    mkdirSync(stage);
     for(const entry of archive.entries){const target=resolve(stage,entry.path);mkdirSync(dirname(target),{recursive:true});writeFileSync(target,Buffer.from(entry.base64,'base64'),{mode:0o600});}
     validateStores(archive,stage);
     for(const entry of archive.entries){
@@ -129,7 +145,7 @@ export function restoreArchive(input:unknown,dataFile:string,uploadDirectory:str
   }catch(error){
     for(const item of replaced.reverse()){rmSync(item.target,{force:true});if(item.existed&&existsSync(item.old))renameSync(item.old,item.target);}
     throw error;
-  }finally{rmSync(stage,{recursive:true,force:true});}
+  }finally{try{rmSync(stage,{recursive:true,force:true});}finally{release();}}
 }
 export class RecoveryManager {
   private lastSignature='';
@@ -137,7 +153,7 @@ export class RecoveryManager {
   constructor(private dataFile:string,private uploadDirectory:string,readonly directory=resolve(dirname(dataFile),'backups'),private keep=20){}
   list(){if(!existsSync(this.directory))return [];return readdirSync(this.directory).filter(file=>/^backup-[\dT-]+-[a-f0-9-]+\.json$/.test(file)).sort().reverse();}
   create(force=false){
-    const archive=archiveData(this.dataFile,this.uploadDirectory),signature=archive.entries.map(entry=>entry.sha256).join(':');
+    const archive=archiveData(this.dataFile,this.uploadDirectory),signature=archive.entries.map(entry=>`${entry.path}:${entry.sha256}`).sort().join('|');
     if(!force&&signature===this.lastSignature)return;
     const name=`backup-${archive.createdAt.replace(/[:.Z]/g,'-')}-${randomUUID()}.json`;
     mkdirSync(this.directory,{recursive:true,mode:0o700});const file=resolve(this.directory,name);

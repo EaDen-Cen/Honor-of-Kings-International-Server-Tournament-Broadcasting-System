@@ -2,12 +2,13 @@ import type { PostGameMetric, PostGamePage } from './postGame.js';
 
 export interface CaptureRect { x:number; y:number; width:number; height:number }
 export const fullGameRect:CaptureRect={x:0,y:0,width:1,height:1};
-export const settlementPages:PostGamePage[]=['overview','damage','survival','economy','record','team','recap'];
-export function settlementPageLabel(page:PostGamePage,zh:boolean){return ({overview:['数据','Data'],damage:['输出','Damage'],survival:['生存','Survival'],economy:['发育','Economy'],record:['战绩','KDA'],team:['团队','Team'],recap:['对局汇总','Game recap']} as const)[page][zh?0:1];}
+export const settlementTabPages:PostGamePage[]=['overview','damage','survival','economy','record','team','recap'];
+export const settlementPages:PostGamePage[]=['summary',...settlementTabPages];
+export function settlementPageLabel(page:PostGamePage,zh:boolean){return ({summary:['结算总览','Settlement summary'],overview:['数据','Data'],damage:['输出','Damage'],survival:['生存','Survival'],economy:['发育','Economy'],record:['战绩','KDA'],team:['团队','Team'],recap:['对局汇总','Game recap']} as const)[page][zh?0:1];}
 const rect=(x:number,y:number,width:number,height:number):CaptureRect=>({x:x/1920,y:y/1080,width:width/1920,height:height/1080});
 /** Coordinates are relative to game content, excluding emulator/window chrome. */
-export function settlementNameRect(row:number):CaptureRect {
-  return rect(300+(row>=5?960:0),210+(row%5)*130,635,35);
+export function settlementNameRect(row:number,page?:PostGamePage):CaptureRect {
+  return rect((page==='summary'?382:300)+(row>=5?960:0),210+(row%5)*130,page==='summary'?207:635,35);
 }
 export interface SettlementColumn { metric:PostGameMetric; region:CaptureRect }
 export function settlementColumns(page:PostGamePage,row:number):SettlementColumn[]{
@@ -15,6 +16,7 @@ export function settlementColumns(page:PostGamePage,row:number):SettlementColumn
   const value=(metric:PostGameMetric,x:number,width:number)=>({metric,region:rect(side+x,250+y,width,34)});
   const percent=(metric:PostGameMetric,right:number)=>({metric,region:rect(side+right-90,285+y,90,29)});
   switch(page){
+  case 'summary':return (['kills','deaths','assists','gold'] as const).map((metric,index)=>({metric,region:rect((row<5?[592,656,716,760]:[1540,1601,1663,1704])[index],210+y,index===3?88:30,34)}));
   case 'recap':return [];
   case 'overview':return [value('totalDamage',302,148),percent('damageShare',452),value('damageTaken',465,148),percent('damageTakenShare',615),value('gold',628,148),percent('goldShare',778),percent('participation',938)];
   case 'damage':return [value('totalDamage',302,305),percent('damageShare',615),value('damageConversion',628,305)];
@@ -25,7 +27,9 @@ export function settlementColumns(page:PostGamePage,row:number):SettlementColumn
   }
 }
 // White active tab labels differ from the dim blue inactive labels in supplied UI.
-export const settlementTabRects=settlementPages.map((_,i)=>rect(395+i*188,990,70,40));
+export const settlementTabRects=settlementTabPages.map((_,i)=>rect(395+i*188,990,70,40));
+export const settlementGradeRect=(row:number)=>rect(160+(row>=5?960:0),230+(row%5)*130,128,77);
+export function settlementPageMetrics(page:PostGamePage):PostGameMetric[]{return settlementColumns(page,0).map(column=>column.metric);}
 export function recapRegions(side:'left'|'right'){
   const offset=side==='left'?0:856;
   return {kda:rect(482+offset,224,145,40),gold:rect(482+offset,285,145,40),resources:Array.from({length:6},(_,index)=>rect(193+(side==='left'?0:885)+index*118,480,47,42))};

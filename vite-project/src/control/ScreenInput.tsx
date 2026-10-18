@@ -1,4 +1,5 @@
 import { shouldAutoAcceptRecognition } from './recognitionAcceptance';
+import { apiURL } from '../shared/config';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heroForState, heroesForState } from '../shared/heroData';
 import {
@@ -15,9 +16,8 @@ import {
 } from './bpCaptureLayout';
 import { updateHeroRecognitionStability, type HeroRecognitionStability } from './heroRecognitionStability';
 import { freshHeroLockStability, updateHeroLockStability, type HeroLockStability } from './heroLockDetection';
-import { getSharedWindowCaptureStream, invalidateWindowCaptureSelection, requestWindowCapture, setSharedWindowCaptureStream, subscribeSharedWindowCapture } from './sharedWindowCapture';
+import { connectSharedBpWindow, getSharedWindowCaptureStream, stopSharedBpWindow, subscribeSharedWindowCapture } from './sharedWindowCapture';
 import { CaptureRequest } from './captureRequest';
-import { publishSharedGameStill } from './sharedGameStill';
 import { regionFromDrag, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { nextCaptureSlotKey, nudgeCaptureRegion, type CalibrationDelta } from './precisionCalibration';
 import {
@@ -38,6 +38,7 @@ type SingleCaptureResult = {
   candidates: HeroCandidate[];
   preview: string;
   at: number;
+  context: string;
 };
 
 type PickGroupCaptureResult = {
@@ -49,6 +50,7 @@ type PickGroupCaptureResult = {
     preview:string;
   }>;
   at:number;
+  context:string;
 };
 
 type CaptureResult = SingleCaptureResult | PickGroupCaptureResult;
@@ -134,6 +136,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const videoRef=useRef<HTMLVideoElement>(null);
   const precisionWorkspace=useRef<HTMLDivElement>(null);
   const streamRef=useRef<MediaStream>();
+  const captureGeneration=useRef(0);
   const mounted=useRef(true);
   const selection=useRef<AbortController>();
   const captureRequest=useRef(new CaptureRequest());
@@ -150,7 +153,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
-  captureContext.current=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,slots]);
+  const recognitionContext=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,state.draftMode,state.firstPickSide,state.banCount,autoWatch,state.recognitionAutoAccept,state.recognitionThreshold,slots]);
+  captureContext.current=recognitionContext;
   const target=useMemo(()=>captureTargetForState(state,slots),[state,slots]);
   const turnTargets=useMemo(()=>captureTargetsForCurrentTurn(state,slots),[state,slots]);
   const activeTargetKeys=useMemo(()=>new Set(turnTargets.map(item=>item.key)),[turnTargets]);
@@ -187,6 +191,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   },[videoReady]);
 
   const persistCalibrationSlot=useCallback((key:CaptureSlotKey,region:NormalizedCaptureRegion)=>{
+    captureGeneration.current++;
     const updated={...slots,[key]:region};
     setSlots(updated);
     localStorage.setItem(SLOTS_STORAGE,JSON.stringify(updated));
@@ -315,7 +320,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   },[calibratingSlot,selectCalibrationSlot,target?.key]);
 
   const resetCapture=useCallback(()=>{
-    captureRequest.current.cancel();busyRef.current=false;setBusy(false);
+    captureGeneration.current++;captureRequest.current.cancel();busyRef.current=false;setBusy(false);
     heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
     pickSlotStability.current={};pickLocks.current={};
     setResult(undefined);setManualResult(undefined);setGroupSelected({});setCandidateStatus('');
@@ -324,8 +329,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const stopWindowCapture=useCallback(()=>{
     selection.current?.abort();selection.current=undefined;setChoosing(false);
-    invalidateWindowCaptureSelection();
-    setSharedWindowCaptureStream(undefined);
+    stopSharedBpWindow();
   },[]);
 
   useEffect(()=>{
@@ -355,10 +359,19 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     void attach(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
     const element=videoRef.current;
+    const resize=()=>{
+      resetCapture();
+      const track=streamRef.current?.getVideoTracks()[0];
+      if(!element||!track||track.readyState!=='live')return;
+      const settings=track.getSettings();
+      setWindowInfo({label:track.label||tRef.current('windowCaptureConnected'),surface:String(settings.displaySurface||'window'),width:element.videoWidth||settings.width||0,height:element.videoHeight||settings.height||0});
+      setVideoReady(!!element.videoWidth&&!!element.videoHeight);
+    };
+    element?.addEventListener('resize',resize);
     const pendingSelection=selection;
     const pendingCapture=captureRequest;
     return()=>{
-      mounted.current=false;attachment++;unsubscribe();
+      mounted.current=false;attachment++;unsubscribe();element?.removeEventListener('resize',resize);
       pendingSelection.current?.abort();pendingSelection.current=undefined;
       pendingCapture.current.cancel();
       if(element)element.srcObject=null;
@@ -446,7 +459,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   useEffect(()=>{
     resetCapture();
-  },[phaseKey,disabled,token,state.committedGameId,state.bpInputMode,slots,resetCapture]);
+  },[recognitionContext,resetCapture]);
   useEffect(()=>{setMessage('');},[phaseKey]);
 
   useEffect(()=>{
@@ -459,9 +472,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     if(!navigator.mediaDevices?.getDisplayMedia){setMessage(t('windowCaptureUnsupported'));return;}
     const controller=new AbortController();selection.current=controller;setChoosing(true);setMessage('');
     try{
-      const stream=await requestWindowCapture(controller.signal);
-      if(!mounted.current||controller.signal.aborted){stream.getTracks().forEach(track=>track.stop());return;}
-      publishSharedGameStill(undefined);setSharedWindowCaptureStream(stream);
+      await connectSharedBpWindow(true,controller.signal);
     }catch(error){
       if(!mounted.current||controller.signal.aborted)return;
       const denied=error instanceof DOMException&&['NotAllowedError','AbortError'].includes(error.name);
@@ -498,12 +509,13 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     region:NormalizedCaptureRegion,
     options?:{allowedHeroIds?:number[];shape?:'square'|'circle';signal?:AbortSignal},
   )=>{
+    const version=captureGeneration.current,context=recognitionContext;
     const image=captureWindowFrame(region);
     // Keep the portrait matcher on the calibrated artwork. The separate cue
     // crop includes the checkmark that projects below the Pick portrait.
     const cueRegion=options?.shape==='circle'?region:{...region,height:Math.min(1-region.y,region.height*1.30)};
     const lockImage=captureWindowFrame(cueRegion);
-    const response=await fetch('/api/recognize-frame',{
+    const response=await fetch(`${apiURL}/api/recognize-frame`,{
       method:'POST',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
       body:JSON.stringify({
@@ -516,10 +528,11 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       signal:options?.signal,
     });
     const data:RecognitionResponse=await response.json();
+    if(!mounted.current||version!==captureGeneration.current||context!==captureContext.current)throw new Error(zh?'BP 阶段、采集源或选框已变化，请重新读取。':'BP phase, source or calibration changed; scan again.');
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
     samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage,result:data}];
     return data;
-  },[captureWindowFrame,phaseKey,revision,t,token]);
+  },[captureWindowFrame,phaseKey,recognitionContext,revision,t,token,zh]);
 
   const capture=useCallback(async()=>{
     if(busyRef.current||disabled||!phase||state.committedGameId) return;
@@ -527,6 +540,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     setBusy(true);
     setMessage('');
     const signature=captureContext.current,source=streamRef.current,request=captureRequest.current.start(25000);
+    const context=signature;
     const current=()=>mounted.current&&request.isCurrent()&&signature===captureContext.current&&source===streamRef.current;
     try{
       if(phase.action==='pick'){
@@ -564,6 +578,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
               preview:entry.data.preview,
             })),
             at:Date.now(),
+            context,
           });
         }
 
@@ -611,6 +626,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             preview:entry.data.preview,
           })),
           at:Date.now(),
+          context,
         });
         setMessage(zh?'当前 Pick 组的底部勾号已确认。':'Bottom checkmarks confirmed for the current Pick group.');
         return;
@@ -633,7 +649,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       });
       heroLockStability.current=heroLock.stability;
       const trustedBanHero=heroEvidence.requiredScans>0;
-      if(top) setManualResult({kind:'hero',candidates,preview:data.preview,at:Date.now()});
+      if(top) setManualResult({kind:'hero',candidates,preview:data.preview,at:Date.now(),context});
 
       if(heroEvidence.accepted&&top&&trustedBanHero&&heroLock.locked){
         if (shouldAutoAcceptRecognition(state.recognitionAutoAccept,state.recognitionThreshold,[top.confidence])) {
@@ -647,7 +663,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           count:heroEvidence.stability.count,
           required:heroEvidence.requiredScans,
         }));
-        setResult({kind:'hero',candidates,preview:data.preview,at:Date.now()});
+        setResult({kind:'hero',candidates,preview:data.preview,at:Date.now(),context});
         return;
       }
 
@@ -716,7 +732,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   };
 
   const openManualCandidateReview=()=>{
-    if(!manualResult||!phase||disabled) return;
+    if(!manualResult||!phase||disabled||manualResult.context!==recognitionContext) return;
     if(manualResult.kind==='pick-group'){
       setGroupSelected(Object.fromEntries(manualResult.entries.flatMap(entry=>{
         const top=entry.candidates[0];
@@ -731,7 +747,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   };
 
   const submitReview=()=>{
-    if(!phase||disabled||!result) return;
+    if(!phase||disabled||!result||result.context!==recognitionContext) return;
     if(Date.now()-result.at>30000){
       closeReview();
       setMessage(zh?'结果已过期，请重新读取。':'Result expired. Capture again.');

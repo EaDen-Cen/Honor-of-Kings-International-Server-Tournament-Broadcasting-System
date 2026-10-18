@@ -34,9 +34,12 @@ test('a shared game source survives cancelling a replacement and leaving the BP 
     await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeEnabled();
     await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
-    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await expect(capture.getByAltText('GHUD digit selection',{exact:true})).toBeVisible();
     expect(await page.evaluate(()=>(window as Window&{captureStreams?:MediaStream[]}).captureStreams?.[0].getVideoTracks()[0].readyState)).toBe('live');
-    await capture.getByRole('button',{name:'Choose shared game window',exact:true}).click();
+    await capture.getByRole('button',{name:'Use BP window',exact:true}).click();
+    expect(await page.evaluate(()=>(window as Window&{captureStreams?:MediaStream[]}).captureStreams?.length)).toBe(1);
+    await h.send({type:'settings',settings:{...h.state(),bpInputMode:'screen'}});
+    await page.getByRole('button',{name:'Change window',exact:true}).click();
     await expect.poll(()=>page.evaluate(()=>(window as Window&{captureStreams?:MediaStream[]}).captureStreams?.map(stream=>stream.getVideoTracks()[0].readyState))).toEqual(['ended','live']);
     await page.evaluate(()=>{
       const track=(window as Window&{captureStreams?:MediaStream[]}).captureStreams![1].getVideoTracks()[0];track.stop();track.dispatchEvent(new Event('ended'));
@@ -71,7 +74,7 @@ test('loading a screenshot supersedes another panel\'s pending chooser and relea
     await expect(capture.getByText('latest-hud.png',{exact:true})).toBeVisible();
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeEnabled();
     await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
-    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await expect(capture.getByAltText('GHUD digit selection',{exact:true})).toBeVisible();
     expect(await capture.locator('video').evaluate(video=>(video as HTMLVideoElement).srcObject)).toBeNull();
   }finally{h.close();}
 });

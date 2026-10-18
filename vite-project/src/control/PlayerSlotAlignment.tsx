@@ -7,6 +7,7 @@ import { playerAtSlot, type PlayerSlotSolution } from '../shared/playerSlots';
 import { defaultCaptureSlots, normalizeCaptureSlots, type CaptureSlots, type CaptureSlotKey } from './bpCaptureLayout';
 import { normalizeCaptureRegion, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { getSharedWindowCaptureStream, subscribeSharedWindowCapture } from './sharedWindowCapture';
+import { CaptureRegionPicker } from './CaptureRegionPicker';
 import {
   PLAYER_ID_REGION_KEYS,
   PLAYER_ID_REGION_PRESETS_STORAGE,
@@ -91,6 +92,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const [slots,setSlots]=useState(readSlots);
   const [selected,setSelected]=useState('blue1');
   const [preview,setPreview]=useState('');
+  const [calibrationSnapshot,setCalibrationSnapshot]=useState('');
   const [calibrationOpen,setCalibrationOpen]=useState(false);
   const [idRegionPresets,setIdRegionPresets]=useState<PlayerIdRegionPreset[]>(
     ()=>{try{return readPlayerIdRegionPresets(localStorage.getItem(PLAYER_ID_REGION_PRESETS_STORAGE));}catch{return [];}},
@@ -146,7 +148,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   },[context,disabled,state]);
 
   useEffect(()=>{
-    const refresh=()=>setSlots(readSlots());
+    const refresh=()=>{generation.current++;activeRequest.current?.abort();accepted.current={};verification.current={};setScan(undefined);lastSample.current=undefined;setSlots(readSlots());};
     window.addEventListener('hok-capture-slots-changed',refresh);
     return()=>window.removeEventListener('hok-capture-slots-changed',refresh);
   },[]);
@@ -155,6 +157,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     let active=true;
     const element=video.current;
     const attach=async(stream:MediaStream|undefined)=>{
+      setCalibrationSnapshot('');setPreview('');
       if(!video.current)return;
       const element=video.current;
       generation.current++;
@@ -169,7 +172,13 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     };
     void attach(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
-    return()=>{active=false;unsubscribe();activeRequest.current?.abort();if(element)element.srcObject=null;};
+    const resize=()=>{
+      generation.current++;activeRequest.current?.abort();accepted.current={};verification.current={};setScan(undefined);lastSample.current=undefined;setCalibrationSnapshot('');setPreview('');
+      setReady(!!element?.videoWidth&&!!element.videoHeight&&element.srcObject instanceof MediaStream&&element.srcObject.getVideoTracks().some(track=>track.readyState==='live'));
+    };
+    element?.addEventListener('resize',resize);
+    const sourceGeneration=generation;
+    return()=>{active=false;sourceGeneration.current++;unsubscribe();element?.removeEventListener('resize',resize);activeRequest.current?.abort();if(element)element.srcObject=null;};
   },[]);
 
   function apply(side:Side,solution:PlayerSlotSolution) {
@@ -247,7 +256,8 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       const timeout=setTimeout(()=>controller.abort(),20000);
       const epoch=generation.current;
       try{
-        if(!ready||current.disabled||current.state.committedGameId||!video.current?.videoWidth)return;
+        if(!ready||current.disabled||current.state.committedGameId||!video.current?.videoWidth||!(video.current.srcObject instanceof MediaStream)||!video.current.srcObject.getVideoTracks().some(track=>track.readyState==='live'))return;
+        setBusy(true);
         if(!providerReady){
           const health=await fetch(`${api}/api/v1/recognition/players`,{headers,signal:controller.signal}).then(r=>r.json());
           if(!active)return;
@@ -295,7 +305,6 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           return value;
         };
 
-        setBusy(true);
         setStatus(zh?'选手顺序识别中…':'Recognizing player order…');
         let result=await recognize(captureImages(false));
         const readable=(result.confidences??[]).filter((value:number)=>value>=.15).length;
@@ -328,6 +337,10 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           : `Local OCR ${Math.round(result.elapsedMs)} ms${usedFallback?' · automatic wide-ID fallback':''}${verifiedFrames>=2?' · temporal verification passed':''}`);
         if(!auto)setManualScan(0);
       }catch(error){
+        // A source resize or calibration change cancels the old epoch. Retry
+        // the current frame on the next tick instead of treating it as a
+        // network failure and imposing the two-second error backoff.
+        if(!active||epoch!==generation.current)return;
         retryAt=Date.now()+2000;
         if(active)setStatus(controller.signal.aborted
           ? (zh?'选手识别超时，请检查连接后重试。':'Player recognition timed out. Check the connection and retry.')
@@ -359,7 +372,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     }
     void run();
     return cleanup;
-  },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh]);
+  },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh,slots]);
 
   useEffect(()=>{
     if(!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
@@ -720,12 +733,11 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
             <button className="secondary" onClick={resetAllIdRegions}>{zh?'恢复全部默认':'Reset all'}</button>
           </div>
 
-          <details className="player-slot-precise-values">
-            <summary>{zh?'精确数值':'Precise values'}</summary>
-            {(['x','y','width','height'] as const).map(key=><label key={key}>{key} %
-              <input type="number" min={0} max={100} step={.1} value={Math.round(region[key]*1000)/10} onChange={e=>updateSelectedRegion({...region,[key]:Number(e.target.value)/100})}/>
-            </label>)}
-          </details>
+          <button type="button" disabled={!ready} onClick={()=>{
+            const source=video.current;if(!source?.videoWidth)return;
+            const canvas=document.createElement('canvas');canvas.width=source.videoWidth;canvas.height=source.videoHeight;canvas.getContext('2d')!.drawImage(source,0,0);
+            setCalibrationSnapshot(canvas.toDataURL('image/jpeg',.92));
+          }}>{zh?'预览 BP 画面并框选 ID':'Preview BP frame and draw ID regions'}</button>
         </div>
 
         <figure className="player-slot-crop-preview">
@@ -736,6 +748,8 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           <figcaption>{zh?'保存上次识别的十格裁片、选手 ID 和识别结果到本地文件。':'Save the last ten crops, player IDs and recognition results locally.'}</figcaption>
         </figure>
       </div>
+      {calibrationSnapshot&&<CaptureRegionPicker image={calibrationSnapshot} selected={selected} label="Player ID region selection" zh={zh}
+        regions={(['blue','red'] as const).flatMap(side=>Array.from({length:5},(_,i)=>({id:`${side}${i+1}`,label:`${side} P${i+1}`,region:idRegion(slots,side,i)})))} onChange={updateSelectedRegion}/>}
     </details>}
   </section>;
 }

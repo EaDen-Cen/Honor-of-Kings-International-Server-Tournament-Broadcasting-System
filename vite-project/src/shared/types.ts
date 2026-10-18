@@ -1,7 +1,7 @@
-import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric } from './postGame.js';
+import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric, PostGameGradeField } from './postGame.js';
 import { initialLiveGameStats, type LiveGameStats, type LiveHudSample } from './liveGame.js';
 import type { LiveCaptureKey } from './gameCapture.js';
-import type { GoldTimelinePoint } from './postGameTimeline.js';
+import type { GoldTimelinePoint,GoldDifferenceTimeline } from './postGameTimeline.js';
 import { defaultBansForMode, type HeroPool, type BanCount } from './heroPool.js';
 export type Side = 'blue' | 'red';
 
@@ -159,8 +159,10 @@ export type MatchSettings = Pick<
 
 export type Action =
   | { type: 'post_game_begin' }
-  | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}> }
-  | { type: 'post_game_team_fields'; reportId:string; updates:Array<{side:Side;metric:PostGameTeamMetric;field:PostGameField}> }
+  | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}>; grades?:Array<{rowId:string;field:PostGameGradeField}> }
+  | { type: 'post_game_grades'; reportId:string; updates:Array<{rowId:string;field:PostGameGradeField}> }
+  | { type: 'post_game_mvp_art_scale'; reportId:string; scale:number }
+  | { type: 'post_game_team_fields'; reportId:string; updates:Array<{side:Side;metric:PostGameTeamMetric;field:PostGameField}>; goldDifference?:GoldDifferenceTimeline }
   | { type: 'select_mvp'; reportId:string; rowId:string|null }
   | { type: 'post_game_gold_timeline'; reportId:string; points:GoldTimelinePoint[] }
   | { type: 'live_game_stats'; stats: LiveGameStats }

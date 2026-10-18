@@ -241,7 +241,7 @@ export function BpSimulatorControl() {
 
   const previousPhase=()=>update(current=>{
     const next=simulatorPreviousTurnPhase(current.mode,current.firstPickSide,current.phaseIndex,current.banCount);
-    const previousKeys=simulatorSlotsForTurn(current.mode,current.firstPickSide,next).map(simulatorSlotKey);
+    const previousKeys=simulatorSlotsForTurn(current.mode,current.firstPickSide,next,current.banCount).map(simulatorSlotKey);
     return {...current,phaseIndex:next,locked:current.locked.filter(item=>!previousKeys.includes(item)),autoPlay:false};
   });
 
