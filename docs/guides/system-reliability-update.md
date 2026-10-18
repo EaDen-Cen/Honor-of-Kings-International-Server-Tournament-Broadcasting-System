@@ -36,4 +36,6 @@
 
 在 `vite-project` 中运行 `npm run build`、`npm run lint`、`npm test`；首次浏览器验证前运行 `npx playwright install chromium`，随后 `npm run test:e2e`。浏览器回归会为每个用例启动独立的本地测试服务，数据和日志写入 `artifacts/e2e-*`，不使用正式比赛存档；若测试端口 3101 被占用会直接报错，不会停止已有服务。`CHROME_PATH` 可指定浏览器，未指定时优先使用 Windows 的已安装 Chrome，否则使用 Playwright 浏览器。
 
-Windows 启停脚本的语法和进程归属逻辑可用 `pwsh -NoProfile -File scripts/managed-process.test.ps1` 验证；该检查模拟进程信息，不代表真实 Windows 启停联调。新增 GitHub Actions 会执行上述构建、静态检查、单元、启动器逻辑和全部浏览器回归，失败时保留日志与截图。
+Windows 启停脚本的语法和进程归属逻辑可用 `pwsh -NoProfile -File scripts/managed-process.test.ps1` 验证，该检查模拟进程信息。Windows 本机还可运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/launcher-smoke.test.ps1`，实际验证服务启动、健康检查、重复启动复用、完整停止及其他进程不受影响；请先停止当前项目服务，检查会使用临时比赛数据和空闲端口。
+
+GitHub Actions 同时包含 Linux 的构建、静态检查、单元及全部浏览器回归，以及 Windows 的原生启动器和图像识别验证，失败时保留日志与截图。Windows 检查使用本地图片，不采集桌面，也不连接 OBS 或公网隧道。

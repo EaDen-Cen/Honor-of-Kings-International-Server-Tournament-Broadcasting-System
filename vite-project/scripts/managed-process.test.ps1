@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $parsePaths = @('run-server.ps1', 'run-cloudflare.ps1', 'run-bp-simulator.ps1', 'open-director.ps1',
-    'scripts/managed-process.ps1', 'scripts/stop-managed.ps1', 'scripts/managed-process.test.ps1')
+    'scripts/launcher-smoke.test.ps1', 'scripts/managed-process.ps1', 'scripts/stop-managed.ps1', 'scripts/managed-process.test.ps1')
 foreach ($path in $parsePaths) {
     $tokens = $null; $parseErrors = $null
     [Management.Automation.Language.Parser]::ParseFile((Join-Path $projectRoot $path), [ref]$tokens, [ref]$parseErrors) | Out-Null

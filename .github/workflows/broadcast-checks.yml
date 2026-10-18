@@ -78,3 +78,47 @@ jobs:
             vite-project/playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: vite-project
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: vite-project/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Validate launcher ownership and locking
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/managed-process.test.ps1
+
+      - name: Exercise real Windows launcher lifecycle
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/launcher-smoke.test.ps1
+
+      - name: Verify Windows native image recognition
+        run: node --import tsx --test server/capture-native.test.ts
+
+      - name: Upload Windows launcher failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-launcher-failure-${{ github.run_attempt }}
+          path: vite-project/artifacts/*.log
+          if-no-files-found: ignore
+          retention-days: 14
