@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 import heroes from '../src/components/HeroList';
 
 const chineseCharacters = /[\u3400-\u9fff]/u;

@@ -72,7 +72,7 @@ Game End
 
 ## 快速启动
 
-第一次使用建议先看 [新手上手教程](docs/guides/beginner-guide.md)。操作台的四步指引与断线处理说明见 [导播操作流程更新](docs/guides/operator-workflow-update.md)。
+第一次使用建议先看 [新手上手教程](docs/guides/beginner-guide.md)。操作台的四步指引与断线处理说明见 [导播操作流程更新](docs/guides/operator-workflow-update.md)，采集、设置草稿、数字编辑与存档恢复变化见 [操作与可靠性改进说明](docs/guides/system-reliability-update.md)。
 
 使用 Node.js 24 从源码启动：
 

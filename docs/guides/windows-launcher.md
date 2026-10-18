@@ -10,8 +10,8 @@ From `vite-project`, double-click `start-broadcast.bat`.
 
 It will:
 1. verify Node/npm/cloudflared, prepare dependencies and build;
-2. stop any old process listening on port 3001 and any old `cloudflared.exe`;
-3. start `npm run server`;
+2. reuse this checkout's server and tunnel when already running;
+3. start `npm run server` if needed, reporting a port conflict when another application uses 3001;
 4. wait until the local Control page responds;
 5. start a Cloudflare Quick Tunnel;
 6. capture the new `trycloudflare.com` address;
@@ -19,6 +19,8 @@ It will:
 8. open the local Control in a dedicated Director app window (Edge/Chrome app mode with its own local profile).
 
 The server runs in the background and writes `artifacts/server.log`; keep the tunnel running during the event. Double-click `stop-broadcast.bat` when finished.
+
+启动器使用项目目录、进程编号、进程创建时间和运行脚本确认进程归属，并通过互斥锁防止重复启动。重复点击会保留当前运行会话；更新源码后需先运行 `stop-broadcast.bat`，再重新启动以构建新版。停止脚本只结束本目录启动器记录的进程树，不按端口或 `cloudflared.exe` 名称结束其他程序。旧版启动器或手工启动的服务没有此记录，需要先在原窗口停止，再使用新版启动器。
 
 The local operator intentionally uses `http://127.0.0.1:3001/control`; remote Caster/Overlay clients use the generated HTTPS URL.
 
@@ -33,7 +35,7 @@ If startup fails, inspect `artifacts/cloudflared.log` and the `artifacts/server.
 start-bp-simulator.bat
 ```
 
-启动器会检查 Node/npm、准备依赖、清理旧的 5173 端口进程，然后通过隐藏 PowerShell 后台启动 Vite Simulator。页面就绪后自动打开 Simulator Control，启动命令窗口随后关闭。Simulator Control 目前提供 **选手 ID 排序 → BP 模拟 → 角色交换** 三个独立测试模式，并可调 Pick/Ban 尺寸、自动脚本等待与锁定 cue。
+启动器会检查 Node/npm、准备依赖，然后通过隐藏 PowerShell 后台启动 Vite Simulator；已在本目录运行时会复用会话。若 5173 被其他程序占用，会报错并保留该程序。页面就绪后自动打开 Simulator Control，启动命令窗口随后关闭。Simulator Control 目前提供 **选手 ID 排序 → BP 模拟 → 角色交换** 三个独立测试模式，并可调 Pick/Ban 尺寸、自动脚本等待与锁定 cue。
 
 后台日志：
 
@@ -47,7 +49,9 @@ artifacts/bp-simulator.log
 stop-bp-simulator.bat
 ```
 
-它会停止监听 5173 端口的 Simulator。正常使用不再需要一直保留一个 CMD/PowerShell 窗口。
+它只停止本目录启动器记录的 Simulator 进程树。正常使用不再需要一直保留一个 CMD/PowerShell 窗口。
+
+开发者可通过 `pwsh -NoProfile -File scripts/managed-process.test.ps1` 重跑脚本解析及进程归属、PID 复用、损坏记录、并发启动和端口冲突检查。测试会模拟 Windows 进程查询与结束命令；Linux 通过此检查仍不能代替 Windows 原生启停、浏览器窗口与 Cloudflare 联调。
 
 ## 英雄构图同步快捷脚本
 

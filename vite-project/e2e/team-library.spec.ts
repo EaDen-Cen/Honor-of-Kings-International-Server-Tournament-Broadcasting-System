@@ -1,4 +1,4 @@
-import { test,expect } from '@playwright/test';
+import { test,expect } from './fixtures';
 import { harness } from './harness';
 import { initialState, type TeamPreset } from '../src/shared/types';
 test('team library: create, edit, load, copy isolation, explicit update, delete and language',async ({page,request,baseURL}) => {
@@ -11,7 +11,7 @@ test('team library: create, edit, load, copy isolation, explicit update, delete 
     for(const team of existing.teams) await request.delete('/api/team-presets/'+team.id,{headers});
     page.on('dialog',dialog=>dialog.accept());
     await page.goto('/control#token=e2e-control');
-    await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    await page.getByRole('button',{name:'Team settings',exact:true}).click();
     await page.getByRole('button',{name:'Manage saved teams',exact:true}).click();
     const manager=page.locator('.library-dialog');
     await expect(manager).toBeVisible();
@@ -31,7 +31,7 @@ test('team library: create, edit, load, copy isolation, explicit update, delete 
     await manager.getByRole('button',{name:'Load into match · TEAM BLUE',exact:true}).click();
     await expect.poll(()=>h.state().blueTeam.id).toBe(id);
     await expect(manager).toHaveCount(0);
-    const settings=page.locator('.settings-inline');
+    const settings=page.locator('.team-settings-dialog');
     const quick=settings.locator('.quick-substitution').first();
     await quick.getByLabel('Choose saved player',{exact:true}).selectOption({label:'Temporary Sub · Roaming · Substitute'});
     await quick.getByRole('button',{name:'Fill player details',exact:true}).click();
@@ -52,7 +52,7 @@ test('team library: create, edit, load, copy isolation, explicit update, delete 
     await settings.getByLabel('Choose saved team TEAM RED').selectOption(beta.id);
     await settings.locator('.library-sides > div').nth(1).getByRole('button',{name:'Load into match',exact:true}).click();
     await expect.poll(()=>h.state().redTeam.id).toBe(beta.id);
-    await page.reload();await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    await page.reload();await page.getByRole('button',{name:'Team settings',exact:true}).click();
     await expect(page.getByLabel('Player 1',{exact:true}).first()).toHaveValue('Temporary Sub');
     await h.send({type:'draft_action',team:'blue',action:'ban',heroId:46});
     await request.put('/api/team-presets/'+id,{headers,data:{...teams[0],substitutes:[{...teams[0].substitutes[0],name:'Late Sub',role:'mid'}]}});
@@ -75,8 +75,12 @@ test('team library: create, edit, load, copy isolation, explicit update, delete 
     await manager.getByRole('button',{name:'Close team library',exact:true}).click();
     const redQuick=settings.locator('.quick-substitution').nth(1);
     await redQuick.getByLabel('Roster source',{exact:true}).selectOption(beta.id);
-    await settings.getByLabel('Interface language',{exact:true}).selectOption('zh');
-    await settings.getByRole('button',{name:'Save settings',exact:true}).click();
+    await page.getByRole('button',{name:'Close team settings',exact:true}).click();
+    await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    const matchSettings=page.locator('#match-settings');
+    await matchSettings.getByLabel('Interface language',{exact:true}).selectOption('zh');
+    await matchSettings.getByRole('button',{name:'Save settings',exact:true}).click();
+    await page.getByRole('button',{name:'队伍设置',exact:true}).click();
     await expect(settings.getByRole('button',{name:'管理队伍资料',exact:true})).toBeVisible();
   }finally{h.close();}
 });
@@ -89,7 +93,7 @@ test('manual active match recalls a reserve without replacing team identity or o
     const saved=await (await request.post('/api/team-presets',{headers,data:{...initialState().blueTeam,name:'Reserve Source',substitutes:[{id:crypto.randomUUID(),name:'Relief',role:'mid',portrait:'/bench.png'}]}})).json();
     await h.send({type:'draft_action',team:'blue',action:'ban',heroId:46});
     page.on('dialog',dialog=>dialog.accept());
-    await page.goto('/control#token=e2e-control');await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    await page.goto('/control#token=e2e-control');await page.getByRole('button',{name:'Team settings',exact:true}).click();
     const quick=page.locator('.quick-substitution').first();
     await quick.getByLabel('Roster source',{exact:true}).selectOption(saved.id);
     await quick.getByLabel('Choose saved player',{exact:true}).selectOption(saved.substitutes[0].id);

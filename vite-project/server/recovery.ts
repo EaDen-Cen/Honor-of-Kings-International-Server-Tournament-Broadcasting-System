@@ -1,7 +1,8 @@
-import heroes from '../src/components/HeroList.js';
+import { allPoolHeroes, heroAllowed } from '../src/shared/heroPool.js';
+import { phases, type Side } from '../src/shared/types.js';
 import { normalizeState } from '../src/shared/draftRules.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
-import { postGameMetrics } from '../src/shared/postGame.js';
+import { postGameMetrics, postGameTeamMetrics, type PostGameMetric, type PostGameTeamMetric } from '../src/shared/postGame.js';
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync, renameSync, rmSync, statSync, openSync, closeSync } from 'node:fs';
 import { resolve, dirname, relative } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
@@ -50,10 +51,10 @@ function validateStores(archive:RecoveryArchive,stage:string){
     // Reuse all settings validation, including safe asset URLs, roles, score bounds and IDs.
     const normalized=normalizeState(state),verifier=new Store();verifier.apply(randomUUID(),0,{type:'settings',settings:normalized});
     verifier.apply(randomUUID(),verifier.data.revision,{type:'live_game_stats',stats:normalized.liveGameStats});
-    if(!Number.isInteger(state.currentPhase)||state.currentPhase<0||state.currentPhase>18||typeof state.draftComplete!=='boolean')throw new Error('Invalid draft progress');
+    if(!Number.isInteger(state.currentPhase)||state.currentPhase<0||state.currentPhase>phases(normalized.draftMode,normalized.firstPickSide,normalized.banCount).length||typeof state.draftComplete!=='boolean')throw new Error('Invalid draft progress');
     for(const side of ['blue','red'] as const){
       const picks=state[`${side}Picks`],bans=state[`${side}Bans`],assignments=normalized[`${side}Assignments`];
-      if(!Array.isArray(bans)||picks.length>5||bans.length>4||new Set(picks).size!==picks.length||[...picks,...bans.filter((value:unknown)=>value!==null)].some(id=>!heroes.some(hero=>hero.id===id)))throw new Error('Invalid draft heroes');
+      if(!Array.isArray(bans)||picks.length>5||bans.length>normalized.banCount||new Set(picks).size!==picks.length||[...picks,...bans.filter((value):value is number=>value!==null)].some(id=>!heroAllowed(normalized.heroPool,id)))throw new Error('Invalid draft heroes');
       if(assignments.some(id=>id!==null&&!picks.includes(id)))throw new Error('Invalid hero assignments');
       if(state[`${side}PlayerSlotOrder`]!==undefined&&!validPlayerSlotOrder(state[`${side}PlayerSlotOrder`]))throw new Error('Invalid player slot order');
     }
@@ -62,17 +63,30 @@ function validateStores(archive:RecoveryArchive,stage:string){
       const check=new Store();check.apply(randomUUID(),0,{type:'settings',settings:{...normalized,blueScore:0,redScore:0,blueTeam:record.blueTeam,redTeam:record.redTeam}});
       for(const side of ['blue','red'] as const){
         const picks=record[`${side}Picks`],assignments=record[`${side}Assignments`];
-        if(!Array.isArray(picks)||picks.length!==5||!Array.isArray(assignments)||assignments.length!==5||new Set(assignments).size!==5||assignments.some(heroId=>!picks.includes(heroId)||!heroes.some(hero=>hero.id===heroId)))throw new Error('Invalid committed lineup');
+        if(!Array.isArray(picks)||picks.length!==5||!Array.isArray(assignments)||assignments.length!==5||new Set(assignments).size!==5||assignments.some(heroId=>!picks.includes(heroId)||!heroAllowed(record.heroPool,heroId)))throw new Error('Invalid committed lineup');
       }
     }
     if(!Array.isArray(normalized.postGameReports)||normalized.postGameReports.length>20)throw new Error('Invalid post-game reports');
     for(const report of normalized.postGameReports){
       if(!report||typeof report.id!=='string'||report.players?.length!==10||new Set(report.players.map(player=>player.rowId)).size!==10||!['BO1','BO3','BO5'].includes(report.seriesFormat)||!Number.isInteger(report.gameNumber)||report.gameNumber<1||report.gameNumber>5||typeof report.stage!=='string')throw new Error('Invalid post-game report');
+      // Run stored observations through the same validators as live updates. This
+      // keeps imports compatible with every supported page and field constraint.
+      const fieldVerifier=new Store();fieldVerifier.data.state.postGameReports=[structuredClone(report)];
       for(const player of report.players){
-        if(typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!heroes.some(hero=>hero.id===player.heroId)||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as typeof postGameMetrics[number])))throw new Error('Invalid post-game player');
+        if(typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!allPoolHeroes.some(hero=>hero.id===player.heroId)||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||typeof player.fields!=='object'||Array.isArray(player.fields)||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as PostGameMetric)))throw new Error('Invalid post-game player');
         for(const asset of [player.portrait])if(asset&&!/^\/(?!\/)/.test(asset)&&!/^https:\/\//.test(asset))throw new Error('Invalid post-game asset');
-        for(const field of Object.values(player.fields))if(!field||typeof field.value!=='number'||!Number.isFinite(field.value)||field.value<0||field.value>1e9||typeof field.confidence!=='number'||!Number.isFinite(field.confidence)||field.confidence<0||field.confidence>1||typeof field.manual!=='boolean'||!['overview','survival','damage','team'].includes(field.sourcePage))throw new Error('Invalid post-game field');
+        const updates=Object.entries(player.fields).map(([metric,field])=>({rowId:player.rowId,metric:metric as PostGameMetric,field:field!}));
+        if(updates.length)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_fields',reportId:report.id,updates});
       }
+      if(report.teamFields!==undefined){
+        if(!report.teamFields||typeof report.teamFields!=='object'||Array.isArray(report.teamFields)||Object.keys(report.teamFields).some(side=>!['blue','red'].includes(side)))throw new Error('Invalid post-game team fields');
+        for(const [side,fields] of Object.entries(report.teamFields)){
+          if(!fields||typeof fields!=='object'||Array.isArray(fields)||Object.keys(fields).some(metric=>!postGameTeamMetrics.includes(metric as PostGameTeamMetric)))throw new Error('Invalid post-game team fields');
+          const updates=Object.entries(fields).map(([metric,field])=>({side:side as Side,metric:metric as PostGameTeamMetric,field:field!}));
+          if(updates.length)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_team_fields',reportId:report.id,updates});
+        }
+      }
+      if(report.goldTimeline!==undefined)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_gold_timeline',reportId:report.id,points:report.goldTimeline});
       if(report.selectedMvpRowId!==null&&!report.players.some(player=>player.rowId===report.selectedMvpRowId&&player.playerId===report.selectedMvpPlayerId))throw new Error('Invalid MVP identity');
     }
 

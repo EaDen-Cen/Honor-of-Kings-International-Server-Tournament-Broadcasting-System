@@ -30,6 +30,7 @@ import { TeamLibrary } from './control/TeamLibrary';
 import { PortraitField } from './control/PortraitField';
 import { ControlHeroPicker } from './control/ControlHeroPicker';
 import { ControlDraftWorkspace } from './control/ControlDraftWorkspace';
+import { useSettingsDraft } from './control/useSettingsDraft';
 import { SettingsDialog } from './control/SettingsDialog';
 import { TeamSettingsDialog } from './control/TeamSettingsDialog';
 const ScreenInput=lazy(()=>import('./control/ScreenInput').then(module=>({default:module.ScreenInput})));
@@ -125,10 +126,11 @@ const settingsFromState = (state: MatchState): MatchSettings => ({
 
 function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send: (a: Action) => void; disabled: boolean }) {
   const t = translator(state.language);
-  const [form, setForm] = useState<MatchSettings>(() => settingsFromState(state));
+  const { form, setForm, dirty, conflicts, reset } = useSettingsDraft(settingsFromState(state));
   const firstPickLocked = state.currentPhase > 0;
-  return <form className="panel settings match-settings-panel" onSubmit={event => {
+  return <form data-unsaved={dirty} className="panel settings match-settings-panel" onSubmit={event => {
     event.preventDefault();
+    if (disabled || conflicts.length) return;
     send({ type: 'settings', settings: {
       ...form,
       blueTeam: state.blueTeam,
@@ -190,17 +192,18 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
         <label className="settings-checkbox"><span>{t('showHeroName')}</span><input type="checkbox" checked={form.showHeroName} onChange={e => setForm({ ...form, showHeroName: e.target.checked })} /><small>{t('showHeroNameHint')}</small></label>
       </section>
     </div>
-    <button disabled={disabled} className="primary">{t('saveSettings')}</button>
+    <SettingsDraftNotice zh={state.language === 'zh'} dirty={dirty} conflict={conflicts.length > 0} reset={reset} />
+    <button disabled={disabled || conflicts.length > 0} className="primary">{t('saveSettings')}</button>
   </form>;
 }
 
 function TeamSettingsPanel({ state, send, disabled, token }: { state: MatchState; send: (a: Action) => void; disabled: boolean; token: string }) {
   const t = translator(state.language);
-  const [form, setForm] = useState<MatchSettings>(() => settingsFromState(state));
+  const { form, setForm, dirty, conflicts, reset } = useSettingsDraft(settingsFromState(state));
   const [uploads, setUploads] = useState<Set<string>>(() => new Set());
-  return <form className="panel settings team-settings-panel" onSubmit={event => {
+  return <form data-unsaved={dirty} className="panel settings team-settings-panel" onSubmit={event => {
     event.preventDefault();
-    if (uploads.size) return;
+    if (disabled || uploads.size || conflicts.length) return;
     send({ type: 'settings', settings: {
       ...settingsFromState(state),
       blueTeam: form.blueTeam,
@@ -232,20 +235,37 @@ function TeamSettingsPanel({ state, send, disabled, token }: { state: MatchState
         </section>;
       })}
     </div>
-    <button disabled={disabled || uploads.size > 0} className="primary">{t('saveSettings')}</button>
+    <SettingsDraftNotice zh={state.language === 'zh'} dirty={dirty} conflict={conflicts.length > 0} reset={reset} />
+    <button disabled={disabled || uploads.size > 0 || conflicts.length > 0} className="primary">{t('saveSettings')}</button>
   </form>;
+}
+function SettingsDraftNotice({ zh, dirty, conflict, reset }: { zh: boolean; dirty: boolean; conflict: boolean; reset: () => void }) {
+  return <div className="settings-draft-notice">
+    <p role={conflict ? 'alert' : 'status'} className={conflict ? 'error' : 'muted'}>{conflict
+      ? (zh ? '这些设置已在其他页面更改。请重新载入后再编辑，避免覆盖。' : 'These settings changed in another page. Reload them before editing to avoid overwriting changes.')
+      : dirty ? (zh ? '有尚未保存的修改。' : 'You have unsaved changes.') : (zh ? '设置已同步。' : 'Settings are up to date.')}</p>
+    {(dirty || conflict) && <button type="button" onClick={reset}>{zh ? '重新载入设置' : 'Reload settings'}</button>}
+  </div>;
+}
+function mayCloseSettings(id: string, zh: boolean) {
+  return !document.getElementById(id)?.querySelector('[data-unsaved="true"]')
+    || confirm(zh ? '设置尚未保存，确定放弃修改并关闭？' : 'Discard unsaved settings and close?');
+}
+function savedLanguage(role: Role): Language {
+  try { return sessionStorage.getItem(`hok-language-${role}`) === 'eng' ? 'eng' : 'zh'; }
+  catch { return 'zh'; }
 }
 export default function BroadcastApp() {
   const role: Role = location.pathname === '/caster' ? 'caster' : location.pathname.startsWith('/overlay/') ? 'overlay' : 'control';
-  const {token,saveToken:setToken,local,checking,accessError,login}=useAccess(role);
+  const {token,saveToken:setToken,local,checking,accessError,loggingIn,login}=useAccess(role);
   const [showAccess,setShowAccess]=useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showTeamSettings, setShowTeamSettings] = useState(false);
   const [showHeroArtEditor, setShowHeroArtEditor] = useState(false);
   const [manualFallbackOpen, setManualFallbackOpen] = useState(false);
-  const [delayInput, setDelayInput] = useState(180);
-  const [lastLanguage, setLastLanguage] = useState<Language>(() => sessionStorage.getItem(`hok-language-${role}`) === 'eng' ? 'eng' : 'zh');
+  const [delayInput, setDelayInput] = useState('');
+  const [lastLanguage, setLastLanguage] = useState<Language>(() => savedLanguage(role));
   const { snapshot, status, error, pending, send, acknowledged } = useMatch(role, token, setToken);
   const connected = status === 'Connected';
   const compatible = !!snapshot?.state && Array.isArray(snapshot.state.draftHistory) && !!snapshot.state.draftRuleMode && !!snapshot.state.firstPickSide && !!snapshot.state.sideSwapMode && !!snapshot.state.displayLeftSide && typeof snapshot.state.showHeroName === 'boolean' && !!snapshot.state.artSourceMode && !!snapshot.state.heroArtOverrides && typeof snapshot.state.flowbornFormsIndependent === 'boolean';
@@ -256,17 +276,23 @@ export default function BroadcastApp() {
   useEffect(() => {
     document.documentElement.lang = lang === 'eng' ? 'en' : 'zh-CN';
     document.title = translator(lang)('appName');
-    sessionStorage.setItem(`hok-language-${role}`, lang);
+    try { sessionStorage.setItem(`hok-language-${role}`, lang); } catch { /* Browser storage is optional. */ }
     setLastLanguage(lang);
   }, [lang, role]);
+  const serverDelay = snapshot?.casterDelaySeconds;
+  useEffect(() => {
+    if (serverDelay !== undefined) setDelayInput(String(serverDelay));
+  }, [serverDelay]);
+  function closeMatchSettings() { if (mayCloseSettings('match-settings', lang === 'zh')) setShowSettings(false); }
+  function closeTeamSettings() { if (mayCloseSettings('team-settings', lang === 'zh')) setShowTeamSettings(false); }
   if (checking) return <main className="login panel">{t('connectingServer')}</main>;
   if (!token || status === 'Invalid token' || status === 'Access rejected') {
     return <main className="login panel">
       <p>{t('appName')}</p><h1>{role === 'overlay' ? (lang === 'zh' ? '直播画面登录' : 'Overlay login') : t(role === 'caster' ? 'casterLogin' : 'controlLogin')}</h1>
       <form onSubmit={e => { e.preventDefault(); void login(tokenInput); }}>
         <label>{lang === 'zh'?'访问密码 / Token':'Password / Token'}<input type="password" required value={tokenInput} onChange={e => setTokenInput(e.target.value)} /></label>
-        <button className="primary">{t('connect')}</button>
-      </form><p>{accessError || connectionLabel(status, lang)}</p>
+        <button disabled={loggingIn} className="primary">{loggingIn ? (lang === 'zh' ? '正在连接…' : 'Connecting…') : t('connect')}</button>
+      </form><p>{accessError ? errorMessage(accessError, lang) : connectionLabel(status, lang)}</p>
     </main>;
   }
   if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:location.pathname==='/overlay/postgame-compare'?<PostGameBroadcast state={state} mode="compare"/>:location.pathname==='/overlay/game-progress'?<PostGameBroadcast state={state} mode="progress"/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
@@ -277,10 +303,10 @@ export default function BroadcastApp() {
         <b className={connected ? 'status live' : 'status'}>{connectionLabel(status, lang)}</b>
         <span>{role === 'caster' ? t('delayedFeed', { seconds: snapshot?.casterDelaySeconds ?? '—' }) : t('controlRealtime')}</span>
         {role === 'control' && <button onClick={()=>setShowAccess(value=>!value)}>{lang === 'zh'?'访问与网站设置':'Access and website settings'}</button>}
-        {!local && <button onClick={() => { sessionStorage.removeItem(`hok-${role}`); setToken(''); }}>{t('logout')}</button>}
+        {!local && <button onClick={() => setToken('')}>{t('logout')}</button>}
       </div>
     </header>
-    {showAccess && role === 'control' && <SettingsDialog label={lang === 'zh'?'访问与网站设置':'Access and website settings'} closeLabel={t('hideSettings')} onClose={()=>setShowAccess(false)}><AccessSettings token={token} onToken={setToken} zh={lang === 'zh'} /></SettingsDialog>}
+    {showAccess && role === 'control' && <SettingsDialog id="access-settings" label={lang === 'zh'?'访问与网站设置':'Access and website settings'} closeLabel={t('hideSettings')} onClose={()=>setShowAccess(false)}><AccessSettings token={token} onToken={setToken} zh={lang === 'zh'} /></SettingsDialog>}
     {!connected && <p className="notice">{t('disconnectedNotice')}</p>}
     {connected && !compatible && <p className="notice">{t('backendUpgrade')}</p>}
     {error && <p role="alert" className="error">{errorMessage(error, lang)}</p>}
@@ -295,7 +321,7 @@ export default function BroadcastApp() {
               <button disabled={disabled || !snapshot?.canUndo} onClick={() => send({ type: 'undo' })}>{t('undo')}</button>
               <button disabled={disabled} onClick={() => confirm(t('confirmResetDraft')) && send({ type: 'reset_draft' })}>{t('resetDraft')}</button>
               <button className="danger" disabled={disabled} onClick={() => confirm(t('confirmResetMatch')) && send({ type: 'reset_match' })}>{t('resetMatch')}</button>
-              <button aria-expanded={showSettings} aria-controls="match-settings" onClick={() => setShowSettings(value => !value)}>{t('matchSettings')}</button>
+              <button aria-expanded={showSettings} aria-controls="match-settings" onClick={() => showSettings ? closeMatchSettings() : setShowSettings(true)}>{t('matchSettings')}</button>
               <button onClick={() => setShowTeamSettings(true)}>{t('teamSettings')}</button>
               <button onClick={() => setShowHeroArtEditor(true)}>{t('heroImageSettings')}</button>
             </div>
@@ -305,13 +331,13 @@ export default function BroadcastApp() {
                 aria-label={t(n > 0 ? 'increaseDelay' : 'decreaseDelay', { seconds: Math.abs(n) })}
                 disabled={disabled || (snapshot?.casterDelaySeconds || 0) + n < 0 || (snapshot?.casterDelaySeconds || 0) + n > 3600}
                 onClick={() => send({ type: 'delay', seconds: (snapshot?.casterDelaySeconds || 0) + n })}>{n > 0 ? '+' : ''}{n} {t('secondsShort')}</button>)}
-              <input aria-label={t('delayInput')} type="number" min={0} max={3600} value={delayInput} onChange={e => setDelayInput(Number(e.target.value))} />
-              <button disabled={disabled || !Number.isInteger(delayInput) || delayInput < 0 || delayInput > 3600} onClick={() => send({ type: 'delay', seconds: delayInput })}>{t('setDelay')}</button>
+              <input aria-label={t('delayInput')} type="number" min={0} max={3600} value={delayInput} onChange={e => setDelayInput(e.target.value)} />
+              <button disabled={disabled || !delayInput.trim() || !Number.isInteger(Number(delayInput)) || Number(delayInput) < 0 || Number(delayInput) > 3600} onClick={() => send({ type: 'delay', seconds: Number(delayInput) })}>{t('setDelay')}</button>
             </div>
           </section>
 
           <DraftLifecycle state={state} send={send} disabled={disabled} />
-          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={() => setShowSettings(false)}><MatchSettingsPanel key={JSON.stringify([state.seriesFormat, state.stage, state.draftMode, state.heroPool,state.banCount,state.draftRuleMode, state.firstPickSide, state.sideSwapMode, state.language, state.overlayLayout, state.scoreDisplay, state.bpInputMode, state.recognitionAutoAccept, state.recognitionThreshold, state.showHeroName, state.artSourceMode])} state={state} send={send} disabled={disabled} /></SettingsDialog>}
+          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} /></SettingsDialog>}
           {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
           {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />}
         </>}>
@@ -328,8 +354,8 @@ export default function BroadcastApp() {
             </div>
             : <ControlHeroPicker state={state} disabled={disabled} active={!showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
         </ControlDraftWorkspace>
-        {showTeamSettings && <TeamSettingsDialog label={t('teamSettings')} closeLabel={t('closeTeamSettings')} onClose={() => setShowTeamSettings(false)}>
-          <TeamSettingsPanel key={JSON.stringify([state.blueTeam, state.redTeam])} state={state} send={send} disabled={disabled} token={token} />
+        {showTeamSettings && <TeamSettingsDialog label={t('teamSettings')} closeLabel={t('closeTeamSettings')} onClose={closeTeamSettings}>
+          <TeamSettingsPanel state={state} send={send} disabled={disabled} token={token} />
         </TeamSettingsDialog>}
         {showHeroArtEditor && <Suspense fallback={<p>{t('connectingServer')}</p>}><HeroArtEditorDialog state={state} send={send} disabled={disabled} onClose={() => setShowHeroArtEditor(false)} /></Suspense>}
         <section id="postgame-tools" className="control-secondary-tools" aria-label={lang==='zh'?'赛后与维护工具':'Post-game and maintenance tools'}>

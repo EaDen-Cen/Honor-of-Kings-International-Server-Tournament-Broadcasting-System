@@ -1,8 +1,13 @@
 import { defineConfig } from '@playwright/test';
+import { existsSync } from 'node:fs';
+
+const windowsChrome='C:/Program Files/Google/Chrome/Application/chrome.exe';
+const executablePath=process.env.CHROME_PATH || (process.platform==='win32'&&existsSync(windowsChrome)?windowsChrome:undefined);
+
 export default defineConfig({
   testDir: './e2e', workers: 1, timeout: 90000,
+  forbidOnly: !!process.env.CI,
   use: { baseURL: 'http://127.0.0.1:3101', viewport: { width: 1440, height: 1000 },
-    launchOptions: { executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe' } },
-  webServer: { command: 'npm run server', url: 'http://127.0.0.1:3101/api/health', reuseExistingServer: false,
-    env: { PORT: '3101', HOST: '127.0.0.1', NODE_ENV: 'development', DATA_FILE: `artifacts/e2e-${Date.now()}/match.json`, CONTROL_TOKEN: 'e2e-control', CASTER_TOKEN: 'e2e-caster', OVERLAY_TOKEN: 'e2e-overlay' } },
+    screenshot: 'only-on-failure', trace: 'retain-on-failure',
+    launchOptions: { executablePath } },
 });

@@ -15,7 +15,9 @@ import {
 } from './bpCaptureLayout';
 import { updateHeroRecognitionStability, type HeroRecognitionStability } from './heroRecognitionStability';
 import { freshHeroLockStability, updateHeroLockStability, type HeroLockStability } from './heroLockDetection';
-import { getSharedWindowCaptureStream, requestWindowCapture, setSharedWindowCaptureStream } from './sharedWindowCapture';
+import { getSharedWindowCaptureStream, invalidateWindowCaptureSelection, requestWindowCapture, setSharedWindowCaptureStream, subscribeSharedWindowCapture } from './sharedWindowCapture';
+import { CaptureRequest } from './captureRequest';
+import { publishSharedGameStill } from './sharedGameStill';
 import { regionFromDrag, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { nextCaptureSlotKey, nudgeCaptureRegion, type CalibrationDelta } from './precisionCalibration';
 import {
@@ -111,6 +113,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   useEffect(()=>{const refresh=()=>setSlots(readCaptureSlots());window.addEventListener('hok-capture-slots-changed',refresh);return()=>window.removeEventListener('hok-capture-slots-changed',refresh);},[]);
   const [autoWatch,setAutoWatch]=useState(()=>localStorage.getItem('hok-capture-auto-watch')==='1');
   const [busy,setBusy]=useState(false);
+  const [choosing,setChoosing]=useState(false);
   const [message,setMessage]=useState('');
   const [candidateStatus,setCandidateStatus]=useState('');
   const [result,setResult]=useState<CaptureResult>();
@@ -132,6 +135,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const precisionWorkspace=useRef<HTMLDivElement>(null);
   const streamRef=useRef<MediaStream>();
   const mounted=useRef(true);
+  const selection=useRef<AbortController>();
+  const captureRequest=useRef(new CaptureRequest());
+  const captureContext=useRef('');
+  const tRef=useRef(t);tRef.current=t;
   const samples=useRef<Array<{phaseKey:string;region:NormalizedCaptureRegion;shape:string;image:string;lockImage:string;result:RecognitionResponse}>>([]);
 
   const busyRef=useRef(false);
@@ -143,6 +150,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
+  captureContext.current=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,slots]);
   const target=useMemo(()=>captureTargetForState(state,slots),[state,slots]);
   const turnTargets=useMemo(()=>captureTargetsForCurrentTurn(state,slots),[state,slots]);
   const activeTargetKeys=useMemo(()=>new Set(turnTargets.map(item=>item.key)),[turnTargets]);
@@ -306,25 +314,56 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     selectCalibrationSlot(nextCaptureSlotKey(current,direction));
   },[calibratingSlot,selectCalibrationSlot,target?.key]);
 
+  const resetCapture=useCallback(()=>{
+    captureRequest.current.cancel();busyRef.current=false;setBusy(false);
+    heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
+    pickSlotStability.current={};pickLocks.current={};
+    setResult(undefined);setManualResult(undefined);setGroupSelected({});setCandidateStatus('');
+    if(dialog.current?.open)dialog.current.close();
+  },[]);
+
   const stopWindowCapture=useCallback(()=>{
-    const stream=streamRef.current;
-    streamRef.current=undefined;
-    if(getSharedWindowCaptureStream()===stream) setSharedWindowCaptureStream(undefined);
-    if(stream) stream.getTracks().forEach(track=>track.stop());
-    if(videoRef.current) videoRef.current.srcObject=null;
-    setVideoReady(false);
-    setWindowInfo(undefined);
-    setCalibratingSlot(undefined);
+    selection.current?.abort();selection.current=undefined;setChoosing(false);
+    invalidateWindowCaptureSelection();
+    setSharedWindowCaptureStream(undefined);
   },[]);
 
   useEffect(()=>{
     mounted.current=true;
-    return()=>{
-      mounted.current=false;
-      const stream=streamRef.current;
-      if(stream) stream.getTracks().forEach(track=>track.stop());
+    let attachment=0;
+    const attach=async(stream:MediaStream|undefined)=>{
+      const version=++attachment;
+      const previous=streamRef.current;
+      streamRef.current=stream;resetCapture();setVideoReady(false);setWindowInfo(undefined);setCalibratingSlot(undefined);
+      const video=videoRef.current;
+      if(!video)return;
+      video.srcObject=stream??null;
+      if(!stream){if(previous)setMessage(tRef.current('windowCaptureEnded'));return;}
+      try{
+        await video.play();
+        if(!mounted.current||version!==attachment||video.srcObject!==stream)return;
+        const track=stream.getVideoTracks()[0];
+        if(!track||track.readyState!=='live')return;
+        const settings=track.getSettings();
+        setWindowInfo({label:track.label||tRef.current('windowCaptureConnected'),surface:String(settings.displaySurface||'window'),width:video.videoWidth||settings.width||0,height:video.videoHeight||settings.height||0});
+        setVideoReady(!!video.videoWidth&&!!video.videoHeight);
+        setMessage(tRef.current('windowCaptureConnected'));
+      }catch{
+        if(mounted.current&&version===attachment)setMessage(tRef.current('windowCaptureFailed'));
+      }
     };
-  },[]);
+    void attach(getSharedWindowCaptureStream());
+    const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
+    const element=videoRef.current;
+    const pendingSelection=selection;
+    const pendingCapture=captureRequest;
+    return()=>{
+      mounted.current=false;attachment++;unsubscribe();
+      pendingSelection.current?.abort();pendingSelection.current=undefined;
+      pendingCapture.current.cancel();
+      if(element)element.srcObject=null;
+    };
+  },[resetCapture]);
   useEffect(()=>{
     const preventZoomKeys=(event:KeyboardEvent)=>{
       if(!(event.ctrlKey||event.metaKey)) return;
@@ -406,16 +445,9 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
 
   useEffect(()=>{
-    heroStability.current=freshHeroStability();
-    heroLockStability.current=freshHeroLockStability();
-    pickSlotStability.current={};
-    pickLocks.current={};
-    setResult(undefined);
-    setManualResult(undefined);
-    setGroupSelected({});
-    setMessage('');
-    setCandidateStatus('');
-  },[phaseKey]);
+    resetCapture();
+  },[phaseKey,disabled,token,state.committedGameId,state.bpInputMode,slots,resetCapture]);
+  useEffect(()=>{setMessage('');},[phaseKey]);
 
   useEffect(()=>{
     if(!result||!dialog.current||dialog.current.open) return;
@@ -423,61 +455,25 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   },[result]);
 
   const connectWindow=useCallback(async()=>{
-    if(!navigator.mediaDevices?.getDisplayMedia){
-      setMessage(t('windowCaptureUnsupported'));
-      return;
-    }
+    if(selection.current)return;
+    if(!navigator.mediaDevices?.getDisplayMedia){setMessage(t('windowCaptureUnsupported'));return;}
+    const controller=new AbortController();selection.current=controller;setChoosing(true);setMessage('');
     try{
-      stopWindowCapture();
-      setMessage('');
-      const stream=await requestWindowCapture();
-      if(!mounted.current){
-        stream.getTracks().forEach(track=>track.stop());
-        return;
-      }
-      streamRef.current=stream;
-      setSharedWindowCaptureStream(stream);
-      const video=videoRef.current;
-      if(!video) throw new Error('Preview unavailable');
-      video.srcObject=stream;
-      video.muted=true;
-      await video.play();
-      if(video.readyState<1){
-        await new Promise<void>((resolve,reject)=>{
-          const timer=setTimeout(()=>reject(new Error('Capture metadata timeout')),5000);
-          video.addEventListener('loadedmetadata',()=>{clearTimeout(timer);resolve();},{once:true});
-        });
-      }
-      const track=stream.getVideoTracks()[0];
-      const settings=track.getSettings();
-      setWindowInfo({
-        label:track.label||t('windowCaptureConnected'),
-        surface:String(settings.displaySurface||'window'),
-        width:video.videoWidth||settings.width||0,
-        height:video.videoHeight||settings.height||0,
-      });
-      setVideoReady(true);
-      track.addEventListener('ended',()=>{
-        if(!mounted.current) return;
-        streamRef.current=undefined;
-        if(getSharedWindowCaptureStream()===stream) setSharedWindowCaptureStream(undefined);
-        setVideoReady(false);
-        setWindowInfo(undefined);
-        setCalibratingSlot(undefined);
-        setMessage(t('windowCaptureEnded'));
-      },{once:true});
-      setMessage(t('windowCaptureConnected'));
+      const stream=await requestWindowCapture(controller.signal);
+      if(!mounted.current||controller.signal.aborted){stream.getTracks().forEach(track=>track.stop());return;}
+      publishSharedGameStill(undefined);setSharedWindowCaptureStream(stream);
     }catch(error){
-      stopWindowCapture();
-      if(!mounted.current) return;
+      if(!mounted.current||controller.signal.aborted)return;
       const denied=error instanceof DOMException&&['NotAllowedError','AbortError'].includes(error.name);
       setMessage(denied?t('windowCaptureCancelled'):t('windowCaptureFailed'));
+    }finally{
+      if(selection.current===controller){selection.current=undefined;if(mounted.current)setChoosing(false);}
     }
-  },[stopWindowCapture,t]);
+  },[t]);
 
   const captureWindowFrame=useCallback((region?:NormalizedCaptureRegion)=>{
     const video=videoRef.current;
-    if(!videoReady||!video||!video.videoWidth||!video.videoHeight) throw new Error(t('windowCaptureNotConnected'));
+    if(!videoReady||!video||!video.videoWidth||!video.videoHeight||!streamRef.current?.getVideoTracks().some(track=>track.readyState==='live')) throw new Error(t('windowCaptureNotConnected'));
     const sourceRegion=region??target?.region;
     if(!sourceRegion) throw new Error(t('captureNoActiveSlot'));
     const pixels=regionToPixels(sourceRegion,video.videoWidth,video.videoHeight);
@@ -500,7 +496,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const recognizeWindowRegion=useCallback(async(
     region:NormalizedCaptureRegion,
-    options?:{allowedHeroIds?:number[];shape?:'square'|'circle'},
+    options?:{allowedHeroIds?:number[];shape?:'square'|'circle';signal?:AbortSignal},
   )=>{
     const image=captureWindowFrame(region);
     // Keep the portrait matcher on the calibrated artwork. The separate cue
@@ -517,7 +513,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         allowedHeroIds:options?.allowedHeroIds,
         shape:options?.shape??'square',
       }),
-      signal:AbortSignal.timeout(25000),
+      signal:options?.signal,
     });
     const data:RecognitionResponse=await response.json();
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
@@ -530,10 +526,12 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     busyRef.current=true;
     setBusy(true);
     setMessage('');
+    const signature=captureContext.current,source=streamRef.current,request=captureRequest.current.start(25000);
+    const current=()=>mounted.current&&request.isCurrent()&&signature===captureContext.current&&source===streamRef.current;
     try{
       if(phase.action==='pick'){
-        const responses=await Promise.all(turnTargets.map(item=>recognizeWindowRegion(item.region,{shape:'square'})));
-        if(!mounted.current) return;
+        const responses=await Promise.all(turnTargets.map(item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal})));
+        if(!current()||request.signal.aborted) return;
 
         const scanned=turnTargets.map((item,index)=>{
           const data=responses[index];
@@ -619,8 +617,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       }
 
       if(!target) throw new Error(t('captureNoActiveSlot'));
-      const data=await recognizeWindowRegion(target.region,{shape:'circle'});
-      if(!mounted.current) return;
+      const data=await recognizeWindowRegion(target.region,{shape:'circle',signal:request.signal});
+      if(!current()||request.signal.aborted) return;
 
       const candidates=data.candidates??[];
       const heroEvidence=updateHeroRecognitionStability(heroStability.current,phaseKey,candidates);
@@ -676,10 +674,9 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
       setMessage(zh?'Ban 需要当前头像的明确锁形标记；无法识别或空 Ban 时，请人工确认。画面变化不会触发锁定。':'Ban requires a positive padlock on its own portrait. Confirm unknown heroes or empty Bans manually; image changes never imply a lock.');
     }catch(error){
-      if(mounted.current) setMessage(error instanceof Error?error.message:'Capture failed');
+      if(current()) setMessage(request.signal.reason instanceof Error?request.signal.reason.message:error instanceof Error?error.message:'Capture failed');
     }finally{
-      busyRef.current=false;
-      if(mounted.current) setBusy(false);
+      if(request.finish()){busyRef.current=false;if(mounted.current)setBusy(false);}
     }
   },[captureSlotLabel,disabled,label,phase,phaseKey,recognizeWindowRegion,state.committedGameId,state.recognitionAutoAccept,state.recognitionThreshold,send,t,target,turnTargets,zh]);
 
@@ -801,7 +798,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         <p>{t('captureLiveWorkspaceHint')}</p>
       </div>
       <div className="window-capture-toolbar">
-        <button type="button" className="primary" disabled={disabled} onClick={()=>void connectWindow()}>{videoReady?t('windowCaptureChange'):t('windowCaptureChoose')}</button>
+        <button type="button" className="primary" disabled={disabled||choosing} onClick={()=>void connectWindow()}>{videoReady?t('windowCaptureChange'):t('windowCaptureChoose')}</button>
         {videoReady&&<button type="button" onClick={stopWindowCapture}>{t('windowCaptureDisconnect')}</button>}
         <span className={videoReady?'window-capture-status connected':'window-capture-status'}>{videoReady?'●':'○'} {windowInfo?.label||t('windowCaptureDisconnected')}</span>
       </div>

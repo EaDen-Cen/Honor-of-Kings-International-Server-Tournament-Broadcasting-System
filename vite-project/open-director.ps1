@@ -31,8 +31,8 @@ if (-not $browser) {
 }
 
 $arguments = @(
-    "--app=$Url",
-    "--user-data-dir=$profile",
+    ('--app="{0}"' -f $Url),
+    ('--user-data-dir="{0}"' -f $profile),
     '--profile-directory=Default',
     '--start-maximized',
     '--disable-pinch',

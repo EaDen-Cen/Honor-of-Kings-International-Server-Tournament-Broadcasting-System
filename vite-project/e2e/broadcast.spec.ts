@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import type { MatchSettings, Snapshot } from '../src/shared/types';
@@ -75,8 +75,7 @@ test('updated roster portraits, aliases and new heroes work across all three pag
   await expect(control.getByTitle('暃', { exact: true })).toBeVisible();
   await expect(control.getByTitle('海月', { exact: true })).toHaveCount(0);
   await control.getByRole('button', { name: '全部', exact: true }).click();
-  for (const [index, id] of [97, 103, 108, 117, 113].entries()) {
-    const entry = additionalHeroes.find(h => h.id === id)!;
+  for (const [index, entry] of additionalHeroes.slice(0, 5).entries()) {
     await control.getByTitle(entry.chineseName, { exact: true }).click();
     await expect(overlay.locator('.hero-slot img')).toHaveCount(index + 1);
     if (index === 0) {
@@ -87,7 +86,7 @@ test('updated roster portraits, aliases and new heroes work across all three pag
     await expect(caster.locator('.hero-slot img')).toHaveCount(index + 1);
     for (const page of [control, caster, overlay]) {
       // Overlay picks now load official main art, while bans/Control keep icons.
-      const portrait = page.locator(`.hero-slot img[alt="${entry.chineseName}"]`);
+      const portrait = page.locator(`img[alt="${entry.chineseName}"]`).first();
       await expect.poll(() => portrait.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     }
   }
@@ -127,10 +126,9 @@ test('operator, caster and OBS keep separate timelines and recover', async ({ br
   await expect(control.locator('.red h2')).toHaveText('朱雀测试队');
   await expect(overlay.locator('.blue h2')).toHaveText('青龙测试队');
   await expect(overlay.locator('.red h2')).toHaveText('朱雀测试队');
-  await expect(blueAnalysisTitle).toContainText('蓝方队伍');
-  await expect(redAnalysisTitle).toContainText('红方队伍');
-  await expect(caster.locator('body')).not.toContainText('青龙测试队');
-  await expect(caster.locator('body')).not.toContainText('朱雀测试队');
+  // Roster and presentation settings are live even while gameplay is delayed.
+  await expect(blueAnalysisTitle).toContainText('青龙测试队');
+  await expect(redAnalysisTitle).toContainText('朱雀测试队');
   await control.getByTitle('澜', { exact: true }).click();
   await expect(control.locator('.blue .bans img')).toHaveCount(1);
   await expect(overlay.locator('.blue .bans img')).toHaveCount(1);

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('local overlay opens without a fragment and canvas stays within resized viewport',async({page})=>{
   await page.goto('/overlay/draft');

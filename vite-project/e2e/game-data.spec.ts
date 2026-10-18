@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
@@ -10,10 +10,10 @@ test('settlement page review requires unique identities and protects trusted fie
   try{
     await h.send({type:'reset_match'});const state=initialState();state.language='eng';state.blueTeam.players=['Alpha','Bravo','Charlie','Delta','Echo'];state.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
     await h.send({type:'settings',settings:state});await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
-    const report=h.state().postGameReports[0];let value=73300;
+    const report=h.state().postGameReports[0];let value=73300,includeHealing=false;
     await page.route('**/api/v1/recognition/settlement',async route=>{
       expect(route.request().postDataJSON().reportId).toBe(report.id);
-      await route.fulfill({json:{reportId:report.id,page:'overview',capturedAt:Date.now(),elapsedMs:100,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:null,suggestedRowId:p.rowId})),candidates:report.players.flatMap((_,screenRow)=>Object.entries({totalDamage:value,damageShare:20,damageTaken:20000,damageTakenShare:20,gold:7500,goldShare:20,participation:70}).map(([metric,number])=>({screenRow,metric,value:number,confidence:.95,text:String(number)})))}});
+      await route.fulfill({json:{reportId:report.id,page:'overview',capturedAt:Date.now(),elapsedMs:100,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:null,suggestedRowId:p.rowId})),candidates:report.players.flatMap((_,screenRow)=>Object.entries({totalDamage:value,damageShare:20,damageTaken:20000,damageTakenShare:20,gold:7500,goldShare:20,participation:70,...(includeHealing?{healing:1000}:{})}).map(([metric,number])=>({screenRow,metric,value:number,confidence:.95,text:String(number)})))}});
     });
     await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
@@ -26,8 +26,10 @@ test('settlement page review requires unique identities and protects trusted fie
     await expect.poll(()=>h.state().postGameReports[0].players[0].fields.totalDamage?.value).toBe(73300);
     value=87300;await capture.getByRole('button',{name:'Capture full page',exact:true}).click();
     await expect(apply).toBeDisabled();
-    for(let i=0;i<10;i++)await capture.getByLabel(`Settlement identity ${i}`,{exact:true}).selectOption(report.players[i].rowId);
-    await apply.click();await expect(capture.getByText(/Existing value protected/).first()).toBeVisible();
+    for(let i=0;i<10;i++)await expect(capture.getByLabel(`Settlement identity ${i}`,{exact:true})).toHaveValue(report.players[i].rowId);
+    await expect(capture.getByText(/Existing value protected/).first()).toBeVisible();
+    includeHealing=true;await capture.getByRole('button',{name:'Capture full page',exact:true}).click();await expect(apply).toBeEnabled();await apply.click();
+    await expect.poll(()=>h.state().postGameReports[0].players[0].fields.healing?.value).toBe(1000);await expect(apply).toBeDisabled();
     expect(h.state().postGameReports[0].players[0].fields.totalDamage?.value).toBe(73300);
     await page.screenshot({path:'artifacts/game-data/settlement-review.png',fullPage:true});
   }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
@@ -49,9 +51,19 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'hud.png',mimeType:'image/png',buffer:Buffer.from(fixture.hud,'base64')});
-    await capture.getByRole('button',{name:'Sample GHUD',exact:true}).click();await expect(capture.getByText('1500 · 91% · OCR: 1.5k').first()).toBeVisible();
+    const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
+    await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
+    await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
+    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await capture.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
+    await expect(sample).toBeEnabled();await sample.click();await expect(capture.getByText('1500 · 91% · OCR: 1.5k').first()).toBeVisible();
+    await expect(sample).toBeEnabled();await sample.click();
+    await expect(capture.getByRole('status')).toContainText('Samples compared;');
     await expect(capture.getByRole('button',{name:'Apply verified fields',exact:true})).toBeDisabled();
-    await page.getByLabel('blueGold',{exact:true}).fill('1500');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1500);
+    await expect(capture.getByRole('checkbox',{name:'Sample every 5 seconds',exact:true})).toBeDisabled();
+    await expect(capture.getByRole('checkbox',{name:'Publish fields verified by two reads',exact:true})).toBeDisabled();
+    expect(h.state().liveGameStats.blueGold).toBeUndefined();
+    await page.getByLabel('blueGold',{exact:true}).fill('1500');await page.getByLabel('blueGold',{exact:true}).press('Tab');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1500);
     expect(h.state().liveGameStats.sources?.blueGold?.source).toBe('manual');
     await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud-stats')).toContainText('1.5K');
     await page.setViewportSize({width:1920,height:1080});await page.screenshot({path:'artifacts/game-data/game-hud.png',omitBackground:true});
@@ -72,22 +84,33 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
     let calls=0;
     await page.route('**/api/v1/recognition/live-hud',async route=>{
       calls++;const context=route.request().postDataJSON().context;
-      const values={blueKills:0,redKills:0,blueGold:1500,redGold:1500,blueTowers:0,redTowers:0,gameTimeSeconds:calls===1?12:calls===2?14:15};
+      const values={blueKills:0,redKills:0,blueGold:1500,redGold:1500,blueTowers:0,redTowers:0,gameTimeSeconds:calls===1?12:calls===2?14:calls+12};
       await route.fulfill({json:{context,capturedAt:Date.now()-(calls===1?1000:0),elapsedMs:10,candidates:Object.entries(values).map(([key,value])=>({key,value,confidence:.96,text:String(value)}))}});
     });
     await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByRole('button',{name:'Choose shared game window',exact:true}).click();
-    const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeEnabled();await sample.click();
+    const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
+    await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
+    await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
+    await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
+    await capture.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
+    await expect(sample).toBeEnabled();await sample.click();
     await expect(capture.getByText('First read is a candidate; sample again to verify.',{exact:true})).toBeVisible();
+    await expect(capture.getByRole('button',{name:'Apply verified fields',exact:true})).toBeDisabled();
     await page.waitForTimeout(400);await sample.click();const apply=capture.getByRole('button',{name:'Apply verified fields',exact:true});await expect(apply).toBeEnabled();await apply.click();
     await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1500);
-    await page.getByLabel('blueGold',{exact:true}).fill('1800');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1800);
+    await page.getByLabel('blueGold',{exact:true}).fill('1800');await page.getByLabel('blueGold',{exact:true}).press('Tab');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1800);
+    // Manual edits invalidate earlier evidence. Verify two fresh reads.
+    await page.waitForTimeout(400);await sample.click();await expect(apply).toBeDisabled();
     await page.waitForTimeout(400);await sample.click();await expect(apply).toBeEnabled();await apply.click();
-    await expect.poll(()=>h.state().liveGameStats.gameTimeSeconds).toBe(15);expect(h.state().liveGameStats.blueGold).toBe(1800);
-    await page.evaluate(()=>(window as Window&{testCapture?:MediaStream}).testCapture?.getTracks().forEach(track=>track.stop()));
-    await sample.click();await expect(capture.getByText('Capture ended; choose the game window again',{exact:true})).toBeVisible();expect(h.state().liveGameStats.blueGold).toBe(1800);
-    await page.goto('/overlay/game-hud');await page.clock.install();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-status')).toContainText('Capture stale');
+    await expect.poll(()=>h.state().liveGameStats.gameTimeSeconds).toBe(16);expect(h.state().liveGameStats.blueGold).toBe(1800);
+    const callsBeforeEnding=calls;
+    await page.evaluate(()=>(window as Window&{testCapture?:MediaStream}).testCapture?.getTracks().forEach(track=>{track.stop();track.dispatchEvent(new Event('ended'));}));
+    await expect(sample).toBeDisabled();await expect(apply).toBeDisabled();
+    await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeDisabled();
+    expect(calls).toBe(callsBeforeEnding);expect(h.state().liveGameStats.blueGold).toBe(1800);expect(h.state().liveGameStats.gameTimeSeconds).toBe(16);
+    await page.goto('/overlay/game-hud#token=e2e-overlay');await expect(page.locator('.game-hud')).toBeVisible();await page.clock.install();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-status')).toContainText('Capture stale');
   }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
 });
 
@@ -116,4 +139,48 @@ test('stable settlement collection detects page changes even when the player tab
     await expect(capture.getByRole('button',{name:'Damage ✓',exact:true})).toBeEnabled();expect(calls).toBe(2);
     expect(h.state().postGameReports[0].players.every(p=>!Object.keys(p.fields).length)).toBe(true);
   }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+});
+
+test('automatic HUD output remains enabled after its own state confirmations',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  try{
+    await h.send({type:'settings',settings:{...initialState(),language:'eng'}});
+    await page.addInitScript(()=>{
+      Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{value:async()=>{
+        const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
+        canvas.getContext('2d')!.fillRect(0,0,1920,1080);return canvas.captureStream(5);
+      }});
+    });
+    let calls=0;
+    await page.route('**/api/v1/recognition/live-hud',async route=>{
+      const call=++calls,context=route.request().postDataJSON().context;
+      // Fast-forward only browser scheduling. Evidence remains in the real
+      // server's past, as it would for delayed OCR responses.
+      const capturedAt=Date.now()-Math.max(0,5-call)*4000;
+      const values={blueKills:0,redKills:0,blueGold:1500,redGold:1500,blueTowers:0,redTowers:0,gameTimeSeconds:10+call*5};
+      await route.fulfill({json:{context,capturedAt,profile:'test-profile',elapsedMs:10,candidates:Object.entries(values).map(([key,value])=>({key,value,confidence:.96,text:String(value)}))}});
+    });
+    await page.goto('/control');
+    await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
+    const panel=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
+    await panel.getByRole('button',{name:'Choose shared game window',exact:true}).click();
+    await panel.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
+    await panel.getByRole('button',{name:'Preview captured frame',exact:true}).click();
+    await panel.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
+    await page.clock.install();
+    const auto=panel.getByRole('checkbox',{name:'Sample every 5 seconds',exact:true});
+    const publish=panel.getByRole('checkbox',{name:'Publish fields verified by two reads',exact:true});
+    await auto.check();
+    await expect(panel.getByText('First read is a candidate; sample again to verify.',{exact:true})).toBeVisible();
+    await publish.check();
+    await page.clock.fastForward(5001);
+    await expect.poll(()=>h.state().liveGameStats.gameTimeSeconds).toBe(20);
+    await expect(auto).toBeChecked();await expect(publish).toBeChecked();
+    // Resuming after acknowledgement must collect fresh evidence and publish again.
+    await expect.poll(()=>calls).toBeGreaterThanOrEqual(3);
+    await page.clock.fastForward(5001);
+    await expect.poll(()=>h.state().liveGameStats.gameTimeSeconds).toBeGreaterThanOrEqual(30);
+    await expect(auto).toBeChecked();await expect(publish).toBeChecked();
+  }finally{h.close();}
 });

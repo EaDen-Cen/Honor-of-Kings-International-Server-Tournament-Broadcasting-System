@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 title HOK BP Simulator Launcher
 
@@ -21,10 +21,7 @@ if errorlevel 1 (
 
 if not exist "artifacts" mkdir "artifacts"
 
-echo Stopping old simulator on port 5173...
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do taskkill /PID %%P /F >nul 2>&1
-
-echo Starting simulator in the background...
+echo Starting or reusing simulator in the background...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-bp-simulator.ps1" -Background
 if errorlevel 1 (
   echo [ERROR] Failed to start simulator.
@@ -37,13 +34,13 @@ set /a TRIES=0
 powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5173/tools/bp-simulator-control' -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 goto simulator_ready
 set /a TRIES+=1
-if !TRIES! GEQ 30 goto simulator_failed
+if %TRIES% GEQ 30 goto simulator_failed
 timeout /t 1 /nobreak >nul
 goto wait_simulator
 
 :simulator_failed
-echo [ERROR] Simulator did not become ready within 30 seconds.
-echo Log: %~dp0artifactsp-simulator.log
+echo [ERROR] Simulator did not become ready after 30 checks.
+echo Log: %~dp0artifacts\bp-simulator.log
 pause
 exit /b 1
 

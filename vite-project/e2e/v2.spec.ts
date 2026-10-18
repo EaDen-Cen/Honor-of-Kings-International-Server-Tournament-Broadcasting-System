@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import heroes from '../src/components/HeroList';
 import { phases } from '../src/shared/types';
 
@@ -37,11 +37,11 @@ for (const mode of ['normal', 'player', 'global'] as const) {
       await expect(control.getByRole('button', { name: 'Game committed', exact: true })).toBeDisabled();
       await control.getByRole('button', { name: 'Match settings', exact: true }).click();
       await expect(control.getByLabel('BP rules', { exact: true })).toBeDisabled();
-      const teamName = control.getByLabel('Team name', { exact: true }).first();
-      await teamName.fill('Unsaved name');
+      const teamName = control.getByLabel('Match stage', { exact: true });
+      await teamName.fill('Unsaved stage');
       await control.locator('.score-control').first().getByRole('button', { name: 'Increase series score', exact: true }).click();
       await expect(overlay.locator('.blue-score')).toHaveText('1');
-      await expect(teamName).toHaveValue('Unsaved name');
+      await expect(teamName).toHaveValue('Unsaved stage');
       await expect(overlay.locator('.broadcast-team.blue h2')).toHaveText('NORTHWIND');
       await expect(caster.locator('.blue header strong')).toHaveText('0');
       await control.getByRole('button', { name: 'Hide match settings', exact: true }).click();
@@ -59,8 +59,10 @@ for (const mode of ['normal', 'player', 'global'] as const) {
       const firstHero = heroes.find(hero => hero.id === first.bluePicks[0])!;
       const teammateHero = heroes.find(hero => hero.id === first.bluePicks[1])!;
       const enemyHero = heroes.find(hero => hero.id === first.redPicks[0])!;
-      if (mode === 'normal') await expect(control.getByTitle(firstHero.englishName, { exact: true })).toBeEnabled();
-      else await expect(control.getByTitle(firstHero.englishName, { exact: true })).toBeDisabled();
+      // Player BP allows help-picks: final ownership, rather than pick order,
+      // decides whether the same person may reuse a hero. Global BP blocks it.
+      if (mode === 'global') await expect(control.getByTitle(firstHero.englishName, { exact: true })).toBeDisabled();
+      else await expect(control.getByTitle(firstHero.englishName, { exact: true })).toBeEnabled();
       if (mode === 'global') await expect(control.getByTitle(teammateHero.englishName, { exact: true })).toBeDisabled();
       else await expect(control.getByTitle(teammateHero.englishName, { exact: true })).toBeEnabled();
       await expect(control.getByTitle(enemyHero.englishName, { exact: true })).toBeEnabled();

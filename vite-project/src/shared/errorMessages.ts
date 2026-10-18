@@ -41,10 +41,21 @@ const englishMessages = new Map<string, string>([
   ['服务器正在停止', 'The server is shutting down.'],
 ]);
 
+const accessMessages = new Map<string, string>([
+  ['Access service unavailable. Please try again.', '访问服务暂时不可用，请稍后重试。'],
+  ['Invalid access service response. Please try again.', '访问服务返回异常，请重试。'],
+  ['Access check timed out. Enter your password or token to connect.', '访问检查超时，请输入密码或访问口令连接。'],
+  ['Invalid login response. Please try again.', '登录返回异常，请重试。'],
+  ['Login failed. Check your password or token.', '登录失败，请检查密码或访问口令。'],
+  ['Login failed. Please try again.', '登录失败，请重试。'],
+  ['Login timed out. Please try again.', '登录超时，请重试。'],
+]);
+
 /** Translate at render time so an existing error follows the selected language. */
 export function errorMessage(error: string, lang: Language): string {
   if (ruleErrors.has(error as MessageKey)) return translate(lang, error as MessageKey);
-  if (lang === 'zh' || !error) return error;
+  if (lang === 'zh') return accessMessages.get(error) || error;
+  if (!error) return error;
 
   const translated = englishMessages.get(error);
   if (translated) return translated;

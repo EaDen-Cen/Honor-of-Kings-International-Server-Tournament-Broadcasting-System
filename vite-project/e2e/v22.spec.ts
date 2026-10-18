@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { harness } from './harness';
 import heroes from '../src/components/HeroList';
 import { phases } from '../src/shared/types';
@@ -38,7 +38,8 @@ for (const layout of ['panel', 'side'] as const) {
         } else {
           expect(boxes.every(b => b!.x === boxes[0]!.x)).toBeTruthy();
           expect(boxes[4]!.y).toBeGreaterThan(boxes[0]!.y + 500);
-          expect(position === 'left' ? boxes[0]!.x < 100 : boxes[0]!.x >= 1580).toBeTruthy();
+          const edgeGap=position==='left'?boxes[0]!.x:1920-boxes[0]!.x-boxes[0]!.width;
+          expect(edgeGap).toBeGreaterThanOrEqual(0);expect(edgeGap).toBeLessThan(100);
           expect(boxes[0]!.width).toBe(340);
         }
       }
@@ -116,6 +117,10 @@ test('V2.2 settings, portrait fallback, mobile, reduced motion and delayed first
     await expect(control.locator('.match-score-settings')).toHaveCount(0);
     await control.getByLabel('Draft starting side',{exact:true}).selectOption('red');
     await control.getByLabel('Side swap behavior',{exact:true}).selectOption('colorsOnly');
+    await control.getByRole('button',{name:'Save settings',exact:true}).click();
+    await expect(control.getByRole('button',{name:'Save settings',exact:true})).toBeEnabled();
+    await control.getByRole('button',{name:'Hide match settings',exact:true}).click();
+    await control.getByRole('button',{name:'Team settings',exact:true}).click();
     await control.getByLabel('Player portrait URL',{exact:true}).first().fill('/playerImg/missing.png');
     await control.getByLabel('Team logo URL',{exact:true}).first().fill(heroes[30].imageLink);
     await control.getByRole('button',{name:'Save settings',exact:true}).click();
@@ -125,7 +130,11 @@ test('V2.2 settings, portrait fallback, mobile, reduced motion and delayed first
     expect(await control.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
     await control.bringToFront(); await control.screenshot({path:'artifacts/v22-mobile-settings.png',fullPage:true});
     for (let i=0;i<5;i++) await h.send({type:'draft_action',...phases('match','red')[i],heroId:heroes[70+i].id});
+    await control.getByRole('button',{name:'Close team settings',exact:true}).click();
+    await control.getByRole('button',{name:'Match settings',exact:true}).click();
     await expect(control.getByLabel('Draft starting side',{exact:true})).toBeDisabled();
+    await control.getByRole('button',{name:'Hide match settings',exact:true}).click();
+    await control.getByRole('button',{name:'Team settings',exact:true}).click();
     await control.getByRole('textbox', { name: 'Player 1', exact: true }).first().fill('Live Substitute');
     await control.getByRole('combobox', { name: 'Lane', exact: true }).first().selectOption('roam');
     await control.getByLabel('Player portrait URL', {exact:true}).first().fill(heroes[31].imageLink);
@@ -213,7 +222,7 @@ test('hero picker sorting and artwork editor fit a laptop browser viewport', asy
     await sort.selectOption('lane');
     await expect(sort).toHaveValue('lane');
 
-    await control.getByRole('button', { name: 'Hero artwork', exact: true }).click();
+    await control.getByRole('button', { name: 'Hero data & artwork', exact: true }).click();
     const dialog = control.locator('.hero-art-editor-dialog');
     await expect(dialog).toBeVisible();
     const box = await dialog.boundingBox();

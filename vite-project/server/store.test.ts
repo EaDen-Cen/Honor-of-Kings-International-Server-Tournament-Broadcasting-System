@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -96,6 +96,33 @@ test('disk failure never advances authoritative state', () => {
   const original = structuredClone(s.data);
   Object.defineProperty(s, 'file', { value: join(folder, 'unavailable\0', 'state.json') });
   assert.throws(() => pick(s, 46)); assert.deepEqual(s.data, original);
+});
+
+test('invalid saved envelopes fail explicitly without replacing the existing match', () => {
+  const root = mkdtempSync(join(tmpdir(), 'hok-invalid-save-')), file = join(root, 'match.json');
+  const valid = new Store().data;
+  try {
+    for (const input of [null, false, 0, '', [], { ...valid, ids: undefined }, { ...valid, revision: -1 }, { ...valid, delay: 3601 },
+      { ...valid, history: [null] }, { ...valid, events: [{ id: 'broken-event', timestamp: -1, revision: 1, type: 'settings', resultingState: initialState() }] }]) {
+      const original = JSON.stringify(input);
+      writeFileSync(file, original);
+      assert.throws(() => new Store(file), /比赛存档无效/);
+      assert.equal(readFileSync(file, 'utf8'), original);
+    }
+    writeFileSync(file, '{');
+    assert.throws(() => new Store(file), /比赛存档无效/);
+    assert.equal(readFileSync(file, 'utf8'), '{');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('out-of-order persisted events are rejected before delayed snapshots can select incorrect state', () => {
+  const root = mkdtempSync(join(tmpdir(), 'hok-event-order-')), file = join(root, 'match.json');
+  let now = 1000;const s = new Store(undefined, () => now);
+  pick(s, 46);now += 1000;apply(s, { type: 'undo' });
+  try {
+    s.data.events.reverse();writeFileSync(file, JSON.stringify(s.data));
+    assert.throws(() => new Store(file), /比赛存档无效/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 

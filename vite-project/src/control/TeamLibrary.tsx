@@ -1,3 +1,4 @@
+import { createClientUUID } from '../shared/clientId';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { initialState, type Action, type MatchSettings, type MatchState, type Side, type Team, type TeamPreset, type ReservePlayer } from '../shared/types';
@@ -19,6 +20,10 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
   const [draft,setDraft] = useState<Team & {substitutes:ReservePlayer[]}>(() => ({...initialState().blueTeam,id:'',name:'',substitutes:[]}));
   const [uploads,setUploads] = useState<Set<number>>(() => new Set());
   const dialog = useRef<HTMLDialogElement>(null);
+  const busyRef = useRef(false);
+  const refreshVersion = useRef(0);
+  const cleanDraft = useRef(JSON.stringify(draft));
+  const dirty = JSON.stringify(draft) !== cleanDraft.current;
   const locked = state.currentPhase !== 0 || state.draftHistory.length > 0 || !!state.committedGameId;
   const request = useCallback(async (path = '', method = 'GET', body?:Team) => {
     const controller = new AbortController(); const timer = window.setTimeout(() => controller.abort(),15000);
@@ -29,24 +34,46 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
       return data;
     } finally { window.clearTimeout(timer); }
   },[token]);
-  const refresh = useCallback(async () => { const data = await request(); setTeams(data.teams); },[request]);
-  useEffect(() => { void refresh().catch(() => setError('presetSaveFailed')); },[refresh]);
+  const refresh = useCallback(async (isActive:()=>boolean = ()=>true) => {
+    const version = ++refreshVersion.current;
+    const data = await request();
+    if (isActive() && version === refreshVersion.current) setTeams(data.teams);
+  },[request]);
+  useEffect(() => {
+    let active = true;
+    void refresh(()=>active).catch(() => { if (active) setError('presetSaveFailed'); });
+    return () => { active = false; };
+  },[refresh]);
   useEffect(() => { if (open) dialog.current?.showModal(); else dialog.current?.close(); },[open]);
   const run = async (task:()=>Promise<void>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);setError('');setNotice(null);
     try { await task(); } catch (e) { setError(e instanceof Error && ['substitutesInvalid','presetInvalid','presetMissing','presetSaveFailed','uploadUnauthorized'].includes(e.message) ? e.message : 'presetSaveFailed'); }
-    finally {setBusy(false);}
+    finally {busyRef.current = false;setBusy(false);}
   };
+  const edit = (team:Team & {substitutes?:ReservePlayer[]}) => {
+    const next = {...structuredClone(team),substitutes:structuredClone(team.substitutes || [])};
+    cleanDraft.current = JSON.stringify(next);
+    setDraft(next);
+  };
+  const discard = () => !dirty || confirm(state.language === 'zh'
+    ? '队伍资料有未保存的修改。放弃这些修改并继续？'
+    : 'This team has unsaved changes. Discard them and continue?');
+  const close = () => { if (!busyRef.current && discard()) { setOpen(false); edit({...initialState().blueTeam,id:'',name:'',substitutes:[]}); } };
   const save = (team:Team, update:boolean) => void run(async () => {
     const saved:TeamPreset = await request(update ? `/${team.id}` : '',update ? 'PUT' : 'POST',team);
-    await refresh(); setNotice('presetSaved');
-    if (open) setDraft({...saved,substitutes:saved.substitutes || []});
+    // The mutation response already confirms persistence. A second GET must
+    // never turn a successful creation into an apparent failure and duplicate.
+    refreshVersion.current++;
+    setTeams(previous => previous.some(item=>item.id===saved.id) ? previous.map(item => item.id === saved.id ? saved : item) : [...previous,saved]);
+    setNotice('presetSaved');
+    if (open) edit(saved);
   });
   const load = (side:Side,id:string) => {
-    if (id && !locked && confirm(t('confirmLoadTeam'))) { setOpen(false);send({type:'load_team_preset',side,presetId:id}); }
+    if (id && !disabled && !busyRef.current && !locked && (!open || discard()) && confirm(t('confirmLoadTeam'))) { setOpen(false);send({type:'load_team_preset',side,presetId:id}); }
   };
-  const blank = () => setDraft({...initialState().blueTeam,id:'',name:'',substitutes:[]});
+  const blank = () => edit({...initialState().blueTeam,id:'',name:'',substitutes:[]});
   const roster = (side:Side): ReservePlayer[] => {
     const team = teams.find(team => team.id === (replacement[side].source || state[`${side}Team`].id));
     return team ? [...team.players.map((name,i) => ({id:'starter-'+i,name,role:team.playerRoles[i],portrait:team.playerPortraits[i]})),...(team.substitutes || [])].filter(p => p.name.trim()) : [];
@@ -75,13 +102,13 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
         </> : <p>{t('substituteNeedsTeam')}</p>}
       </section>
     </div>)}</div>
-    {open && createPortal(<dialog className="library-dialog" ref={dialog} onCancel={e => {e.preventDefault();e.stopPropagation();setOpen(false);}}>
-      <header className="toolbar"><h2>{t('teamLibrary')}</h2><button type="button" onClick={() => setOpen(false)}>{t('closeLibrary')}</button></header>
+    {open && createPortal(<dialog className="library-dialog" ref={dialog} onCancel={e => {e.preventDefault();e.stopPropagation();close();}}>
+      <header className="toolbar"><h2>{t('teamLibrary')}</h2><button type="button" disabled={busy} onClick={close}>{t('closeLibrary')}</button></header>
       {status}
       <div className="library-manager"><aside>
         <label>{t('searchTeams')}<input value={query} onChange={e => setQuery(e.target.value)} /></label>
-        <button type="button" disabled={unavailable} onClick={blank}>{t('newTeam')}</button>
-        <div className="library-list">{teams.filter(team => team.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(team => <button className={draft.id === team.id ? 'selected' : ''} type="button" key={team.id} disabled={unavailable} onClick={() => {setDraft({...structuredClone(team),substitutes:team.substitutes || []});setError('');setNotice(null);}}>{team.name}</button>)}{!teams.length && <p>{t('noTeams')}</p>}</div>
+        <button type="button" disabled={unavailable} onClick={() => {if(discard())blank();}}>{t('newTeam')}</button>
+        <div className="library-list">{teams.filter(team => team.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(team => <button className={draft.id === team.id ? 'selected' : ''} type="button" key={team.id} disabled={unavailable} onClick={() => {if(!discard())return;edit(team);setError('');setNotice(null);}}>{team.name}</button>)}{!teams.length && <p>{t('noTeams')}</p>}</div>
       </aside><section className="library-editor">
         <label>{t('teamName')}<input maxLength={60} disabled={unavailable} value={draft.name} onChange={e => setDraft({...draft,name:e.target.value})} /></label>
         <label>{t('logoAddress')}<input maxLength={1000} disabled={unavailable} value={draft.logo} onChange={e => setDraft({...draft,logo:e.target.value})} /></label>
@@ -97,10 +124,10 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
             <PortraitField library value={player.portrait} token={token} lang={state.language} disabled={disabled || busy} onChange={url => setDraft(previous => ({...previous,substitutes:previous.substitutes.map(p => p.id === player.id ? {...p,portrait:url} : p)}))} onBusy={uploading => setUploads(previous => {const next=new Set(previous);if(uploading)next.add(index+5);else next.delete(index+5);return next;})}/>
             <button type="button" disabled={unavailable} onClick={() => setDraft({...draft,substitutes:draft.substitutes.filter(p => p.id !== player.id)})}>{t('removeSubstitute')}</button>
           </div>)}
-          <button type="button" disabled={unavailable || draft.substitutes.length >= 20} onClick={() => setDraft({...draft,substitutes:[...draft.substitutes,{id:crypto.randomUUID(),name:'',role:'roam',portrait:''}]})}>{t('addSubstitute')}</button>
+          <button type="button" disabled={unavailable || draft.substitutes.length >= 20} onClick={() => setDraft({...draft,substitutes:[...draft.substitutes,{id:createClientUUID(),name:'',role:'roam',portrait:''}]})}>{t('addSubstitute')}</button>
         </section>
         <div className="toolbar"><button type="button" className="primary" disabled={unavailable || !draft.name.trim()} onClick={() => (!draft.id || confirm(t('confirmUpdateTeam'))) && save(draft,!!draft.id)}>{t('saveTeam')}</button>
-          <button type="button" disabled={unavailable || !draft.id} onClick={() => {if(confirm(t('confirmDeleteTeam'))) void run(async () => {await request(`/${draft.id}`,'DELETE');await refresh();blank();setNotice('presetDeleted');});}}>{t('deleteTeam')}</button>
+          <button type="button" disabled={unavailable || !draft.id} onClick={() => {if(confirm(t('confirmDeleteTeam'))) void run(async () => {await request(`/${draft.id}`,'DELETE');refreshVersion.current++;setTeams(previous=>previous.filter(team=>team.id!==draft.id));setSelected(previous=>({blue:previous.blue===draft.id?'':previous.blue,red:previous.red===draft.id?'':previous.red}));blank();setNotice('presetDeleted');});}}>{t('deleteTeam')}</button>
           {(['blue','red'] as const).map(side => <button key={side} type="button" disabled={unavailable || locked || !draft.id || state[side === 'blue' ? 'redTeam' : 'blueTeam'].id === draft.id} onClick={() => load(side,draft.id)}>{t('loadTeam')} · {t(side === 'blue' ? 'blueTeam' : 'redTeam')}</button>)}
         </div>
       </section></div>

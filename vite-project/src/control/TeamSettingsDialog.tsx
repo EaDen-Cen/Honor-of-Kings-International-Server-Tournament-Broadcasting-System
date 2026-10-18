@@ -25,6 +25,7 @@ export function TeamSettingsDialog({
 
   return createPortal(
     <dialog
+      id="team-settings"
       ref={dialog}
       className="team-settings-dialog"
       aria-label={label}
