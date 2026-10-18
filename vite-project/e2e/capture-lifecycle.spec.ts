@@ -42,7 +42,7 @@ test('a shared game source survives cancelling a replacement and leaving the BP 
       const track=(window as Window&{captureStreams?:MediaStream[]}).captureStreams![1].getVideoTracks()[0];track.stop();track.dispatchEvent(new Event('ended'));
     });
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeDisabled();
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('loading a screenshot supersedes another panel\'s pending chooser and releases its late stream',async({page,baseURL})=>{
@@ -73,5 +73,5 @@ test('loading a screenshot supersedes another panel\'s pending chooser and relea
     await capture.getByRole('button',{name:'Preview captured frame',exact:true}).click();
     await expect(capture.getByAltText('Actual source frame preview',{exact:true})).toBeVisible();
     expect(await capture.locator('video').evaluate(video=>(video as HTMLVideoElement).srcObject)).toBeNull();
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });

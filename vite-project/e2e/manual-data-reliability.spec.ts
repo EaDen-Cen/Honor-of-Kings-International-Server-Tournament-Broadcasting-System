@@ -19,7 +19,7 @@ test('manual HUD drafts save whole numbers, retain edits across live updates and
     await expect(kills).toHaveAttribute('aria-invalid','true');expect(h.state().liveGameStats.blueKills).toBe(0);
     await kills.focus();await kills.press('Escape');await expect(kills).toHaveValue('0');
     await kills.fill('123');await kills.press('Enter');await expect.poll(()=>h.state().liveGameStats.blueKills).toBe(123);
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('post-game rating drafts survive external edits and replay timelines stay in sync without losing drafts',async({page,baseURL})=>{
@@ -42,7 +42,7 @@ test('post-game rating drafts survive external edits and replay timelines stay i
     await expect(page.getByText(/The saved timeline changed/)).toBeVisible();await page.getByRole('button',{name:'Reload saved timeline',exact:true}).click();await expect(timeline).toHaveValue(timelineToText(changed));
     await timeline.fill(draft);await page.getByRole('button',{name:'Save timeline',exact:true}).click();await expect.poll(()=>h.state().postGameReports[0].goldTimeline?.length).toBe(3);await expect(page.getByText('Timeline saved.',{exact:true})).toBeVisible();
     await expect(page.getByLabel('Post-game OCR source page').locator('option[value="recap"]')).toHaveCount(0);
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('backup controls recover from failures, reject broken exports and time out without duplicate requests',async({page,baseURL})=>{
@@ -62,5 +62,5 @@ test('backup controls recover from failures, reject broken exports and time out 
     mode='invalid-export';await panel.getByRole('button',{name:'Export match',exact:true}).click();await expect(panel.getByRole('alert')).toHaveText('The export is incomplete. Please retry.');
     mode='hang';await page.clock.install();await panel.getByRole('button',{name:'Backup status',exact:true}).click();await expect(panel.getByRole('button',{name:'Checking…',exact:true})).toBeDisabled();await expect(panel.getByRole('button',{name:'Back up now',exact:true})).toBeDisabled();
     await expect.poll(()=>!!held).toBe(true);await page.clock.fastForward(30001);await expect(panel.getByRole('alert')).toContainText('Request timed out');await expect(panel.getByRole('button',{name:'Backup status',exact:true})).toBeEnabled();expect(calls).toBe(3);
-  }finally{if(held)await held.abort().catch(()=>{});await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{if(held)await held.abort().catch(()=>{});h.close();}
 });

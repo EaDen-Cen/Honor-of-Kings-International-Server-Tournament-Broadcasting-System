@@ -29,7 +29,7 @@ test('empty history, inline settings and BO win boxes follow authoritative side 
     await expect(page.locator('.hero-art')).toHaveCount(10);
     await expect(page.locator('.hero-reveal:not([class="hero-reveal"])')).toHaveCount(0);
     await page.screenshot({path:'artifacts/side-full-art.png',omitBackground:true});
-  } finally {await h.send({type:'reset_match'});h.close();await context.close();}
+  } finally {h.close();await context.close();}
 });
 
 test('recognition requires review; rejection and stale results cannot submit; manual fallback works',async({browser,baseURL})=>{
@@ -87,5 +87,5 @@ test('recognition requires review; rejection and stale results cannot submit; ma
     await page.getByLabel('Search heroes',{exact:true}).fill(heroes[1].englishName);
     await page.locator('.manual-picker-fallback .hero-grid').getByRole('button',{name:heroes[1].englishName,exact:true}).click();
     await expect.poll(()=>h.state().currentPhase).toBe(2);expect(h.state().redBans).toEqual([heroes[1].id]);
-  } finally {await h.send({type:'reset_match'});h.close();await context.close();}
+  } finally {h.close();await context.close();}
 });
