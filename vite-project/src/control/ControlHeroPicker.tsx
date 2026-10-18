@@ -15,7 +15,8 @@ export function ControlHeroPicker({ state, disabled, active, send, acknowledged 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortMode, setSortMode] = useState<HeroSortMode>(() => {
-    const saved = globalThis.localStorage?.getItem('hok-hero-sort-mode') as HeroSortMode | null;
+    let saved: HeroSortMode | null = null;
+    try { saved = localStorage.getItem('hok-hero-sort-mode') as HeroSortMode | null; } catch { /* Sorting still works without browser storage. */ }
     return saved && heroSortModes.includes(saved) ? saved : (state.language === 'zh' ? 'name-zh' : 'name-en');
   });
   const [recorded, setRecorded] = useState<Action>();
@@ -82,10 +83,10 @@ export function ControlHeroPicker({ state, disabled, active, send, acknowledged 
       <div className="picker-tools">
         <div className="filters">{lanes.map(r => <button key={r} className={filter === r ? 'selected' : ''} onClick={() => setFilter(r)}>{laneName(r,state.language)}</button>)}</div>
         <label className="hero-sort-control">{t('heroSort')}
-          <select value={sortMode} onChange={event => {
+          <select aria-label={t('heroSort')} value={sortMode} onChange={event => {
             const next = event.target.value as HeroSortMode;
             setSortMode(next);
-            globalThis.localStorage?.setItem('hok-hero-sort-mode', next);
+            try { localStorage.setItem('hok-hero-sort-mode', next); } catch { /* Keep the current selection for this page. */ }
           }}>
             <option value="name-zh">{t('heroSortChinese')}</option>
             <option value="name-en">{t('heroSortEnglish')}</option>

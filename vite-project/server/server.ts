@@ -100,13 +100,19 @@ const server = createServer(async (req, res) => {
         const chunks:Buffer[]=[];let size=0;req.setTimeout(30000,()=>req.destroy());
         for await(const chunk of req){size+=chunk.length;if(size>5*1024*1024){json(413,{error:'Frame too large'});return;}chunks.push(chunk);}
         const input=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
         const capturedAt=Date.now(),context=liveGameContext(store.data.state);
+        if(url.pathname.endsWith('live-hud')){
+          if(input.context!==context){json(409,{error:'Game changed; capture again'});return;}
+          if(input.regions!==undefined&&!validLiveCaptureRects(input.regions)){json(400,{error:'Invalid HUD crop calibration'});return;}
+        }else{
+          if(!store.data.state.postGameReports.some(report=>report.id===input.reportId)){json(409,{error:'Prepare the game report first'});return;}
+          if(input.page!=='auto'&&!settlementPages.includes(input.page)){json(400,{error:'Invalid settlement page'});return;}
+        }
+        if(playerRecognition.status!=='ready'){json(503,{error:'Local OCR is not ready'});return;}
         const frame=await decodeGameFrame(input.image,input.region);
         if(!await frameHasVisualContent(frame)){json(422,{error:'Game capture is blank or mostly black. Preview the actual game screen or upload a valid screenshot.'});return;}
         if(url.pathname.endsWith('live-hud')){
           if(input.context!==context){json(409,{error:'Game changed; capture again'});return;}
-          if(input.regions!==undefined&&!validLiveCaptureRects(input.regions)){json(400,{error:'Invalid HUD crop calibration'});return;}
           const regions=input.regions??liveCaptureRects;
           const result=await recognizeLiveHud(frame,playerRecognition,regions);
           if(liveGameContext(store.data.state)!==context){json(409,{error:'Game changed; capture again'});return;}

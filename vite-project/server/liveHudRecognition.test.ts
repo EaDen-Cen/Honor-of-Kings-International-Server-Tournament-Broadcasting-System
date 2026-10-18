@@ -55,6 +55,26 @@ test('HUD parser rejects overflow and ambiguous counters',()=>{
   for(const [text,key] of [['11:60','gameTimeSeconds'],['200:00','gameTimeSeconds'],['12','blueTowers'],['O','blueKills'],['1.5','blueKills']] as const)assert.equal(parseLiveNumber(text,key),null);
 });
 
+test('clearing optional HUD values keeps them unknown until explicitly resumed and supports undo',()=>{
+  for(const key of ['blueGold','redGold','gameTimeSeconds'] as const){
+    let now=100000;const s=new Store(undefined,()=>now),context=liveGameContext(s.data.state);
+    apply(s,{type:'live_game_ocr',context,previous:sample(now-5000,10),sample:sample(now,15)});
+    const original=s.data.state.liveGameStats[key];
+    const clear=()=>apply(s,{type:'live_game_stats',stats:{...s.data.state.liveGameStats,[key]:undefined}});
+    clear();assert.equal(s.data.state.liveGameStats[key],undefined);
+    assert.equal(s.data.state.liveGameStats.sources?.[key]?.source,'manual');
+    apply(s,{type:'undo'});assert.equal(s.data.state.liveGameStats[key],original);
+    assert.equal(s.data.state.liveGameStats.sources?.[key]?.source,'ocr');
+    clear();now+=5000;
+    apply(s,{type:'live_game_ocr',context,previous:sample(now-5000,15),sample:sample(now,20)});
+    assert.equal(s.data.state.liveGameStats[key],undefined,'automatic capture must preserve a manual unknown value');
+    apply(s,{type:'live_game_freeze',key,frozen:false});now+=5000;
+    apply(s,{type:'live_game_ocr',context,previous:sample(now-5000,20),sample:sample(now,25)});
+    assert.equal(s.data.state.liveGameStats[key],key==='gameTimeSeconds'?25:1500);
+    assert.equal(s.data.state.liveGameStats.sources?.[key]?.source,'ocr');
+  }
+});
+
 test('GHUD requires a complete geometrically valid ROI profile, two reads from same profile',()=>{
   assert.equal(validLiveCaptureRects(liveCaptureRects),true);
   const shift=structuredClone(liveCaptureRects);

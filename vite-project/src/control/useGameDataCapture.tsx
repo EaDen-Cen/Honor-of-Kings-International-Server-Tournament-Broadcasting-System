@@ -8,24 +8,41 @@ export function useGameDataCapture(zh:boolean){
   const [sourceVersion,setSourceVersion]=useState(0);
   const [ready,setReady]=useState(!!getSharedGameStill()),[top,setTop]=useState(0),[error,setError]=useState(''),[fileName,setFileName]=useState(()=>getSharedGameStill()?.name??'');
   const topRef=useRef(top);topRef.current=top;
+  const selection=useRef<AbortController>(),loading=useRef(0),mounted=useRef(false);
+  const [choosing,setChoosing]=useState(false);
+  function invalidate(){const version=++generation.current;setSourceVersion(version);}
+  function cancelSelection(){selection.current?.abort();selection.current=undefined;setChoosing(false);}
   useEffect(()=>{
-    let active=true;
+    mounted.current=true;
+    let attachment=0;
     const attach=async(stream:MediaStream|undefined)=>{
-      const version=++generation.current;setSourceVersion(version);setReady(!!still.current);
-      if(!video.current)return;
-      video.current.srcObject=stream??null;
-      if(stream)try{await video.current.play();if(active&&version===generation.current)setReady(true);}catch{/* disconnected source */}
+      const version=++attachment;
+      if(stream)loading.current++;
+      invalidate();setReady(!!still.current);
+      const element=video.current;
+      if(!element)return;
+      element.srcObject=stream??null;
+      if(stream)try{
+        await element.play();
+        if(mounted.current&&version===attachment&&element.srcObject===stream)setReady(!!still.current||!!(element.videoWidth&&element.videoHeight));
+      }catch{/* disconnected source */}
     };
     void attach(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
     const unsubscribeStill=subscribeSharedGameStill(data=>{
-      if(!active)return;
+      if(!mounted.current)return;
+      loading.current++;
       still.current=data?.image;setFileName(data?.name??'');setError('');
-      const revision=++generation.current;setSourceVersion(revision);
+      invalidate();
       setReady(!!data||!!(video.current?.videoWidth&&video.current?.srcObject));
     });
-    const sourceGeneration=generation;
-    return()=>{active=false;sourceGeneration.current++;unsubscribe();unsubscribeStill();};
+    const sourceGeneration=generation,sourceLoading=loading,element=video.current;
+    return()=>{
+      mounted.current=false;attachment++;sourceGeneration.current++;sourceLoading.current++;
+      selection.current?.abort();selection.current=undefined;
+      unsubscribe();unsubscribeStill();
+      if(element)element.srcObject=null;
+    };
   },[]);
   function frame(){
     const source=still.current??video.current;
@@ -43,23 +60,34 @@ export function useGameDataCapture(zh:boolean){
     canvas.getContext('2d')!.drawImage(source,0,offset,width,Math.min(contentHeight,height-offset),0,0,1920,1080);
     return canvas;
   }
-  async function choose(){try{setError('');const stream=await requestWindowCapture(),previous=getSharedWindowCaptureStream();publishSharedGameStill(undefined);setSharedWindowCaptureStream(stream);previous?.getTracks().forEach(track=>track.stop());}catch(e){setError(e instanceof Error?e.message:'Capture failed');}}
+  async function choose(){
+    if(selection.current)return;
+    const controller=new AbortController();selection.current=controller;setChoosing(true);
+    loading.current++;
+    try{
+      setError('');const stream=await requestWindowCapture(controller.signal);
+      if(!mounted.current||controller.signal.aborted){stream.getTracks().forEach(track=>track.stop());return;}
+      publishSharedGameStill(undefined);setSharedWindowCaptureStream(stream);
+    }catch(e){
+      if(mounted.current&&!controller.signal.aborted&&!(e instanceof DOMException&&e.name==='AbortError'))setError(e instanceof Error?e.message:'Capture failed');
+    }finally{if(selection.current===controller){selection.current=undefined;if(mounted.current)setChoosing(false);}}
+  }
   async function load(file:File|undefined){
     if(!file)return;
-    const version=++generation.current;
+    cancelSelection();const version=++loading.current;
     try{
       if(file.size>10*1024*1024)throw new Error('Screenshot too large (10 MB max)');
       const url=URL.createObjectURL(file),img=new Image();
       try{img.src=url;await img.decode();}finally{URL.revokeObjectURL(url);}
-      if(version!==generation.current)return;
+      if(!mounted.current||version!==loading.current)return;
       publishSharedGameStill({image:img,name:file.name});setError('');
-    }catch(e){setError(e instanceof Error?e.message:'Invalid image');}
+    }catch(e){if(mounted.current&&version===loading.current)setError(e instanceof Error?e.message:'Invalid image');}
   }
   const controls=<div className="toolbar">
     <video ref={video} playsInline muted className="lineup-capture-video"/>
-    <button type="button" onClick={()=>void choose()}>{zh?'选择共享游戏窗口':'Choose shared game window'}</button>
-    <label>{zh?'或载入截图':'Or load screenshot'}<input aria-label="Game data screenshot" type="file" accept="image/png,image/jpeg" onChange={e=>void load(e.target.files?.[0])}/></label>
-    <label>{zh?'内容顶部偏移 px（默认 0，手动校准）':'Content top px (default 0; calibrate)'}<input aria-label="Game content top" type="number" min={-1} max={200} value={top} onChange={e=>{generation.current++;setSourceVersion(generation.current);setTop(Number(e.target.value));}}/></label>
+    <button type="button" disabled={choosing} onClick={()=>void choose()}>{zh?'选择共享游戏窗口':'Choose shared game window'}</button>
+    <label>{zh?'或载入截图':'Or load screenshot'}<input aria-label="Game data screenshot" type="file" accept="image/png,image/jpeg" onChange={e=>{const file=e.target.files?.[0];e.target.value='';void load(file);}}/></label>
+    <label>{zh?'内容顶部偏移 px（默认 0，手动校准）':'Content top px (default 0; calibrate)'}<input aria-label="Game content top" type="number" min={0} max={200} value={top} onChange={e=>{const value=Number(e.target.value);if(Number.isFinite(value)){invalidate();setTop(Math.min(200,Math.max(0,value)));}}}/></label>
     {fileName&&<small>{fileName}</small>}{error&&<p role="alert">{error}</p>}
   </div>;
   return {frame,ready,generation,sourceVersion,controls,isStill:!!fileName};

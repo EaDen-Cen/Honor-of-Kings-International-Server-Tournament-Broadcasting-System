@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 import { readFileSync } from 'node:fs';
 import { harness } from './harness';
 import heroes from '../src/components/HeroList';
@@ -33,11 +33,12 @@ for (const firstPickSide of ['blue','red'] as const) {
       const search = page.getByLabel('Search heroes',{exact:true}); await expect(search).toBeFocused();
       await search.fill(''); await search.press('Enter'); expect(h.state().currentPhase).toBe(0);
       await search.fill('not-a-hero');await search.press('Escape');await expect(search).toHaveValue('');
-      await page.getByRole('button',{name:'Match settings',exact:true}).click();
-      await expect(page.locator('.settings-inline')).toBeVisible();
+      await page.getByRole('button',{name:'Team settings',exact:true}).click();
+      await expect(page.locator('.team-settings-dialog')).toBeVisible();
       await page.getByLabel('Team name',{exact:true}).first().fill('Operator Team');
       await page.keyboard.press('/'); await expect(page.getByLabel('Team name',{exact:true}).first()).toHaveValue('Operator Team/');
-      await page.keyboard.press('Escape');await expect(page.locator('.settings-inline')).toHaveCount(0);
+      page.once('dialog',dialog=>dialog.accept());
+      await page.keyboard.press('Escape');await expect(page.locator('.team-settings-dialog')).toHaveCount(0);
       await page.keyboard.press('/');await expect(search).toBeFocused();
       for (let i=0;i<18;i++) {
         const state=h.state(), phase=phases(state.draftMode,state.firstPickSide)[i];
@@ -97,9 +98,9 @@ test('V2.3 real portrait upload, PNG/JPEG/WebP, runtime serving, preview errors,
     const page=await context.newPage(),overlay=await context.newPage(),caster=await context.newPage();
     await page.goto('/control#token=e2e-control');await overlay.setViewportSize({width:1920,height:1080});
     await overlay.goto('/overlay/draft#token=e2e-overlay');await caster.goto('/caster#token=e2e-caster');
-    await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    await page.getByRole('button',{name:'Team settings',exact:true}).click();
     const input=page.getByLabel('Player portrait URL',{exact:true}).first();
-    await input.fill('https://');await expect(page.locator('.settings-inline')).toBeVisible();
+    await input.fill('https://');await expect(page.locator('.team-settings-dialog')).toBeVisible();
     await input.fill('/playerImg/missing.png');await expect(page.locator('.portrait-status').first()).toHaveText('Portrait failed to load. Check the URL or upload again.');
     await page.getByLabel('Choose image',{exact:true}).first().setInputFiles('e2e/fixtures/player-test.png');
     await expect(input).toHaveValue(/^\/uploads\/player-portraits\/[0-9a-f-]+\.png$/);
@@ -111,7 +112,7 @@ test('V2.3 real portrait upload, PNG/JPEG/WebP, runtime serving, preview errors,
     expect((await request.get(url)).status()).toBe(200);
     expect(await caster.evaluate(async url=>(await fetch(url)).status,url)).toBe(200);
     const delayed=await request.get('/api/match',{headers:{Authorization:'Bearer e2e-caster'}});
-    expect((await delayed.json()).state.blueTeam.playerPortraits[0]).toBe('');
+    expect((await delayed.json()).state.blueTeam.playerPortraits[0]).toBe(url);
     // Convert the genuine test portrait, rather than substituting hero artwork.
     const png=readFileSync('e2e/fixtures/player-test.png').toString('base64');
     for(const [mime,extension] of [['image/jpeg','jpg'],['image/webp','webp']]) {
@@ -122,12 +123,12 @@ test('V2.3 real portrait upload, PNG/JPEG/WebP, runtime serving, preview errors,
       const response=await request.post('/api/uploads/player-portrait',{headers:{Authorization:'Bearer e2e-control','Content-Type':mime,'X-File-Name':'portrait.'+extension},data:Buffer.from(data,'base64')});
       expect(response.status()).toBe(201);expect((await request.get((await response.json()).url)).status()).toBe(200);
     }
-    await page.getByRole('button',{name:'Hide match settings',exact:true}).click();
+    await page.getByRole('button',{name:'Close team settings',exact:true}).click();
     for(let i=0;i<5;i++) await h.send({type:'draft_action',...phases('match')[i],heroId:heroes[i].id});
     await expect(overlay.locator('.pick-team.blue .hero-art')).toHaveCount(1);
     await expect(overlay.locator('.pick-team.blue .player-portrait')).toHaveCount(0);
     await h.send({type:'undo'});await expect(overlay.locator('.pick-team.blue .player-portrait').first()).toHaveAttribute('src',url);
-    await page.reload();await page.getByRole('button',{name:'Match settings',exact:true}).click();
+    await page.reload();await page.getByRole('button',{name:'Team settings',exact:true}).click();
     await expect(page.getByLabel('Player portrait URL',{exact:true}).first()).toHaveValue(url);
     await page.getByRole('button',{name:'Clear image',exact:true}).first().click();
     await page.getByRole('button',{name:'Save settings',exact:true}).click();await expect(overlay.locator('.player-portrait')).toHaveCount(0);

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CaptureRequest } from './captureRequest';
 import type { Action, Side } from '../shared/types';
 import { canMergePostGameField, postGameMetricLabel, postGameTeamMetricLabel, type PostGameMetric, type PostGamePage, type PostGameReport, type PostGameTeamMetric } from '../shared/postGame';
 import { settlementPages, settlementPageLabel, type NumericCandidate } from '../shared/gameCapture';
 import { mergeSettlementIdentityMapping } from '../shared/settlementIdentity';
 import { frameDifference, frameFingerprint, framePageHint, useGameDataCapture } from './useGameDataCapture';
+import { hasPostGameFieldUpdate } from './postGameUpdates';
 
 interface SettlementResult {
   page:PostGamePage; reportId:string; capturedAt:number; evidence:string; elapsedMs:number;
@@ -17,24 +19,27 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
   const [mapping,setMapping]=useState<Record<string,string>>(()=>readMapping(report.id)),[busy,setBusy]=useState(false),[auto,setAuto]=useState(false),[message,setMessage]=useState('');
   const [recapLeft,setRecapLeft]=useState<Side|''>('');
   const active=useRef(''),running=useRef(false),epoch=useRef(0);
-  active.current=`${report.id}:${page}:${capture.generation.current}`;
-  useEffect(()=>{setResults({});setMapping(readMapping(report.id));setRecapLeft('');setAuto(false);epoch.current++;},[report.id]);
+  const pending=useRef(new CaptureRequest());
+  const cancelCapture=useCallback(()=>{epoch.current++;pending.current.cancel();running.current=false;setBusy(false);},[]);
+  active.current=JSON.stringify([report.id,page,capture.generation.current,disabled,token]);
+  useEffect(()=>{setResults({});setMapping(readMapping(report.id));setRecapLeft('');setAuto(false);cancelCapture();},[report.id,cancelCapture]);
+  useEffect(()=>{cancelCapture();},[page,capture.sourceVersion,disabled,token,cancelCapture]);
   useEffect(()=>{localStorage.setItem('hok-settlement-mapping-v1:'+report.id,JSON.stringify(mapping));},[report.id,mapping]);
-  useEffect(()=>()=>{epoch.current++;},[]);
+  useEffect(()=>{const request=pending.current;return()=>{request.cancel();};},[]);
   async function recognize(canvas:HTMLCanvasElement){
     if(running.current||disabled)return false;
-    running.current=true;setBusy(true);const signature=active.current,version=epoch.current;
+    running.current=true;setBusy(true);const signature=active.current,version=epoch.current,source=capture.generation.current,request=pending.current.start(30000);
     try{
-      const response=await fetch(`${(import.meta.env.VITE_API_URL||'').replace(/\/$/,'')}/api/v1/recognition/settlement`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image:canvas.toDataURL('image/jpeg',.94),reportId:report.id,page}),signal:AbortSignal.timeout(30000)});
+      const response=await fetch(`${(import.meta.env.VITE_API_URL||'').replace(/\/$/,'')}/api/v1/recognition/settlement`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({image:canvas.toDataURL('image/jpeg',.94),reportId:report.id,page}),signal:request.signal});
       const result=await response.json();if(!response.ok)throw new Error(result.error);
-      if(active.current!==signature||epoch.current!==version)return false;
+      if(!request.isCurrent()||request.signal.aborted||active.current!==signature||epoch.current!==version||source!==capture.generation.current)return false;
       const data=result as SettlementResult;
       setResults(old=>({...old,[data.page]:data}));setSelected(data.page);
       setMapping(old=>mergeSettlementIdentityMapping(old,data.rows));
       setMessage(zh?`已采集${settlementPageLabel(data.page,true)}页；请核对身份及数字后应用。`:`Captured ${data.page}; review identities and values before applying.`);
       return true;
-    }catch(e){if(epoch.current===version&&active.current===signature)setMessage(e instanceof Error?e.message:'Capture failed');return false;}
-    finally{running.current=false;setBusy(false);}
+    }catch(e){if(request.isCurrent()&&epoch.current===version&&active.current===signature&&source===capture.generation.current)setMessage(request.signal.reason instanceof Error?request.signal.reason.message:e instanceof Error?e.message:'Capture failed');return false;}
+    finally{if(request.finish()){running.current=false;setBusy(false);}}
   }
   const recognizeRef=useRef(recognize);recognizeRef.current=recognize;
   const captureRef=useRef(capture);captureRef.current=capture;
@@ -57,13 +62,16 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
   const result=results[selected];
   const mappings=result?.rows.map(row=>mapping[String(row.screenRow)]||'')??[];
   const complete=mappings.length===10&&mappings.every(Boolean)&&new Set(mappings).size===10&&mappings.every((id,index)=>report.players.some(p=>p.rowId===id&&p.side===(index<5?'blue':'red')));
-  const updates=result?.candidates.filter(c=>c.value!==null&&c.confidence>=.85).map(c=>({rowId:mappings[c.screenRow],metric:c.metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:result.page,evidence:result.evidence,capturedAt:result.capturedAt}}))??[];
+  const updates=result?.candidates.filter(c=>c.value!==null&&c.confidence>=.85).map(c=>({rowId:mappings[c.screenRow],metric:c.metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:result.page,evidence:result.evidence,capturedAt:result.capturedAt}})).filter(update=>{
+    const player=report.players.find(player=>player.rowId===update.rowId);
+    return !!player&&hasPostGameFieldUpdate(player.fields[update.metric],update.field);
+  })??[];
   return <details className="panel" open><summary>{zh?'结算整页采集 · 实机模板':'Full-page settlement capture · game template'}</summary>
     <p className="muted">{zh?'同一局十行身份映射跨所有结算页复用，首次核对即可；发现页面行序变化时请人工修改。对局页仍须确认左右队伍。评分可在下方单独补录；经济曲线通过时间点导入。':'One ten-row identity mapping is shared across settlement pages; review once, adjust only if the order changes. Confirm recap sides separately. Rating can be entered below; gold trends use time-series samples.'}</p>
     {capture.controls}
-    <div className="toolbar"><label>{zh?'页面类型':'Page type'}<select aria-label="Settlement page type" value={page} onChange={e=>{epoch.current++;setPage(e.target.value as PostGamePage|'auto');}}><option value="auto">{zh?'自动判页':'Detect automatically'}</option>{settlementPages.map(p=><option key={p} value={p}>{settlementPageLabel(p,zh)}</option>)}</select></label>
+    <div className="toolbar"><label>{zh?'页面类型':'Page type'}<select aria-label="Settlement page type" value={page} onChange={e=>{cancelCapture();setPage(e.target.value as PostGamePage|'auto');}}><option value="auto">{zh?'自动判页':'Detect automatically'}</option>{settlementPages.map(p=><option key={p} value={p}>{settlementPageLabel(p,zh)}</option>)}</select></label>
       <button disabled={disabled||busy||!capture.ready} onClick={()=>{try{void recognize(capture.frame());}catch(e){setMessage(String(e));}}}>{busy?(zh?'整页识别中…':'Reading page…'):(zh?'采集整页':'Capture full page')}</button>
-      <label><input type="checkbox" checked={auto} disabled={disabled||capture.isStill} onChange={e=>{epoch.current++;setAuto(e.target.checked);}}/>{zh?'稳定画面后自动采集草稿':'Collect drafts when frames stabilize'}</label>
+      <label><input type="checkbox" checked={auto} disabled={disabled||capture.isStill} onChange={e=>{cancelCapture();setAuto(e.target.checked);}}/>{zh?'稳定画面后自动采集草稿':'Collect drafts when frames stabilize'}</label>
     </div>
     <div className="toolbar">{settlementPages.map(p=><button disabled={!results[p]} key={p} onClick={()=>setSelected(p)}>{settlementPageLabel(p,zh)} {results[p]?'✓':'—'}</button>)}</div>
     {result&&<><p className="muted">{zh?'本局统一选手顺序：第一次确认后，切换输出、生存、经济等页不必重复选择。':'Shared player order for this game: no remapping needed on each page.'}</p><p>{Math.round(result.elapsedMs)} ms · <a href={result.evidence} target="_blank" rel="noreferrer">{zh?'整页原图证据':'Page evidence'}</a></p>

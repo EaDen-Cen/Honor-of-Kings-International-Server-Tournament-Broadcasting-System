@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { harness } from './harness';
 
 async function resetMatch(match: Awaited<ReturnType<typeof harness>>) {

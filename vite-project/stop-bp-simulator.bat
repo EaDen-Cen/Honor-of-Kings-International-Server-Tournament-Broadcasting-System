@@ -8,16 +8,11 @@ echo   HOK BP Simulator - Stopping...
 echo ==========================================
 echo.
 
-set "FOUND=0"
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":5173" ^| findstr "LISTENING"') do (
-  set "FOUND=1"
-  taskkill /PID %%P /F >nul 2>&1
-)
-
-if "%FOUND%"=="0" (
-  echo No simulator process was listening on port 5173.
-) else (
-  echo Simulator stopped.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop-managed.ps1" -Target simulator
+if errorlevel 1 (
+  echo [ERROR] HOK simulator could not be stopped. See the error above.
+  pause
+  exit /b 1
 )
 
 timeout /t 1 /nobreak >nul

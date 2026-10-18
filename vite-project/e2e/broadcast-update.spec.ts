@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import { harness } from './harness';
 import heroes from '../src/components/HeroList';
 
@@ -35,25 +35,57 @@ test('empty history, inline settings and BO win boxes follow authoritative side 
 test('recognition requires review; rejection and stale results cannot submit; manual fallback works',async({browser,baseURL})=>{
   const h=await harness(baseURL),context=await browser.newContext();
   try {
-    await h.send({type:'reset_match'});await h.send({type:'settings',settings:{...h.state(),language:'eng',bpInputMode:'screen'}});
+    await h.send({type:'reset_match'});await h.send({type:'settings',settings:{...h.state(),language:'eng',bpInputMode:'screen',recognitionAutoAccept:false}});
     const page=await context.newPage();let fail=false;
-    await page.route('**/api/capture',route=>route.fulfill({status:fail?503:200,contentType:'application/json',body:JSON.stringify(fail?{error:'disabled'}:{candidates:[{heroId:heroes[0].id,confidence:.96}],preview:'data:image/png;base64,iVBORw0KGgo='})}));
+    await page.addInitScript(()=>{
+      localStorage.setItem('hok-capture-auto-watch','0');localStorage.setItem('hok-player-slot-auto','0');
+      Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{value:async()=>{
+        const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
+        canvas.getContext('2d')!.fillRect(0,0,1920,1080);return canvas.captureStream(10);
+      }});
+    });
+    await page.route('**/api/recognize-frame',async route=>{
+      const body=route.request().postDataJSON();
+      expect(body.image).toMatch(/^data:image\/png;base64,/);expect(body.lockImage).toMatch(/^data:image\/png;base64,/);
+      await route.fulfill({status:fail?503:200,json:fail?{error:'disabled'}:{candidates:[{heroId:heroes[0].id,confidence:.96}],preview:body.image,lockCue:'padlock'}});
+    });
     await page.goto('/control#token=e2e-control');
-    await page.getByRole('button',{name:'Read region',exact:true}).click();
-    await expect(page.getByRole('dialog',{name:'Review recognition'})).toBeVisible();
-    expect(h.state().currentPhase).toBe(0);
-    await page.getByRole('button',{name:'Reject / select manually'}).click();expect(h.state().currentPhase).toBe(0);
-    await page.getByRole('button',{name:'Read region',exact:true}).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await h.send({type:'delay',seconds:0});await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button',{name:'Read region',exact:true}).click();
-    await page.getByRole('button',{name:'Confirm and submit'}).click();
-    await expect.poll(()=>h.state().currentPhase).toBe(1);
-    expect(h.state().blueBans).toEqual([heroes[0].id]);
-    fail=true;await page.getByRole('button',{name:'Read region',exact:true}).click();
-    await expect(page.locator('.screen-input [role="status"]')).toContainText('Capture unavailable');
+    await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    const scan=page.getByRole('button',{name:'Recognize now',exact:true});
+    const review=page.getByRole('dialog',{name:'Review recognition',exact:true});
+    for(let i=0;i<3;i++){
+      await scan.click();await expect(scan).toBeEnabled();
+      if(i<2)await expect(review).not.toBeVisible();
+    }
+    await expect(review).toBeVisible();expect(h.state().currentPhase).toBe(0);
+    await review.getByRole('button',{name:'Reject / keep watching',exact:true}).click();
+    await expect(review).toHaveCount(0);expect(h.state().currentPhase).toBe(0);expect(h.state().blueBans).toEqual([]);
+
+    await scan.click();await expect(review).toBeVisible();
+    await h.send({type:'skip_ban',team:'blue'});await expect(review).toHaveCount(0);
+    expect(h.state().currentPhase).toBe(1);
+    await h.send({type:'undo'});
+    await expect(page.locator('.screen-input .capture-explicit-slot.blue.active')).toHaveCount(1);
+    expect(h.state().currentPhase).toBe(0);expect(h.state().blueBans).toEqual([]);
+
+    const capturedAt=Date.now();await page.clock.setFixedTime(capturedAt);
+    for(let i=0;i<3;i++){await scan.click();await expect(scan).toBeEnabled();}
+    await expect(review).toBeVisible();
+    await page.clock.setFixedTime(capturedAt+31000);
+    await review.getByRole('button',{name:'Confirm and submit',exact:true}).click();
+    await expect(review).toHaveCount(0);
+    await expect(page.locator('.screen-input [role="status"]')).toContainText('Result expired. Capture again.');
+    expect(h.state().currentPhase).toBe(0);expect(h.state().blueBans).toEqual([]);
+
+    await scan.click();await expect(review).toBeVisible();
+    await review.getByRole('button',{name:'Confirm and submit',exact:true}).click();
+    await expect.poll(()=>h.state().currentPhase).toBe(1);expect(h.state().blueBans).toEqual([heroes[0].id]);
+    fail=true;await scan.click();
+    await expect(page.locator('.screen-input [role="status"]')).toContainText('Window-frame recognition failed.');
+    expect(h.state().currentPhase).toBe(1);
+    await page.getByText('Manual hero picker (fallback)',{exact:true}).click();
     await page.getByLabel('Search heroes',{exact:true}).fill(heroes[1].englishName);
-    await page.locator('.hero-grid button:not(:disabled)').first().click();
-    await expect.poll(()=>h.state().currentPhase).toBe(2);
+    await page.locator('.manual-picker-fallback .hero-grid').getByRole('button',{name:heroes[1].englishName,exact:true}).click();
+    await expect.poll(()=>h.state().currentPhase).toBe(2);expect(h.state().redBans).toEqual([heroes[1].id]);
   } finally {await h.send({type:'reset_match'});h.close();await context.close();}
 });

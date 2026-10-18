@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 title HOK Broadcast Launcher
 
@@ -14,6 +14,7 @@ where cloudflared >nul 2>&1 || (echo [ERROR] cloudflared was not found in PATH.&
 if not exist "package.json" (echo [ERROR] Launcher must stay in vite-project.& pause & exit /b 1)
 if not exist "run-cloudflare.ps1" (echo [ERROR] run-cloudflare.ps1 is missing. Run git pull again.& pause & exit /b 1)
 if not exist "run-server.ps1" (echo [ERROR] run-server.ps1 is missing. Extract the complete update package.& pause & exit /b 1)
+if not exist "scripts\managed-process.ps1" (echo [ERROR] scripts\managed-process.ps1 is missing. Extract the complete update package.& pause & exit /b 1)
 
 echo Preparing dependencies and web pages...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-server.ps1" -PrepareOnly
@@ -24,29 +25,25 @@ if errorlevel 1 (
 )
 
 if not exist "artifacts" mkdir "artifacts"
-del /q "artifacts\cloudflared.log" >nul 2>&1
-del /q "artifacts\current-public-url.txt" >nul 2>&1
-
-echo [1/6] Stopping old HOK server on port 3001...
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /PID %%P /F >nul 2>&1
-echo [2/6] Stopping old Cloudflare tunnel...
-taskkill /IM cloudflared.exe /F >nul 2>&1
-timeout /t 1 /nobreak >nul
-
-echo [3/6] Starting HOK server...
+echo [1/4] Starting or reusing HOK server...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-server.ps1" -Background
+if errorlevel 1 (
+  echo [ERROR] Server startup failed. Check the error above; other applications were not stopped.
+  pause
+  exit /b 1
+)
 echo       Waiting for local server...
 set /a SERVER_TRIES=0
 :wait_server
 powershell -NoProfile -Command "try { $h=Invoke-RestMethod -Uri 'http://127.0.0.1:3001/api/health' -TimeoutSec 2; if(-not $h.ok){exit 1}; Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:3001/control' -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 goto server_ready
 set /a SERVER_TRIES+=1
-if !SERVER_TRIES! GEQ 30 goto server_failed
+if %SERVER_TRIES% GEQ 30 goto server_failed
 timeout /t 1 /nobreak >nul
 goto wait_server
 
 :server_failed
-echo [ERROR] Server did not become ready within 30 seconds.
+echo [ERROR] Server did not become ready after 30 checks.
 echo Server error log:
 if exist "artifacts\server.log" type "artifacts\server.log"
 echo Full log: %~dp0artifacts\server.log
@@ -55,42 +52,45 @@ exit /b 1
 
 :server_ready
 echo       Server is ready.
-echo [4/6] Starting Cloudflare Quick Tunnel...
-start "HOK Cloudflare Tunnel" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-cloudflare.ps1"
+echo [2/4] Starting or reusing Cloudflare Quick Tunnel...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-cloudflare.ps1" -Background
+if errorlevel 1 (
+  echo [ERROR] Tunnel startup failed. Check the error above.
+  pause
+  exit /b 1
+)
 
-echo [5/6] Waiting for public URL...
+echo [3/4] Waiting for public URL...
 set /a TUNNEL_TRIES=0
 :wait_tunnel
 set "PUBLIC_URL="
-if exist "artifacts\cloudflared.log" (
-  for /f "delims=" %%U in ('powershell -NoProfile -Command "$text=Get-Content -Raw -LiteralPath 'artifacts\cloudflared.log'; $m=[regex]::Matches($text,'https://[a-zA-Z0-9-]+\.trycloudflare\.com'); if($m.Count){$m[$m.Count-1].Value}"') do set "PUBLIC_URL=%%U"
-)
+for /f "delims=" %%U in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File run-cloudflare.ps1 -GetUrl 2^>nul') do set "PUBLIC_URL=%%U"
 if defined PUBLIC_URL goto tunnel_ready
 set /a TUNNEL_TRIES+=1
-if !TUNNEL_TRIES! GEQ 60 goto tunnel_failed
+if %TUNNEL_TRIES% GEQ 60 goto tunnel_failed
 timeout /t 1 /nobreak >nul
 goto wait_tunnel
 
 :tunnel_failed
-echo [ERROR] No public URL was found within 60 seconds.
+echo [ERROR] No active tunnel URL was found after 60 checks.
 echo.
 if exist "artifacts\cloudflared.log" (
   echo Cloudflare log:
   type "artifacts\cloudflared.log"
 ) else (
   echo [ERROR] cloudflared.log was not created.
-  echo         Check the "HOK Cloudflare Tunnel" window.
+  echo         Check cloudflared installation and network access.
 )
 pause
 exit /b 1
 
 :tunnel_ready
-> "artifacts\current-public-url.txt" echo !PUBLIC_URL!
->>"artifacts\current-public-url.txt" echo !PUBLIC_URL!/control
->>"artifacts\current-public-url.txt" echo !PUBLIC_URL!/caster
->>"artifacts\current-public-url.txt" echo !PUBLIC_URL!/overlay/draft
+> "artifacts\current-public-url.txt" echo %PUBLIC_URL%
+>>"artifacts\current-public-url.txt" echo %PUBLIC_URL%/control
+>>"artifacts\current-public-url.txt" echo %PUBLIC_URL%/caster
+>>"artifacts\current-public-url.txt" echo %PUBLIC_URL%/overlay/draft
 
-echo [6/6] Opening local Director window...
+echo [4/4] Opening local Director window...
 if exist "open-director.ps1" (
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0open-director.ps1" -Url "http://127.0.0.1:3001/control"
 ) else (
@@ -104,13 +104,13 @@ echo Local Control:
 echo   http://127.0.0.1:3001/control
 echo.
 echo Public:
-echo   !PUBLIC_URL!
+echo   %PUBLIC_URL%
 echo.
 echo Caster:
-echo   !PUBLIC_URL!/caster
+echo   %PUBLIC_URL%/caster
 echo.
 echo Overlay:
-echo   !PUBLIC_URL!/overlay/draft
+echo   %PUBLIC_URL%/overlay/draft
 echo.
 echo Saved to artifacts\current-public-url.txt
 echo ==========================================

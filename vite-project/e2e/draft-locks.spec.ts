@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures';
 import {detectDraftLockCue} from '../server/draftCueDetection';
 import {createDefaultBpSimulatorState} from '../src/simulator/bpSimulatorState';
 import {harness} from './harness';

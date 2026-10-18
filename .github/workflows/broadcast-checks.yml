@@ -1,0 +1,80 @@
+name: Broadcast system checks
+
+on:
+  push:
+    paths:
+      - 'vite-project/**'
+      - '.github/workflows/broadcast-checks.yml'
+  pull_request:
+    paths:
+      - 'vite-project/**'
+      - '.github/workflows/broadcast-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: broadcast-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: vite-project
+    env:
+      CI: 'true'
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: vite-project/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          mkdir -p artifacts/ci
+          npm ci 2>&1 | tee artifacts/ci/install.log
+
+      - name: Build production application
+        run: npm run build 2>&1 | tee artifacts/ci/build.log
+
+      - name: Lint
+        run: npm run lint 2>&1 | tee artifacts/ci/lint.log
+
+      - name: Run unit and server tests
+        run: npm test 2>&1 | tee artifacts/ci/tests.log
+
+      - name: Validate launcher process ownership and locking
+        run: pwsh -NoProfile -File scripts/managed-process.test.ps1 2>&1 | tee artifacts/ci/launchers.log
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci/browser-install.log
+
+      - name: Run all browser regressions
+        run: npm run test:e2e -- --reporter=line,html 2>&1 | tee artifacts/ci/browser-tests.log
+
+      - name: Upload failure logs, screenshots and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: broadcast-checks-failure-${{ github.run_attempt }}
+          path: |
+            vite-project/artifacts/ci/
+            vite-project/artifacts/e2e-*/server.log
+            vite-project/artifacts/**/*.png
+            vite-project/test-results/
+            vite-project/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14

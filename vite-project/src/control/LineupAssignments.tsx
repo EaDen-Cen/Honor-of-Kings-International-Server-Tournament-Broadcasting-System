@@ -15,20 +15,7 @@ import {
   subscribeSharedWindowCapture,
   requestWindowCapture,
 } from './sharedWindowCapture';
-
-interface Candidate { heroId:number; confidence:number }
-interface SlotResult {
-  side: Side;
-  playerIndex: number;
-  preview: string;
-  candidates: Candidate[];
-}
-interface SolvedTeam {
-  heroes: number[];
-  confidence: number[];
-  average: number;
-  minimum: number;
-}
+import { solveLineupTeam as solveTeam, type Candidate, type SlotResult } from './lineupRecognition';
 
 const SLOTS_STORAGE='hok-window-capture-slots-v3';
 
@@ -38,26 +25,6 @@ function readCaptureSlots():CaptureSlots {
     if(stored&&typeof stored==='object') return normalizeCaptureSlots(stored);
   } catch { /* use defaults */ }
   return normalizeCaptureSlots(defaultCaptureSlots);
-}
-
-function permutations(values:number[]):number[][] {
-  if(values.length<=1) return [values];
-  return values.flatMap((value,index)=>
-    permutations([...values.slice(0,index),...values.slice(index+1)]).map(rest=>[value,...rest]));
-}
-
-function solveTeam(slots:SlotResult[],picks:number[]):SolvedTeam|undefined {
-  if(slots.length!==5||picks.length!==5) return;
-  let best:SolvedTeam|undefined;
-  for(const order of permutations(picks)) {
-    const confidence=order.map((heroId,index)=>
-      slots[index].candidates.find(candidate=>candidate.heroId===heroId)?.confidence ?? -1);
-    if(confidence.some(value=>value<0)) continue;
-    const average=confidence.reduce((sum,value)=>sum+value,0)/confidence.length;
-    const minimum=Math.min(...confidence);
-    if(!best||average>best.average) best={heroes:order,confidence,average,minimum};
-  }
-  return best;
 }
 
 function sameLineup(a:Array<number|null>,b:number[]) {
@@ -117,26 +84,37 @@ export function LineupAssignments({
   send:(action:Action)=>void;
 }) {
   const zh=state.language==='zh';
-  const [auto,setAuto]=useState(()=>localStorage.getItem('hok-lineup-auto')!=='0');
+  const [auto,setAuto]=useState(()=>{try{return localStorage.getItem('hok-lineup-auto')!=='0';}catch{return true;}});
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [results,setResults]=useState<SlotResult[]>([]);
   const [videoReady,setVideoReady]=useState(false);
   const [streamLabel,setStreamLabel]=useState('');
+  const [connecting,setConnecting]=useState(false);
+  const [slots,setSlots]=useState(readCaptureSlots);
   const videoRef=useRef<HTMLVideoElement>(null);
   const streamRef=useRef<MediaStream>();
   const mounted=useRef(true);
   const applying=useRef<{signature:string;at:number}>({signature:'',at:0});
   const stableRef=useRef({signature:'',count:0});
   const busyRef=useRef(false);
+  const activeScan=useRef<AbortController>();
+  const captureRequest=useRef<AbortController>();
+  const context=JSON.stringify([state.gameNumber,state.blueTeam.id,state.redTeam.id,state.bluePicks,state.redPicks,state.blueAssignments,state.redAssignments,state.bluePlayerSlotOrder,state.redPlayerSlotOrder,state.draftComplete,state.committedGameId,state.bpInputMode,disabled,token,auto,slots]);
+  const contextRef=useRef(context);
+  contextRef.current=context;
 
-  const slots=readCaptureSlots();
   const blueResults=results.filter(slot=>slot.side==='blue').sort((a,b)=>a.playerIndex-b.playerIndex);
   const redResults=results.filter(slot=>slot.side==='red').sort((a,b)=>a.playerIndex-b.playerIndex);
   const blueSolved=useMemo(()=>solveTeam(blueResults,state.bluePicks),[blueResults,state.bluePicks]);
   const redSolved=useMemo(()=>solveTeam(redResults,state.redPicks),[redResults,state.redPicks]);
 
   const attachStream=useCallback(async(stream:MediaStream|undefined)=>{
+    if(streamRef.current!==stream){
+      activeScan.current?.abort();
+      stableRef.current={signature:'',count:0};
+      setResults([]);
+    }
     streamRef.current=stream;
     const video=videoRef.current;
     if(!stream||!video){
@@ -147,55 +125,79 @@ export function LineupAssignments({
     }
     video.srcObject=stream;
     video.muted=true;
+    setVideoReady(false);
     try {
       await video.play();
+      if(!mounted.current||streamRef.current!==stream||video.srcObject!==stream)return;
       const track=stream.getVideoTracks()[0];
       setStreamLabel(track?.label||'BP window');
       setVideoReady(!!video.videoWidth&&!!video.videoHeight);
       if(video.readyState<1) {
         video.addEventListener('loadedmetadata',()=>{
-          if(mounted.current) setVideoReady(true);
+          if(mounted.current&&streamRef.current===stream&&video.srcObject===stream) setVideoReady(!!video.videoWidth&&!!video.videoHeight);
         },{once:true});
       }
     } catch {
-      setVideoReady(false);
+      if(mounted.current&&streamRef.current===stream) setVideoReady(false);
     }
   },[]);
 
   useEffect(()=>{
     mounted.current=true;
+    const element=videoRef.current;
     void attachStream(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>{void attachStream(stream);});
     return()=>{
       mounted.current=false;
       unsubscribe();
+      captureRequest.current?.abort();
+      activeScan.current?.abort();
+      if(element)element.srcObject=null;
     };
   },[attachStream]);
 
+  useEffect(()=>{
+    const refresh=()=>setSlots(readCaptureSlots());
+    window.addEventListener('hok-capture-slots-changed',refresh);
+    return()=>window.removeEventListener('hok-capture-slots-changed',refresh);
+  },[]);
+
+  useEffect(()=>{
+    activeScan.current?.abort();
+    stableRef.current={signature:'',count:0};
+    applying.current={signature:'',at:0};
+    setResults([]);
+    setMessage('');
+  },[context]);
+
   const connectWindow=useCallback(async()=>{
+    if(captureRequest.current||disabled)return;
     if(!navigator.mediaDevices?.getDisplayMedia) {
       setMessage(zh?'当前浏览器不支持窗口采集。':'Window capture is not supported by this browser.');
       return;
     }
+    const controller=new AbortController();
+    captureRequest.current=controller;
+    setConnecting(true);
     try {
-      const stream=await requestWindowCapture();
+      const stream=await requestWindowCapture(controller.signal);
       if(!mounted.current){stream.getTracks().forEach(track=>track.stop());return;}
       setSharedWindowCaptureStream(stream);
-      const track=stream.getVideoTracks()[0];
-      track?.addEventListener('ended',()=>{
-        if(getSharedWindowCaptureStream()===stream) setSharedWindowCaptureStream(undefined);
-      },{once:true});
     } catch {
-      setMessage(zh?'未连接 BP 窗口，换英雄仍可手动修改。':'BP window was not connected; hero swaps can still be adjusted manually.');
+      if(mounted.current&&!controller.signal.aborted)setMessage(zh?'未连接 BP 窗口，换英雄仍可手动修改。':'BP window was not connected; hero swaps can still be adjusted manually.');
+    } finally {
+      if(captureRequest.current===controller)captureRequest.current=undefined;
+      if(mounted.current)setConnecting(false);
     }
-  },[zh]);
+  },[disabled,zh]);
 
   const applyLineups=useCallback((blue:number[],red:number[])=>{
-    if(disabled||state.committedGameId) return;
+    if(disabled||!state.draftComplete||state.committedGameId) return;
     send({type:'set_lineup_assignments',blue,red});
-  },[disabled,state.committedGameId,send]);
+  },[disabled,state.draftComplete,state.committedGameId,send]);
 
-  const recognizeSlot=useCallback(async(side:Side,index:number)=>{
+  const recognizeSlot=useCallback(async(side:Side,index:number,signal:AbortSignal)=>{
+    signal.throwIfAborted();
     const video=videoRef.current;
     if(!videoReady||!video||!video.videoWidth||!video.videoHeight) throw new Error(zh?'BP 窗口未连接。':'BP window is not connected.');
     const key=pickKey(side,index);
@@ -209,7 +211,7 @@ export function LineupAssignments({
         allowedHeroIds:state[`${side}Picks`],
         shape:'square',
       }),
-      signal:AbortSignal.timeout(25000),
+      signal,
     });
     const data=await response.json();
     if(!response.ok) throw new Error(zh?'换英雄识别失败。':'Hero-swap recognition failed.');
@@ -225,13 +227,18 @@ export function LineupAssignments({
     if(busyRef.current||disabled||!state.draftComplete||state.committedGameId||state.bpInputMode!=='screen'||!videoReady) return;
     busyRef.current=true;
     setBusy(true);
+    const capturedContext=contextRef.current;
+    const capturedStream=streamRef.current;
+    const controller=new AbortController();
+    activeScan.current=controller;
+    const timeout=setTimeout(()=>controller.abort(),25000);
     try {
       const work=(['blue','red'] as const).flatMap(side=>
         Array.from({length:5},(_,index)=>({side,index})));
       // Final-lineup swaps are not frame-critical. Keep only two recognition
       // requests in flight to avoid CPU spikes while OBS is encoding.
-      const scanned=await mapWithConcurrency(work,2,item=>recognizeSlot(item.side,item.index));
-      if(!mounted.current) return;
+      const scanned=await mapWithConcurrency(work,2,item=>recognizeSlot(item.side,item.index,controller.signal));
+      if(!mounted.current||controller.signal.aborted||capturedContext!==contextRef.current||capturedStream!==streamRef.current)return;
       setResults(scanned);
 
       const blue=solveTeam(scanned.filter(slot=>slot.side==='blue').sort((a,b)=>a.playerIndex-b.playerIndex),state.bluePicks);
@@ -264,8 +271,13 @@ export function LineupAssignments({
           : `Hero swap detected; automatic lineup sync sent · blue ${Math.round(blue.average*100)}% · red ${Math.round(red.average*100)}%`);
       }
     } catch(error) {
-      if(mounted.current) setMessage(error instanceof Error?error.message:'Capture failed');
+      if(mounted.current&&capturedContext===contextRef.current&&capturedStream===streamRef.current) setMessage(controller.signal.aborted
+        ? (zh?'识别超时，请检查连接后重试。':'Recognition timed out. Check the connection and retry.')
+        : error instanceof Error?error.message:'Capture failed');
     } finally {
+      clearTimeout(timeout);
+      controller.abort();
+      if(activeScan.current===controller)activeScan.current=undefined;
       busyRef.current=false;
       if(mounted.current) setBusy(false);
     }
@@ -287,6 +299,12 @@ export function LineupAssignments({
 
   const current=(side:Side)=>state[`${side}Assignments`] as Array<number|null>;
   const picked=(side:Side)=>state[`${side}Picks`];
+  const pauseAuto=()=>{
+    activeScan.current?.abort();
+    setAuto(false);
+    try{localStorage.setItem('hok-lineup-auto','0');}catch{/* Session setting still applies. */}
+    setMessage(zh?'已暂停自动同步，保留手动阵容。需要时可重新开启。':'Automatic sync paused to preserve the manual lineup. You can enable it again.');
+  };
   const change=(side:Side,index:number,heroId:number)=>{
     const blue=[...state.blueAssignments] as Array<number|null>;
     const red=[...state.redAssignments] as Array<number|null>;
@@ -295,6 +313,7 @@ export function LineupAssignments({
     if(other<0||assignments[index]===heroId) return;
     [assignments[index],assignments[other]]=[assignments[other],assignments[index]];
     if(blue.some(value=>value===null)||red.some(value=>value===null)) return;
+    pauseAuto();
     applyLineups(blue as number[],red as number[]);
   };
   const resultFor=(side:Side,index:number)=>results.find(result=>result.side===side&&result.playerIndex===index);
@@ -307,7 +326,7 @@ export function LineupAssignments({
           <h2>{zh?'最终阵容归属 / 换英雄检测':'Final lineup ownership / hero-swap detection'}</h2>
           <p className="muted">{zh?'Pick/Ban 历史保持不变；这里根据最终 10 个玩家槽位持续检测英雄互换。':'Pick/Ban history stays immutable; this continuously watches the ten final player slots for hero swaps.'}</p>
         </div>
-        <button disabled={disabled} onClick={()=>applyLineups([...state.bluePicks],[...state.redPicks])}>{zh?'按选角顺序重置':'Reset to pick order'}</button>
+        <button disabled={disabled} onClick={()=>{pauseAuto();applyLineups([...state.bluePicks],[...state.redPicks]);}}>{zh?'按选角顺序重置':'Reset to pick order'}</button>
       </div>
 
       <div className="lineup-team-grid">
@@ -331,12 +350,13 @@ export function LineupAssignments({
       {state.bpInputMode==='screen'&&<div className="lineup-auto">
         <div className="lineup-auto-toolbar">
           <label><input type="checkbox" checked={auto} onChange={event=>{
+            activeScan.current?.abort();
             setAuto(event.target.checked);
-            localStorage.setItem('hok-lineup-auto',event.target.checked?'1':'0');
+            try{localStorage.setItem('hok-lineup-auto',event.target.checked?'1':'0');}catch{/* Session setting still applies. */}
           }} /> {zh?'自动检测并同步换英雄':'Automatically detect and sync hero swaps'}</label>
-          {!videoReady&&<button disabled={disabled} onClick={()=>void connectWindow()}>{zh?'连接 BP 窗口':'Connect BP window'}</button>}
+          {!videoReady&&<button disabled={disabled||connecting} onClick={()=>void connectWindow()}>{connecting?(zh?'正在连接…':'Connecting…'):(zh?'连接 BP 窗口':'Connect BP window')}</button>}
           <button disabled={disabled||busy||!videoReady} onClick={()=>void scan(true)}>{busy?(zh?'正在识别…':'Recognizing…'):(zh?'立即识别并应用换英雄':'Recognize and apply swap now')}</button>
-          {blueSolved&&redSolved&&<button disabled={disabled} onClick={()=>applyLineups(blueSolved.heroes,redSolved.heroes)}>{zh?'应用本次识别':'Apply this scan'}</button>}
+          {blueSolved&&redSolved&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,redSolved.heroes);}}>{zh?'应用本次识别':'Apply this scan'}</button>}
         </div>
         <p role="status" className="lineup-status">
           {message||(videoReady

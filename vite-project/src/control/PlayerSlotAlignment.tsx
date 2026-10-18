@@ -85,7 +85,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const [status,setStatus]=useState('');
   const [scan,setScan]=useState<Scan>();
   const [busy,setBusy]=useState(false);
-  const [auto,setAuto]=useState(()=>localStorage.getItem('hok-player-slot-auto')!=='0');
+  const [auto,setAuto]=useState(()=>{try{return localStorage.getItem('hok-player-slot-auto')!=='0';}catch{return true;}});
   const [manualScan,setManualScan]=useState(0);
   const [manualEdit,setManualEdit]=useState<Record<Side,boolean>>({blue:false,red:false});
   const [slots,setSlots]=useState(readSlots);
@@ -93,25 +93,28 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const [preview,setPreview]=useState('');
   const [calibrationOpen,setCalibrationOpen]=useState(false);
   const [idRegionPresets,setIdRegionPresets]=useState<PlayerIdRegionPreset[]>(
-    ()=>readPlayerIdRegionPresets(localStorage.getItem(PLAYER_ID_REGION_PRESETS_STORAGE)),
+    ()=>{try{return readPlayerIdRegionPresets(localStorage.getItem(PLAYER_ID_REGION_PRESETS_STORAGE));}catch{return [];}},
   );
   const [selectedIdRegionPresetId,setSelectedIdRegionPresetId]=useState('');
   const [idRegionPresetName,setIdRegionPresetName]=useState('');
 
   const video=useRef<HTMLVideoElement>(null);
-  const latest=useRef({state,disabled,send,scanContext:scan?.context});
+  const latest=useRef({state,disabled,send,scanContext:scan?.context,scan});
   const inFlight=useRef(false);
+  const activeRequest=useRef<AbortController>();
   const generation=useRef(0);
   const accepted=useRef<Partial<Record<Side,string>>>({});
   const verification=useRef<Partial<Record<Side,VerificationEvidence>>>({});
+  const submittedScan=useRef<{scan:Scan;orders:Partial<Record<Side,number[]>>}>();
   const lastSample=useRef<{schemaVersion:1;capturedAt:string;attempts:{images:string[];players:string[][];result:unknown}[]}>();
-  latest.current={state,disabled,send,scanContext:scan?.context};
+  latest.current={state,disabled,send,scanContext:scan?.context,scan};
 
-  const context=JSON.stringify([state.blueTeam.players,state.redTeam.players,state.gameNumber]);
+  const context=JSON.stringify([state.blueTeam.id,state.redTeam.id,state.blueTeam.players,state.redTeam.players,state.gameNumber,state.bpInputMode,state.committedGameId]);
   const contextRef=useRef(context);
   contextRef.current=context;
 
   useEffect(()=>{
+    submittedScan.current=undefined;
     accepted.current={};
     verification.current={};
     setScan(undefined);
@@ -122,6 +125,27 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   },[context,state.committedGameId]);
 
   useEffect(()=>{
+    if(!disabled)return;
+    generation.current++;
+    activeRequest.current?.abort();
+    verification.current={};
+    setScan(undefined);
+  },[disabled]);
+
+  useEffect(()=>{
+    if(disabled||!submittedScan.current)return;
+    const submitted=submittedScan.current;
+    submittedScan.current=undefined;
+    if(submitted.scan.context!==context)return;
+    const sides=Object.keys(submitted.orders) as Side[];
+    if(!sides.every(side=>sameOrder(state[`${side}PlayerSlotOrder`],submitted.orders[side]!)))return;
+    for(const side of sides)accepted.current[side]=submitted.orders[side]!.join(',');
+    // Only a proposal confirmed by authoritative state may regain its synced
+    // display after a pending write. Unconfirmed or failed scans stay invalid.
+    setScan(submitted.scan);
+  },[context,disabled,state]);
+
+  useEffect(()=>{
     const refresh=()=>setSlots(readSlots());
     window.addEventListener('hok-capture-slots-changed',refresh);
     return()=>window.removeEventListener('hok-capture-slots-changed',refresh);
@@ -129,20 +153,29 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
 
   useEffect(()=>{
     let active=true;
+    const element=video.current;
     const attach=async(stream:MediaStream|undefined)=>{
       if(!video.current)return;
-      video.current.srcObject=stream??null;
+      const element=video.current;
+      generation.current++;
+      activeRequest.current?.abort();
+      submittedScan.current=undefined;
+      accepted.current={};
+      verification.current={};
+      setScan(undefined);
+      element.srcObject=stream??null;
       setReady(false);
-      if(stream)try{await video.current.play();if(active)setReady(true);}catch{/* capture not ready */}
+      if(stream)try{await element.play();if(active&&element.srcObject===stream)setReady(!!element.videoWidth&&!!element.videoHeight);}catch{/* capture not ready */}
     };
     void attach(getSharedWindowCaptureStream());
     const unsubscribe=subscribeSharedWindowCapture(stream=>void attach(stream));
-    return()=>{active=false;unsubscribe();};
+    return()=>{active=false;unsubscribe();activeRequest.current?.abort();if(element)element.srcObject=null;};
   },[]);
 
   function apply(side:Side,solution:PlayerSlotSolution) {
     const current=latest.current;
     if(current.disabled||current.state.committedGameId||current.scanContext!==contextRef.current)return;
+    if(current.scan)submittedScan.current={scan:current.scan,orders:{[side]:[...solution.order]}};
     current.send({
       type:'set_player_slot_order',
       side,
@@ -161,6 +194,8 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   }
 
   function requestRescan() {
+    activeRequest.current?.abort();
+    submittedScan.current=undefined;
     accepted.current={};
     verification.current={};
     setScan(undefined);
@@ -170,37 +205,54 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   }
 
   function restoreAutoRecognition() {
+    activeRequest.current?.abort();
+    submittedScan.current=undefined;
     accepted.current={};
     verification.current={};
     setManualEdit({blue:false,red:false});
     setScan(undefined);
     setAuto(true);
-    localStorage.setItem('hok-player-slot-auto','1');
+    try{localStorage.setItem('hok-player-slot-auto','1');}catch{/* Session preference still applies. */}
     setStatus(zh?'已恢复自动识别，正在重新扫描…':'Automatic recognition restored; rescanning…');
     generation.current++;
     setManualScan(value=>value+1);
   }
 
+  function pauseRecognition() {
+    generation.current++;
+    activeRequest.current?.abort();
+    verification.current={};
+    setAuto(false);
+    setManualScan(0);
+    setBusy(false);
+    try{localStorage.setItem('hok-player-slot-auto','0');}catch{/* Session preference still applies. */}
+  }
+
   useEffect(()=>{
-    if(state.bpInputMode!=='screen'||state.committedGameId||(!auto&&manualScan===0))return;
+    if(disabled||!ready||state.bpInputMode!=='screen'||state.committedGameId||(!auto&&manualScan===0))return;
     let active=true;
     let providerReady=false;
+    let retryAt=0;
     const api=(import.meta.env.VITE_API_URL||'').replace(/\/$/,'');
     const headers={Authorization:`Bearer ${token}`};
 
     async function run() {
       const current=latest.current;
-      if(inFlight.current||(auto&&(['blue','red'] as const).every(side=>
+      if(inFlight.current||Date.now()<retryAt||(auto&&(['blue','red'] as const).every(side=>
         accepted.current[side]===current.state[`${side}PlayerSlotOrder`].join(',')
       )))return;
       inFlight.current=true;
+      const controller=new AbortController();
+      activeRequest.current=controller;
+      const timeout=setTimeout(()=>controller.abort(),20000);
       const epoch=generation.current;
       try{
         if(!ready||current.disabled||current.state.committedGameId||!video.current?.videoWidth)return;
         if(!providerReady){
-          const health=await fetch(`${api}/api/v1/recognition/players`,{headers}).then(r=>r.json());
+          const health=await fetch(`${api}/api/v1/recognition/players`,{headers,signal:controller.signal}).then(r=>r.json());
           if(!active)return;
           if(health.status!=='ready'){
+            retryAt=Date.now()+3000;
             setStatus(zh?`选手 OCR 未就绪：${health.error||health.status}`:`Player OCR not ready: ${health.error||health.status}`);
             return;
           }
@@ -235,7 +287,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
               players:[current.state.blueTeam.players,current.state.redTeam.players],
               gameNumber:current.state.gameNumber,
             }),
-            signal:AbortSignal.timeout(8000),
+            signal:controller.signal,
           });
           const value=await response.json();
           if(!response.ok)throw new Error(value.error);
@@ -276,22 +328,38 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           : `Local OCR ${Math.round(result.elapsedMs)} ms${usedFallback?' · automatic wide-ID fallback':''}${verifiedFrames>=2?' · temporal verification passed':''}`);
         if(!auto)setManualScan(0);
       }catch(error){
-        if(active)setStatus(error instanceof Error?error.message:'OCR failed');
-        if(!auto)setManualScan(0);
+        retryAt=Date.now()+2000;
+        if(active)setStatus(controller.signal.aborted
+          ? (zh?'选手识别超时，请检查连接后重试。':'Player recognition timed out. Check the connection and retry.')
+          : error instanceof Error?error.message:'OCR failed');
+        if(active&&!auto)setManualScan(0);
       }finally{
-        inFlight.current=false;
-        if(active)setBusy(false);
+        clearTimeout(timeout);
+        if(activeRequest.current===controller){
+          activeRequest.current=undefined;
+          inFlight.current=false;
+          if(active)setBusy(false);
+        }
       }
     }
+
+    const cleanup=()=>{
+      active=false;
+      generation.current++;
+      activeRequest.current?.abort();
+      activeRequest.current=undefined;
+      inFlight.current=false;
+      setBusy(false);
+    };
 
     if(auto){
       const timer=setInterval(()=>void run(),100);
       void run();
-      return()=>{active=false;clearInterval(timer);};
+      return()=>{cleanup();clearInterval(timer);};
     }
     void run();
-    return()=>{active=false;};
-  },[auto,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh]);
+    return cleanup;
+  },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh]);
 
   useEffect(()=>{
     if(!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
@@ -301,6 +369,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       !sameOrder(state.bluePlayerSlotOrder,scan.blue.order)||
       !sameOrder(state.redPlayerSlotOrder,scan.red.order)
     )){
+      submittedScan.current={scan,orders:{blue:[...scan.blue.order],red:[...scan.red.order]}};
       latest.current.send({type:'set_player_slot_orders',blue:scan.blue.order,red:scan.red.order,
         expectedPlayers:[[...state.blueTeam.players],[...state.redTeam.players]]});
       return;
@@ -324,13 +393,18 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
 
   function saveSlots(next:CaptureSlots) {
     const normalized=normalizeCaptureSlots(next);
-    localStorage.setItem(storage,JSON.stringify(normalized));
+    try{localStorage.setItem(storage,JSON.stringify(normalized));}catch{
+      setStatus(zh?'无法保存校准，请检查浏览器存储空间或隐私设置后重试。':'Calibration could not be saved. Check browser storage or privacy settings and retry.');
+      return false;
+    }
     setSlots(normalized);
     window.dispatchEvent(new Event('hok-capture-slots-changed'));
     accepted.current={};
     verification.current={};
     setScan(undefined);
     generation.current++;
+    activeRequest.current?.abort();
+    return true;
   }
 
   function updateSelectedRegion(nextRegion:NormalizedCaptureRegion) {
@@ -369,8 +443,12 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
 
   function persistIdRegionPresets(next:PlayerIdRegionPreset[]) {
     const ordered=[...next].sort((a,b)=>b.updatedAt-a.updatedAt);
+    try{localStorage.setItem(PLAYER_ID_REGION_PRESETS_STORAGE,JSON.stringify(ordered));}catch{
+      setStatus(zh?'无法保存预设，请检查浏览器存储空间或隐私设置后重试。':'Presets could not be saved. Check browser storage or privacy settings and retry.');
+      return false;
+    }
     setIdRegionPresets(ordered);
-    localStorage.setItem(PLAYER_ID_REGION_PRESETS_STORAGE,JSON.stringify(ordered));
+    return true;
   }
 
   function saveIdRegionPreset() {
@@ -392,7 +470,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       sourceHeight:video.current?.videoHeight||undefined,
       now,
     });
-    persistIdRegionPresets([preset,...idRegionPresets]);
+    if(!persistIdRegionPresets([preset,...idRegionPresets]))return;
     setSelectedIdRegionPresetId(preset.id);
     setIdRegionPresetName(preset.name);
     setStatus(zh?`已保存 ID 区域预设：${preset.name}`:`Saved ID-region preset: ${preset.name}`);
@@ -414,7 +492,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       sourceWidth:video.current?.videoWidth||undefined,
       sourceHeight:video.current?.videoHeight||undefined,
     });
-    persistIdRegionPresets(idRegionPresets.map(item=>item.id===updated.id?updated:item));
+    if(!persistIdRegionPresets(idRegionPresets.map(item=>item.id===updated.id?updated:item)))return;
     setIdRegionPresetName(updated.name);
     setStatus(zh?`已更新 ID 区域预设：${updated.name}`:`Updated ID-region preset: ${updated.name}`);
   }
@@ -426,14 +504,14 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     }
     const next=readSlots();
     next.playerIds={...selectedIdRegionPreset.regions};
-    saveSlots(next);
+    if(!saveSlots(next))return;
     setStatus(zh?`已载入 ID 区域预设：${selectedIdRegionPreset.name}`:`Loaded ID-region preset: ${selectedIdRegionPreset.name}`);
     setManualScan(value=>value+1);
   }
 
   function deleteSelectedIdRegionPreset() {
     if(!selectedIdRegionPreset)return;
-    persistIdRegionPresets(idRegionPresets.filter(item=>item.id!==selectedIdRegionPreset.id));
+    if(!persistIdRegionPresets(idRegionPresets.filter(item=>item.id!==selectedIdRegionPreset.id)))return;
     setSelectedIdRegionPresetId('');
     setIdRegionPresetName('');
     setStatus(zh?`已删除 ID 区域预设：${selectedIdRegionPreset.name}`:`Deleted ID-region preset: ${selectedIdRegionPreset.name}`);
@@ -513,12 +591,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         {solution&&!confirmed&&<button disabled={disabled||!!state.committedGameId} onClick={()=>{
           // Freeze the visible proposal before applying it. A background OCR
           // response must not overwrite the operator's explicit choice.
-          generation.current++;
-          verification.current={};
-          setAuto(false);
-          localStorage.setItem('hok-player-slot-auto','0');
-          setManualScan(0);
-          setBusy(false);
+          pauseRecognition();
           apply(side,solution);
         }}>{zh?'采用建议':'Apply suggestion'}</button>}
         <button className="secondary" disabled={disabled||!!state.committedGameId} onClick={()=>setManualEdit(value=>({...value,[side]:!value[side]}))}>
@@ -532,10 +605,10 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
           <select aria-label={`${side} P${index+1} player`} value={roster} disabled={disabled||!!state.committedGameId} onChange={e=>{
             const order=[...currentOrder];
             const other=order.indexOf(Number(e.target.value));
+            if(other<0||other===index)return;
             [order[index],order[other]]=[order[other],order[index]];
-            verification.current={};
-            setAuto(false);
-            localStorage.setItem('hok-player-slot-auto','0');
+            pauseRecognition();
+            setScan(undefined);
             send({type:'set_player_slot_order',side,order,expectedPlayers:[...team.players]});
           }}>
             {team.players.map((name,i)=><option key={i} value={i}>{name||`${zh?'选手':'Player'} ${i+1}`}</option>)}
@@ -562,8 +635,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         <input type="checkbox" checked={auto} onChange={e=>{
           if(e.target.checked)restoreAutoRecognition();
           else{
-            setAuto(false);
-            localStorage.setItem('hok-player-slot-auto','0');
+            pauseRecognition();
             setStatus(zh?'自动识别已暂停。':'Automatic recognition paused.');
           }
         }} />

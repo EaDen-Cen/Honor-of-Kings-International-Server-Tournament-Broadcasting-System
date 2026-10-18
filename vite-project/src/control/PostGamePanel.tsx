@@ -8,18 +8,37 @@ import { regionToPixels,type NormalizedCaptureRegion } from './windowCaptureGeom
 import { validPostGameRegion,replicateTeamFieldRegions } from './postGameRegionModel';
 import { PostGameRegionPicker } from './PostGameRegionPicker';
 import { useGameDataCapture } from './useGameDataCapture';
+import { ManualNumberInput } from './ManualNumberInput';
+import { hasPostGameFieldUpdate } from './postGameUpdates';
 const storage='hok-post-game-regions-v1';
 type Regions=Record<string,NormalizedCaptureRegion>;
 function readRegions():Regions{try{const value=JSON.parse(localStorage.getItem(storage)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
 interface Candidate { rowId:string; value:number|null; confidence:number; evidence:string; text:string }
 function GoldTimelineEditor({report,zh,disabled,send}:{report:PostGameReport;zh:boolean;disabled:boolean;send:(action:Action)=>void}){
-  const [text,setText]=useState(()=>timelineToText(report.goldTimeline??[]));
+  const savedText=timelineToText(report.goldTimeline??[]);
+  const [text,setText]=useState(savedText),[conflict,setConflict]=useState(false);
   const [message,setMessage]=useState('');
-  function submit(){try{const points=parseGoldTimelineText(text);send({type:'post_game_gold_timeline',reportId:report.id,points});setMessage(zh?`已提交 ${points.length} 个回放采样点。`:`Saved ${points.length} replay samples.`);}catch(e){setMessage(e instanceof Error?e.message:String(e));}}
+  const dirty=useRef(false),submitted=useRef<string>(),previousSaved=useRef(savedText),draft=useRef(text);
+  useEffect(()=>{
+    if(previousSaved.current===savedText)return;
+    previousSaved.current=savedText;
+    if(!dirty.current||submitted.current===savedText||draft.current===savedText){
+      setText(savedText);dirty.current=false;setConflict(false);
+      if(submitted.current===savedText){setMessage(zh?'时间线已保存。':'Timeline saved.');submitted.current=undefined;}
+    }else setConflict(true);
+  },[savedText,zh]);
+  function submit(){
+    if(disabled)return;
+    try{
+      const points=parseGoldTimelineText(text);submitted.current=timelineToText(points);
+      send({type:'post_game_gold_timeline',reportId:report.id,points});
+      setMessage(zh?`已提交 ${points.length} 个回放采样点，请核对已保存点数。`:`Submitted ${points.length} replay samples; check the saved count.`);
+    }catch(e){setMessage(e instanceof Error?e.message:String(e));}
+  }
   return <details className="panel"><summary>{zh?'游戏进程 · 经济时间线（回放数据）':'Game progress · replay gold timeline'}</summary>
     <p className="muted">{zh?'每行填写「时间,蓝方经济,红方经济」，例如 02:00,3500,3600。支持 K、万。至少两个递增时间点，最多 240 个。仅画真实输入的点，不从结算数据推测历史。':'Enter time, blue gold, red gold per row (e.g. 02:00,3500,3600). K and 万 units accepted; 2–240 increasing samples. No history is fabricated from final totals.'}</p>
-    <textarea aria-label="Replay gold timeline CSV" rows={6} style={{width:'100%',minHeight:130}} value={text} onChange={e=>setText(e.target.value)} placeholder={'02:00,3500,3600\\n05:00,11000,11200\\n10:00,24000,23700'} disabled={disabled}/>
-    <div className="toolbar"><button disabled={disabled} onClick={submit}>{zh?'保存时间线':'Save timeline'}</button><span>{zh?`已保存 ${report.goldTimeline?.length??0} 个点`:`${report.goldTimeline?.length??0} saved points`}</span><a target="_blank" rel="noreferrer" href="/overlay/game-progress">{zh?'打开 1920×1080 经济进程页':'Open 1920×1080 gold progress overlay'}</a></div><p role="status">{message}</p>
+    <textarea aria-label="Replay gold timeline CSV" rows={6} style={{width:'100%',minHeight:130}} value={text} onChange={e=>{dirty.current=e.target.value!==savedText;draft.current=e.target.value;submitted.current=undefined;setText(e.target.value);setMessage('');}} placeholder={'02:00,3500,3600\n05:00,11000,11200\n10:00,24000,23700'} disabled={disabled}/>
+    <div className="toolbar"><button disabled={disabled||text===savedText} onClick={submit}>{zh?'保存时间线':'Save timeline'}</button><button disabled={disabled||text===savedText} onClick={()=>{dirty.current=false;submitted.current=undefined;setText(savedText);setConflict(false);setMessage('');}}>{zh?'恢复已保存内容':'Reload saved timeline'}</button><span>{zh?`已保存 ${report.goldTimeline?.length??0} 个点`:`${report.goldTimeline?.length??0} saved points`}{text!==savedText?(zh?' · 有未保存修改':' · Unsaved changes'):''}</span><a target="_blank" rel="noreferrer" href="/overlay/game-progress">{zh?'打开 1920×1080 经济进程页':'Open 1920×1080 gold progress overlay'}</a></div>{conflict&&<p role="status">{zh?'服务器时间线已更新；你的未保存内容已保留，请核对后保存或恢复已保存内容。':'The saved timeline changed. Your draft is preserved; review it before saving or reload the saved timeline.'}</p>}<p role="status">{message}</p>
   </details>;
 }
 export function PostGamePanel({state,token,disabled,send}:{state:MatchState;token:string;disabled:boolean;send:(action:Action)=>void}){
@@ -28,24 +47,30 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
   const [metric,setMetric]=useState<PostGameMetric>('kills'),[page,setPage]=useState<PostGamePage>('overview');
   const [message,setMessage]=useState(''),[busy,setBusy]=useState(false),[candidates,setCandidates]=useState<Candidate[]>([]);
   const [row,setRow]=useState(0),[regions,setRegions]=useState(readRegions),[snapshot,setSnapshot]=useState('');
-  const requestKey=useRef('');
-  requestKey.current=`${report?.id}:${metric}:${page}:${capture.sourceVersion}:${snapshot}`;
+  const requestKey=useRef(''),request=useRef<AbortController>();
+  requestKey.current=`${report?.id}:${metric}:${page}:${capture.sourceVersion}:${snapshot}:${JSON.stringify(regions)}:${token}`;
   const key=(index:number)=>`${page}:${metric}:${index}`;
   const regionFor=(index:number)=>{const saved=regions[key(index)];return validPostGameRegion(saved)?saved:undefined;};
   const fieldRegions=report?.players.map((_,index)=>regionFor(index))??[];
   useEffect(()=>{setCandidates([]);},[report?.id,metric,page]);
   useEffect(()=>{setSnapshot('');setCandidates([]);},[capture.sourceVersion]);
+  useEffect(()=>()=>request.current?.abort(),[report?.id,metric,page,capture.sourceVersion,snapshot,regions,token]);
   const selectPage=(next:PostGamePage)=>{setPage(next);setSnapshot('');setCandidates([]);};
   function updateRegions(index:number,region:NormalizedCaptureRegion){
     const next={...regions,[key(index)]:region};
-    setRegions(next);localStorage.setItem(storage,JSON.stringify(next));setCandidates([]);
+    saveRegions(next);
+  }
+  function saveRegions(next:Regions){
+    setRegions(next);setCandidates([]);
+    try{localStorage.setItem(storage,JSON.stringify(next));}
+    catch{setMessage(zh?'框选已在当前页面生效，但浏览器存储不可用；刷新后需重新框选。':'Boxes work in this page, but browser storage is unavailable. Recalibrate after reloading.');}
   }
   function copyTeam(){
     if(!report)return;
     const result=replicateTeamFieldRegions(fieldRegions,row);
     const next={...regions};
     result.forEach((region,index)=>{if(validPostGameRegion(region))next[key(index)]=region;});
-    setRegions(next);localStorage.setItem(storage,JSON.stringify(next));setCandidates([]);
+    saveRegions(next);
   }
   function preview(){
     try{
@@ -62,8 +87,9 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
     }catch(e){setMessage(e instanceof Error?e.message:'Capture failed');}
   }
   async function captureFields(onlySelected:boolean){
-    if(!report||!snapshot||busy)return;
-    const signature=requestKey.current;setBusy(true);
+    if(!report||!snapshot||busy||request.current)return;
+    const signature=requestKey.current,controller=new AbortController();request.current=controller;setBusy(true);
+    const timeout=window.setTimeout(()=>controller.abort(),30000);
     try{
       const frame=new Image();frame.src=snapshot;await frame.decode();
       const target=onlySelected?[row]:report.players.map((_,index)=>index).filter(index=>validPostGameRegion(regionFor(index)));
@@ -85,21 +111,21 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
       }
       if(!images.length)throw new Error(zh?'所选数字框都是黑色/空白。请检查画面预览和框选位置。':'Every selected region is blank. Verify the preview and redraw the boxes.');
       const api=(import.meta.env.VITE_API_URL||'').replace(/\/$/,'');
-      const response=await fetch(`${api}/api/v1/recognition/postgame`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({images,rowIds,reportId:report.id,metric}),signal:AbortSignal.timeout(30000)});
+      const response=await fetch(`${api}/api/v1/recognition/postgame`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({images,rowIds,reportId:report.id,metric}),signal:controller.signal});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Post-game OCR failed');
       if(signature!==requestKey.current)return;
       const results=data.candidates as Candidate[];
       setCandidates(previous=>[...previous.filter(old=>!rowIds.includes(old.rowId)),...results]);
       setMessage(zh?`识别了 ${results.length} 名选手的数字候选。${skipped.length?' 空白框跳过：'+skipped.join('、'):''} 请逐项复核后应用。`:`Read ${results.length} selected player cells. ${skipped.length?'Blank cells skipped: '+skipped.join(', '):''} Review before applying.`);
-    }catch(e){if(signature===requestKey.current)setMessage(e instanceof Error?e.message:'Capture failed');}
-    finally{setBusy(false);}
+    }catch(e){if(signature===requestKey.current)setMessage(controller.signal.aborted?(zh?'识别超时，请检查连接后重试。':'Recognition timed out. Check the connection and retry.'):e instanceof Error?e.message:'Capture failed');}
+    finally{window.clearTimeout(timeout);if(request.current===controller)request.current=undefined;setBusy(false);}
   }
   function manualField(rowId:string,value:number){if(!report)return;send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric,field:{value,sourcePage:page,confidence:1,manual:true}}]});}
   function saveRating(rowId:string,value:string){if(!report||value.trim()==='')return;const rating=Number(value);if(!Number.isFinite(rating)||rating<0||rating>100)return;send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric:'rating',field:{value:rating,confidence:1,manual:true,sourcePage:'overview'}}]});}
   const eligible=candidates.filter(candidate=>{
     if(candidate.value===null||candidate.confidence<.85||!report)return false;
     const player=report.players.find(p=>p.rowId===candidate.rowId);
-    return !!player&&canMergePostGameField(player.fields[metric],{value:candidate.value,confidence:candidate.confidence,manual:false,sourcePage:page});
+    return !!player&&hasPostGameFieldUpdate(player.fields[metric],{value:candidate.value,confidence:candidate.confidence,manual:false,sourcePage:page});
   });
   return <details className="panel"><summary>{zh?'赛后数据与 MVP':'Post-game data and MVP'}</summary>
     <p className="muted">{zh?'先确认有效局。MVP 由赛事方投票决定，程序仅展示。OBS：/overlay/mvp（1920×1080）。':'Commit the game first. Organizers vote for MVP; the app only displays the result.'}</p>
@@ -110,7 +136,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
         <p className="muted">{zh?'与「结算整页采集」共用已上传的截图。也可以选择共享窗口，然后单击预览冻结当前画面；之后无需输入坐标，直接框选每位选手的数字。':'Use the same screenshot uploaded in full-page capture, or choose a game window and freeze its current frame. Draw directly over player numbers.'}</p>
         {capture.controls}
         <div className="toolbar">
-          <label>{zh?'数据页':'Data page'}<select aria-label="Post-game OCR source page" value={page} onChange={e=>selectPage(e.target.value as PostGamePage)}>{settlementPages.map(key=><option key={key} value={key}>{settlementPageLabel(key,zh)}</option>)}</select></label>
+          <label>{zh?'数据页':'Data page'}<select aria-label="Post-game OCR source page" value={page} onChange={e=>selectPage(e.target.value as PostGamePage)}>{settlementPages.filter(key=>key!=='recap').map(key=><option key={key} value={key}>{settlementPageLabel(key,zh)}</option>)}</select></label>
           <label>{zh?'字段':'Metric'}<select aria-label="Post-game OCR metric" value={metric} onChange={e=>setMetric(e.target.value as PostGameMetric)}>{postGameMetrics.map(key=><option key={key} value={key}>{postGameMetricLabel(key,zh)}</option>)}</select></label>
           <button type="button" disabled={!capture.ready||disabled} onClick={preview}>{zh?'预览 / 刷新当前画面':'Preview / refresh game frame'}</button>
           <small>{fieldRegions.filter(validPostGameRegion).length}/10 {zh?'人已框选':'rows selected'}</small>
@@ -121,11 +147,12 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
           <button type="button" disabled={disabled||busy||!snapshot||!fieldRegions.some(validPostGameRegion)} onClick={()=>void captureFields(false)}>{zh?'识别所有已框选选手':'Read all selected rows'}</button>
           <button type="button" disabled={disabled||busy||!eligible.length} onClick={()=>send({type:'post_game_fields',reportId:report.id,updates:eligible.map(c=>({rowId:c.rowId,metric,field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:page,evidence:c.evidence} as PostGameField}))})}>{zh?`应用已核验候选（${eligible.length}）`:`Apply verified candidates (${eligible.length})`}</button>
         </div>
+        <p className="muted">{zh?'人工数值输完后按 Enter 或离开输入框保存；Esc 放弃当前修改。未保存的输入会保留，百分比和评分须在 0–100 之间。':'Press Enter or leave a field to save; Esc discards your edit. Drafts are preserved. Percentages and ratings must be between 0 and 100.'}</p>
         <div className="post-game-table">{report.players.map(player=>{
           const detected=candidates.find(c=>c.rowId===player.rowId),stored=player.fields[metric];
           return <div className="toolbar" key={player.rowId}>
             <span>{player.teamName} · P{player.slot+1} · {player.playerId||'—'}</span>
-            <input key={`${report.id}:${metric}:${stored?.value}`} aria-label={`${player.playerId} ${metric}`} type="number" min={0} max={postGamePercentMetrics.includes(metric)?100:1e9} step={postGameDecimalMetrics.includes(metric)?'.1':'1'} defaultValue={stored?.value??''} disabled={disabled||busy} onBlur={e=>{if(e.target.value!==''&&Number(e.target.value)!==stored?.value)manualField(player.rowId,Number(e.target.value));}}/>
+            <ManualNumberInput key={`${report.id}:${metric}:${player.rowId}`} label={`${player.playerId} ${metric}`} zh={zh} min={0} max={postGamePercentMetrics.includes(metric)||metric==='rating'?100:1e9} integer={!postGameDecimalMetrics.includes(metric)} value={stored?.value} disabled={disabled||busy} onCommit={value=>manualField(player.rowId,value!)}/>
             {stored&&<small>{stored.manual?(zh?'人工确认':'Manual'):Math.round(stored.confidence*100)+'%'}</small>}
             {detected&&<small className={detected.confidence<.85?'error':''}>{detected.value??'—'} · {Math.round(detected.confidence*100)}% {detected.value!==null&&!canMergePostGameField(stored,{value:detected.value,confidence:detected.confidence,manual:false,sourcePage:page})&&<span>{zh?'保留已有值，改动请人工输入':'Protected; edit manually'}</span>} <a href={detected.evidence} target="_blank" rel="noreferrer">{zh?'裁图':'Crop'}</a></small>}
           </div>;
@@ -135,7 +162,7 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
       <details className="panel"><summary>{zh?'选手评分 / Rating · 人工补录':'Player ratings · manual fallback'}</summary>
         <p className="muted">{zh?'先到上方「单字段 OCR」选择「游戏评分」并在截图上逐人框选，也可以在这里手动输入真实评分。未知数值留空。':'Select Rating in the field OCR above, or type confirmed scores below. Unknown ratings remain blank.'}</p>
         <div className="post-game-table">{report.players.map(player=><label className="toolbar" key={player.rowId}>{player.teamName} · {player.playerId||`P${player.slot+1}`}
-          <input aria-label={`Rating ${player.rowId}`} type="number" min="0" max="100" step="0.1" key={`${player.rowId}:${player.fields.rating?.value}`} defaultValue={player.fields.rating?.value??''} placeholder="—" disabled={disabled} onBlur={e=>{if(e.target.value!==''&&Number(e.target.value)!==player.fields.rating?.value)saveRating(player.rowId,e.target.value);}}/>
+          <ManualNumberInput key={`${report.id}:${player.rowId}`} label={`Rating ${player.rowId}`} zh={zh} min={0} max={100} integer={false} value={player.fields.rating?.value} placeholder="—" disabled={disabled} onCommit={value=>saveRating(player.rowId,String(value))}/>
         </label>)}</div>
       </details>
       <details className="panel"><summary>{zh?'OBS 赛后图形 · 1920×1080':'OBS post-game graphics · 1920×1080'}</summary>

@@ -17,6 +17,23 @@ interface Event { id: string; timestamp: number; type: string; resultingState: M
 interface Data { version: 2; state: MatchState; events: Event[]; history: MatchState[]; revision: number; delay: number; ids: string[] }
 interface LegacyData extends Omit<Data, 'version'> { version: 1 }
 const copy = <T>(v: T): T => structuredClone(v);
+const savedObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+
+function validateSavedData(input: unknown): asserts input is Data | LegacyData {
+  const invalid = () => new Error('比赛存档无效，请恢复有效备份');
+  if (!savedObject(input) || input.version !== 1 && input.version !== 2 ||
+    !savedObject(input.state) || !Array.isArray(input.history) || input.history.some(state => !savedObject(state)) ||
+    !Array.isArray(input.events) || !Array.isArray(input.ids) || input.ids.some(id => typeof id !== 'string') ||
+    !Number.isSafeInteger(input.revision) || Number(input.revision) < 0 ||
+    !Number.isInteger(input.delay) || Number(input.delay) < 0 || Number(input.delay) > 3600) throw invalid();
+  let previousTimestamp = -1;
+  for (const event of input.events) {
+    if (!savedObject(event) || typeof event.id !== 'string' || typeof event.type !== 'string' ||
+      !savedObject(event.resultingState) || !Number.isSafeInteger(event.timestamp) || Number(event.timestamp) < 0 || Number(event.timestamp) < previousTimestamp ||
+      !Number.isSafeInteger(event.revision) || Number(event.revision) < 0) throw invalid();
+    previousTimestamp = Number(event.timestamp);
+  }
+}
 
 function remapHeroIds(values: Array<number | null> | undefined) {
   return (values || []).map(value => migrateLegacyHeroId(value) as number | null);
@@ -151,11 +168,17 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
 export class Store {
   data: Data;
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
-    const loaded = file && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Data | LegacyData : undefined;
-    this.data = loaded
+    let loaded: Data | LegacyData | undefined;
+    if (file && existsSync(file)) {
+      let parsed: unknown;
+      try { parsed = JSON.parse(readFileSync(file, 'utf8')); }
+      catch (cause) { throw new Error('比赛存档无效，请恢复有效备份', { cause }); }
+      validateSavedData(parsed);
+      loaded = parsed;
+    }
+    this.data = loaded !== undefined
       ? loaded.version === 1 ? migrateLegacyData(loaded) : loaded
       : { version: 2, state: initialState(), events: [], history: [], revision: 0, delay: 180, ids: [] };
-    if (this.data.version !== 2 || !Array.isArray(this.data.events) || !Array.isArray(this.data.history)) throw new Error('比赛存档无效，请恢复有效备份');
     this.data.state = normalizeState(this.data.state);
     this.data.history = this.data.history.map(normalizeState);
     this.data.events = this.data.events.map(event => ({ ...event, resultingState: normalizeState(event.resultingState) }));
@@ -298,7 +321,7 @@ export class Store {
       if(new Set(stats.neutralObjectives.map(item=>item.id)).size!==stats.neutralObjectives.length)throw new Error('资源编号重复 / Duplicate objective ID');
       next.history.push(copy(state));
       const sources={...state.liveGameStats.sources};
-      for(const key of liveCaptureKeys)if(stats[key]!==undefined&&stats[key]!==state.liveGameStats[key])sources[key]={source:'manual',capturedAt:this.clock(),confidence:1};
+      for(const key of liveCaptureKeys)if(stats[key]!==state.liveGameStats[key])sources[key]={source:'manual',capturedAt:this.clock(),confidence:1};
       state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red}))};
       break;
     }
