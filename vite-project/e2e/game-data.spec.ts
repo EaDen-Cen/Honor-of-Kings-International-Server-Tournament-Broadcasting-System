@@ -32,7 +32,7 @@ test('settlement page review requires unique identities and protects trusted fie
     await expect.poll(()=>h.state().postGameReports[0].players[0].fields.healing?.value).toBe(1000);await expect(apply).toBeDisabled();
     expect(h.state().postGameReports[0].players[0].fields.totalDamage?.value).toBe(73300);
     await page.screenshot({path:'artifacts/game-data/settlement-review.png',fullPage:true});
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('GHUD actual frame API checks access/context and screenshot review cannot directly publish',async({page,baseURL})=>{
@@ -67,7 +67,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     expect(h.state().liveGameStats.sources?.blueGold?.source).toBe('manual');
     await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud-stats')).toContainText('1.5K');
     await page.setViewportSize({width:1920,height:1080});await page.screenshot({path:'artifacts/game-data/game-hud.png',omitBackground:true});
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('GHUD live reads publish verified values, manual edits freeze and ended streams stop updating',async({page,baseURL})=>{
@@ -111,7 +111,7 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeDisabled();
     expect(calls).toBe(callsBeforeEnding);expect(h.state().liveGameStats.blueGold).toBe(1800);expect(h.state().liveGameStats.gameTimeSeconds).toBe(16);
     await page.goto('/overlay/game-hud#token=e2e-overlay');await expect(page.locator('.game-hud')).toBeVisible();await page.clock.install();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-status')).toContainText('Capture stale');
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('stable settlement collection detects page changes even when the player table stays identical',async({page,baseURL})=>{
@@ -138,7 +138,7 @@ test('stable settlement collection detects page changes even when the player tab
     await page.evaluate(async()=>{await (window as Window&{paintGamePage?:(index:number)=>Promise<void>}).paintGamePage?.(1);});
     await expect(capture.getByRole('button',{name:'Damage ✓',exact:true})).toBeEnabled();expect(calls).toBe(2);
     expect(h.state().postGameReports[0].players.every(p=>!Object.keys(p.fields).length)).toBe(true);
-  }finally{await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  }finally{h.close();}
 });
 
 test('automatic HUD output remains enabled after its own state confirmations',async({page,baseURL})=>{

@@ -2,7 +2,7 @@ import {test,expect} from './fixtures';
 import {detectDraftLockCue} from '../server/draftCueDetection';
 import {createDefaultBpSimulatorState} from '../src/simulator/bpSimulatorState';
 import {harness} from './harness';
-import {phases,initialState} from '../src/shared/types';
+import {phases} from '../src/shared/types';
 
 test('Pick uses each own checkmark without waiting for next preselection; double Pick waits for both',async({page,baseURL})=>{
   const h=await harness(baseURL);
@@ -43,7 +43,7 @@ test('Pick uses each own checkmark without waiting for next preselection; double
     await expect(review).toBeVisible();await expect(review.locator('.pick-group-review-entry')).toHaveCount(2);
     await review.getByRole('button',{name:'Confirm and submit',exact:true}).click();
     await expect.poll(()=>h.state().redPicks.length).toBe(2);
-  } finally {await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  } finally {h.close();}
 });
 
 test('low-confidence Ban with a lock never becomes empty Ban, and all heroes remain manually selectable',async({page,baseURL})=>{
@@ -75,7 +75,7 @@ test('low-confidence Ban with a lock never becomes empty Ban, and all heroes rem
     await expect(review).toBeVisible();
     await review.getByRole('button',{name:'Confirm and submit',exact:true}).click();
     await expect.poll(()=>h.state().redBans[0]).toBe(4);
-  } finally {await h.send({type:'reset_match'});await h.send({type:'settings',settings:initialState()});h.close();}
+  } finally {h.close();}
 });
 
 
