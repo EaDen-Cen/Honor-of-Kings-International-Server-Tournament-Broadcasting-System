@@ -1,6 +1,6 @@
 # HOK Broadcast × OBS Studio 双向控制与单人导播自动化路线图
 
-> 状态：**设计企划 / 尚未实现**；创建：2026-10-19；对应里程碑：M24（优先级调整为 P0）  
+> 状态：**M24.0 已提交开发候选、未实机验收；M24.1–M24.5 尚属设计企划**；创建：2026-10-19；对应里程碑：M24（P0）  
 > 依据：[2026-10-18 双场实战复盘](../validation/live-two-match-retrospective-2026-10-18.md)  
 > 前置缺陷：**最终阵容英雄归属检测到变化但不一定应用成功（P0）**。此问题必须在自动联动正式启用前修复及复测。  
 > 基本原则：少操作、可人工接管、状态可信、失败可见、不破坏 BP、录制及 MVP 已稳定的主链路。
@@ -26,7 +26,7 @@ M24.0 已在独立开发 PR 实现初版：本地 OBS WebSocket v5 连接/密码
                 Control / Caster
 ```
 
-### 计划（尚未实现）
+### 整体计划（其中 M24.0 基础桥接已提交候选）
 
 ```text
 导播 Control（React）
@@ -189,6 +189,6 @@ OBS Studio（本机）
 
 ## 10. 发布条件
 
-所有功能状态必须区分 `Planned` / `Implemented` / `CI-validated` / `Real-OBS-validated`。本文目前全部 OBS 控制能力均为 **Planned**；Browser Source 单向展示属既有功能。
+所有功能状态必须区分 `Planned` / `Implemented` / `CI-validated` / `Real-OBS-validated`。本文 M24.0 已有代码候选，但在完成 CI 和本地 OBS 实机验收前不得宣称正式交付；M24.1–M24.5 仍为 **Planned**，Browser Source 单向展示属既有功能。
 
 发布前同步更新根 README、`MILESTONES.md`、`docs/README.md`、`docs/design/architecture.md`、接口指南、操作指南与测试记录。严禁将规划描述成已经上线的 OBS 控制能力。GHUD 仍为 Experimental，不应作为唯一官方比分来源。
