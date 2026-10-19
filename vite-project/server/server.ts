@@ -22,6 +22,7 @@ import { heroesForPool } from '../src/shared/heroPool.js';
 import type { Role } from '../src/shared/types.js';
 import { TeamPresetStore } from './teamPresets.js';
 import { Store } from './store.js';
+import { ObsBridge } from './obsBridge.js';
 import { uploadPortrait, servePortrait } from './portraits.js';
 import { captureRegion, captureRegions, localCaptureRequest, recognizeClientFrame, recognizeLineup, recognizeScreen } from './capture.js';
 
@@ -40,6 +41,7 @@ const presets = new TeamPresetStore(resolve(dirname(dataFile), 'team-presets.jso
 const store = new Store(dataFile, Date.now, presets);
 const uploadDirectory = resolve(process.env.UPLOAD_DIR || resolve(dirname(dataFile), 'uploads/player-portraits'));
 const diagnostics=new Diagnostics(resolve(dirname(dataFile),'logs'));
+const obsBridge=new ObsBridge();
 diagnostics.record('server_start',{ocrEnabled:true});
 const recovery=new RecoveryManager(dataFile,uploadDirectory);
 recovery.automatic();
@@ -59,6 +61,27 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/v1/obs/status' || url.pathname === '/api/v1/obs/scene') {
+      // This integration never accepts a remotely proxied Control session:
+      // the OBS WebSocket is deliberately bound to the local operator machine.
+      if(roleFor(req.headers.authorization?.replace(/^Bearer /,''))!=='control'||!localCaptureRequest(req)){
+        json(403,{error:'Local Control only'});req.resume();return;
+      }
+      if(url.pathname.endsWith('/status')){
+        if(req.method!=='GET'){json(405,{error:'GET required'});return;}
+        json(200,await obsBridge.status());return;
+      }
+      if(req.method!=='POST'){json(405,{error:'POST required'});return;}
+      let body='';
+      for await(const chunk of req){body+=chunk;if(body.length>512){json(413,{error:'Request too large'});return;}}
+      let input:unknown;
+      try{input=JSON.parse(body);}catch{json(400,{error:'Invalid request'});return;}
+      const scene=typeof input==='object'&&input!==null?'scene' in input?(input as {scene:unknown}).scene:undefined:undefined;
+      if(typeof scene!=='string'||!scene.trim()||scene.length>128){json(400,{error:'Invalid scene name'});return;}
+      try{json(200,await obsBridge.switchScene(scene));}
+      catch(error){json(409,{error:error instanceof Error?error.message:'OBS scene change failed'});}
+      return;
+    }
     if (url.pathname === '/api/access') {
       const local = localCaptureRequest(req);
       const currentRole = roleFor(req.headers.authorization?.replace(/^Bearer /,''));
