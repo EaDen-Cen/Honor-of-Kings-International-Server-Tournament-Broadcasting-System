@@ -15,6 +15,10 @@
 完整背景和验收边界见 [双局实战复盘](../validation/live-two-match-retrospective-2026-10-18.md)。
 
 
+## 2026-10-19 · OBS 五对位页面生产路由修复
+
+原来 React 已识别 `/overlay/postgame-clash` 等五条地址，但 Node 生产服务器的 `server/uiRoutes.ts` 没有将它们列入 SPA HTML 白名单，导致正式部署下这些 OBS Browser Source 可能直接返回 404。开发修复已补上五条明确路由，并在 `server/uiRoutes.test.ts` 中验收。上线前仍需 OBS 浏览器源测试和实际角色映射审核。
+
 ## 2026-10-19 · 最终阵容归属同步修复（待 CI / OBS 实机验收）
 
 - 仅一方发生帮抢/英雄交换时，程序可以只应用已唯一识别且满足相似度安全门槛的一方，另一方保留服务器已保存的归属；不再强制两队每次都同时高可信识别。
