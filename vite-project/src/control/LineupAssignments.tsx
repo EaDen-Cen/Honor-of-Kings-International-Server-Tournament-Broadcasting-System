@@ -407,7 +407,9 @@ export function LineupAssignments({
           }} /> {zh?'自动检测并同步换英雄':'Automatically detect and sync hero swaps'}</label>
           {!videoReady&&<button disabled={disabled||connecting} onClick={()=>void connectWindow()}>{connecting?(zh?'正在连接…':'Connecting…'):(zh?'连接 BP 窗口':'Connect BP window')}</button>}
           <button disabled={disabled||busy||!videoReady} onClick={()=>void scan(true)}>{busy?(zh?'正在识别…':'Recognizing…'):(zh?'立即识别并应用换英雄':'Recognize and apply swap now')}</button>
-          {blueSolved&&redSolved&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,redSolved.heroes);}}>{zh?'应用本次识别':'Apply this scan'}</button>}
+          {blueSolved&&redSolved&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,redSolved.heroes);}}>{zh?'人工确认并应用双方':'Confirm and apply both teams'}</button>}
+          {blueSolved&&!redSolved&&state.redAssignments.every(id=>id!==null)&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,state.redAssignments as number[]);}}>{zh?'仅确认并应用蓝方':'Confirm blue team only'}</button>}
+          {redSolved&&!blueSolved&&state.blueAssignments.every(id=>id!==null)&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(state.blueAssignments as number[],redSolved.heroes);}}>{zh?'仅确认并应用红方':'Confirm red team only'}</button>}
         </div>
         {submission&&<p role={submission.status==='rejected'?'alert':'status'} className={'lineup-status '+(submission.status==='rejected'?'error':'')} data-testid="lineup-apply-state" data-status={submission.status}>
           {submission.status==='submitting'?(zh?'最终阵容已提交，等待服务器确认…':'Final lineup submitted; awaiting server confirmation…'):
