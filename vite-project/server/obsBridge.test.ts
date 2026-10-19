@@ -12,6 +12,7 @@ test('OBS bridge refuses a remote WebSocket endpoint before connecting',()=>{
 
 test('OBS WebSocket v5 authenticates locally, reports recording, and confirms scene switching',async()=>{
   const wss=new WebSocketServer({port:0,host:'127.0.0.1'});
+  await new Promise<void>(resolve=>wss.once('listening',resolve));
   const address=wss.address();
   if(!address||typeof address==='string')throw new Error('Missing test WS port');
   const challenge='test-challenge',salt='test-salt',password='test-password';
