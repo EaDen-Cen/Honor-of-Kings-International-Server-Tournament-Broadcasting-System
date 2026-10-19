@@ -376,3 +376,20 @@ test('simultaneous pick group rejects wrong group size and duplicate heroes',()=
   assert.throws(()=>apply(s,{type:'draft_pick_group',team:'red',heroIds:[hero,hero]}));
   assert.equal(s.data.state.currentPhase,5);
 });
+
+test('GHUD width is validated, undoable, and retained when a new match begins',()=>{
+  const store=new Store();
+  const baseline=store.data.state.liveGameStats;
+  assert.equal(baseline.widthPercent,100);
+  apply(store,{type:'live_game_stats',stats:{...baseline,widthPercent:75}});
+  assert.equal(store.data.state.liveGameStats.widthPercent,75);
+  for(const invalid of [49,101,75.5,-1,NaN,Infinity]){
+    assert.throws(()=>apply(store,{type:'live_game_stats',stats:{...store.data.state.liveGameStats,widthPercent:invalid}}));
+    assert.equal(store.data.state.liveGameStats.widthPercent,75);
+  }
+  apply(store,{type:'undo'});
+  assert.equal(store.data.state.liveGameStats.widthPercent,100);
+  apply(store,{type:'live_game_stats',stats:{...store.data.state.liveGameStats,widthPercent:80}});
+  apply(store,{type:'reset_match'});
+  assert.equal(store.data.state.liveGameStats.widthPercent,80);
+});
