@@ -63,6 +63,9 @@ export class ObsBridge {
       const timer=setTimeout(()=>{ws.terminate();fail(new Error('OBS connection timed out'));},6000);
       const success=()=>{if(settled)return;settled=true;clearTimeout(timer);this.ready=true;this.lastError='';resolve();};
       const fail=(error:Error)=>{
+        // Ignore duplicate close/error notifications after an initial handshake failure.
+        // Otherwise a useful authentication/refused error gets overwritten by 'disconnected'.
+        if(settled&&!this.ready)return;
         if(!settled){settled=true;clearTimeout(timer);reject(error);}
         if(this.socket===ws)this.reset(error);
       };
@@ -94,7 +97,9 @@ export class ObsBridge {
       });
       ws.on('error',(error:Error)=>{const code=(error as NodeJS.ErrnoException).code;
         fail(new Error(code==='ECONNREFUSED'?'OBS refused connection: enable WebSocket Server in Tools → WebSocket Server Settings and check its port.':code==='EADDRNOTAVAIL'?'Local OBS address is unavailable':'Cannot connect to local OBS WebSocket'));});
-      ws.on('close',()=>{fail(new Error('OBS disconnected'));});
+      ws.on('close',(code:number)=>{
+        fail(new Error(code===4008?'OBS WebSocket authentication failed: check OBS_WS_PASSWORD.':code===4009?'OBS WebSocket RPC version is unsupported.':'OBS disconnected'));
+      });
     }).finally(()=>{this.connection=undefined;});
     return this.connection;
   }
