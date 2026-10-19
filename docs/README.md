@@ -7,7 +7,7 @@
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
 | 当前操作 | [新手上手](guides/beginner-guide.md)、[运行指南](guides/getting-started.md)、[操作指南](guides/operator-guide.md)、[Auto BP / Player ID](guides/screen-recognition.md)、[选手对齐 / 恢复 / HUD / MVP](guides/player-alignment-recovery-hud.md)、[国服/国际服英雄池与 0–5 Ban](guides/hero-pool-and-ban-rules.md)、[Windows 启动器](guides/windows-launcher.md) | 第一次使用、安装部署、现场操作、屏幕识别、恢复与实验功能 |
-| 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md) | 代码职责、状态流与存储边界 |
+| 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md)、[OBS WebSocket 双向集成路线图](design/obs-websocket-integration-roadmap.md) | 状态架构、控制边界、OBS 连接/场景/音乐/录制监测的待开发计划 |
 | 发布说明 | [v1.0.0](releases/v1.0.0.md) | Release Candidate 功能、发布检查、升级和已知边界 |
 | 验证记录 | [历次验证](validation/history.md)、[2026-10-18 两场实战复盘](validation/live-two-match-retrospective-2026-10-18.md) | 按日期/版本保留结果、真实操作困难及未验收范围 |
 | 研究资料 | [研究索引](research/README.md)、[英雄名单](research/hero-roster.md)、[英雄自动同步](research/hero-sync.md) | 当前英雄池、release-order ID、英雄核查、Panel/Side 公共裁切发布与原始 JSON 证据 |
