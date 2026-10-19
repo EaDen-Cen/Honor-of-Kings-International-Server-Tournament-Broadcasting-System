@@ -31,6 +31,13 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## 两场实战复盘与对位 OBS 场景（待合并改动）
+
+[2026-10-18 真实双局现场复盘](docs/validation/live-two-match-retrospective-2026-10-18.md) 记录单人导播操作负担、元流之子形态误识别、P1–P5 排序遗漏、录制磁盘耗尽、赛后整理效率、帮抢和 GHUD/经济对位等问题。除已有稳定功能外，不将这些问题写作“已修复”。
+
+此开发分支新增五个 **独立、固定角色** 的浏览器源：
+`/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 本机增加逐局 Player ID 顺序核对提醒，**仅是操作清单而非服务端身份认证**。上述改动需合并 PR 并实机验收后才是正式可用版本。
+
 ## 系统组成
 
 | 模块 | 用途 |
