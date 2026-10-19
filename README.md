@@ -42,6 +42,12 @@ HOK 游戏画面 / BP Simulator
 
 根据双场实战反馈，修复单方英雄互换因另一方识别不可靠而无法自动同步的问题；新增服务器回执与权威阵容核对，区分“发现变更”“发送成功”“真正应用”，失败允许人工接管且会提示错误。此为 P0 候选修复，尚未完成 CI/实机验收。参见 [操作指南](docs/guides/operator-guide.md) 与 [里程碑](MILESTONES.md)。
 
+## M24.0 · OBS 本地桥接（开发候选，尚未实机验收）
+
+新增可选的 OBS WebSocket v5 Node 连接器及 Control 内的可折叠 OBS Director 面板。支持在本地读取当前场景、OBS 场景列表、录制状态，并人工切换经 OBS 确认的 Program Scene。使用服务端 `OBS_WS_URL` / `OBS_WS_PASSWORD` 变量，不把 OBS 密码送入前端。仅本地 Control 有权调用；默认不配置则完全禁用。参见 [OBS Director 本地设置](docs/guides/obs-director-setup.md)。
+
+请注意：**音频淡入淡出、录制容量预警、自动场景联动和云端远控尚未实现**。已有单向 Browser Source 仍然独立运行。本候选尚须通过 CI 和 Windows OBS 真实设备测试。
+
 ## OBS 双向集成及单人导播路线（计划中）
 
 OBS Browser Source 单向显示已经具备；真正由 HOK Broadcast 控制 OBS 场景、混音和读取录制状态**尚未开发**。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。**最终阵容归属识别到变化但未成功应用**是 P0 前置可靠性缺陷，必须先实现服务器确认与正确玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
