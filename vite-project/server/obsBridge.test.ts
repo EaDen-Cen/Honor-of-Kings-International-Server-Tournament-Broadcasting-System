@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { WebSocketServer } from 'ws';
+import { ObsBridge, validateLocalObsUrl } from './obsBridge.js';
+
+test('OBS bridge refuses a remote WebSocket endpoint before connecting',()=>{
+  assert.throws(()=>validateLocalObsUrl('ws://example.com:4455/'),/must be/);
+  assert.throws(()=>validateLocalObsUrl('wss://127.0.0.1:4455/'),/must be/);
+  assert.throws(()=>validateLocalObsUrl('ws://127.0.0.1:4455/private'),/must be/);
+});
+
+test('OBS WebSocket v5 authenticates locally, reports recording, and confirms scene switching',async()=>{
+  const wss=new WebSocketServer({port:0,host:'127.0.0.1'});
+  const address=wss.address();
+  if(!address||typeof address==='string')throw new Error('Missing test WS port');
+  const challenge='test-challenge',salt='test-salt',password='test-password';
+  const digest=(value:string)=>createHash('sha256').update(value).digest('base64');
+  const expected=digest(digest(password+salt)+challenge);
+  let scene='BP',authenticated=false;
+  wss.on('connection',socket=>{
+    socket.send(JSON.stringify({op:0,d:{obsWebSocketVersion:'5.5.0',rpcVersion:1,authentication:{challenge,salt}}}));
+    socket.on('message',raw=>{
+      const packet=JSON.parse(raw.toString()) as {op:number;d:{authentication?:string;requestId?:string;requestType?:string;requestData?:{sceneName?:string}}};
+      if(packet.op===1){
+        assert.equal(packet.d.authentication,expected);
+        authenticated=true;socket.send(JSON.stringify({op:2,d:{negotiatedRpcVersion:1}}));
+      }
+      if(packet.op===6){
+        let responseData:Record<string,unknown>={};
+        if(packet.d.requestType==='GetSceneList')responseData={scenes:[{sceneName:'BP'},{sceneName:'Game'}],currentProgramSceneName:scene};
+        else if(packet.d.requestType==='GetRecordStatus')responseData={outputActive:true};
+        else if(packet.d.requestType==='SetCurrentProgramScene'){
+          scene=packet.d.requestData?.sceneName||scene;
+          socket.send(JSON.stringify({op:5,d:{eventType:'CurrentProgramSceneChanged',eventData:{sceneName:scene}}}));
+        }
+        socket.send(JSON.stringify({op:7,d:{requestId:packet.d.requestId,requestStatus:{result:true,code:100},responseData}}));
+      }
+    });
+  });
+  const bridge=new ObsBridge(`ws://127.0.0.1:${address.port}`,password);
+  try{
+    const first=await bridge.status();
+    assert.equal(authenticated,true);
+    assert.equal(first.programScene,'BP');
+    assert.equal(first.recording,true);
+    assert.deepEqual(first.scenes,['BP','Game']);
+    await assert.rejects(()=>bridge.switchScene('Nonexistent'),/not present/);
+    const changed=await bridge.switchScene('Game');
+    assert.equal(changed.programScene,'Game');
+    assert.equal(changed.recording,true);
+  }finally{
+    bridge.close();
+    await new Promise<void>(resolve=>wss.close(()=>resolve()));
+  }
+});
