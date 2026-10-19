@@ -141,7 +141,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
 
   const send = useCallback((action: Action) => {
     const session = sessionRef.current;
-    if (role !== 'control' || desiredScope.current.role !== role || desiredScope.current.token !== token || !session || session.role !== role || session.token !== token || session.stopped || !session.ready || !session.snapshot || session.pending || session.socket?.readyState !== WebSocket.OPEN) return;
+    if (role !== 'control' || desiredScope.current.role !== role || desiredScope.current.token !== token || !session || session.role !== role || session.token !== token || session.stopped || !session.ready || !session.snapshot || session.pending || session.socket?.readyState !== WebSocket.OPEN) return false;
     setError(''); setAcknowledged(undefined);
     const id = createMatchActionId();
     const timer = setTimeout(() => {
@@ -150,8 +150,8 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
     }, 8000);
     session.pending = { id, action, timer };
     setPending(true);
-    try { session.socket.send(JSON.stringify({ type: 'action', id, revision: session.snapshot.revision, action })); }
-    catch { session.recover?.(disconnectedMessage); }
+    try { session.socket.send(JSON.stringify({ type: 'action', id, revision: session.snapshot.revision, action })); return true; }
+    catch { session.recover?.(disconnectedMessage); return false; }
   }, [role, token]);
 
   // A role/token change must hide the old session before its effect cleanup runs.
