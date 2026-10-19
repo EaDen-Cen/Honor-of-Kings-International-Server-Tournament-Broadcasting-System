@@ -93,3 +93,40 @@ test('guide follows lineup, commit and next-game transitions in both languages',
     await page.screenshot({ path: 'artifacts/operator-guide-desktop.png' });
   } finally { match.close(); }
 });
+
+test('P1–P5 human preflight shows authoritative rosters, survives BP and refresh, but invalidates after mapping changes',async({page,baseURL})=>{
+  const match=await harness(baseURL);
+  try{
+    await match.send({type:'reset_match'});
+    const state=match.state();
+    state.language='eng';
+    state.bpInputMode='screen';
+    state.blueTeam.players=['Alpha','Bravo','Charlie','Delta','Echo'];
+    state.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
+    await match.send({type:'settings',settings:state});
+    await page.goto('/control#token=e2e-control');
+    const preflight=page.locator('.operator-id-preflight');
+    const checkbox=preflight.locator('input[type=checkbox]');
+    await expect(preflight).toContainText('P1 Alpha');
+    await expect(preflight).toContainText('P5 Juliet');
+    await expect(checkbox).toBeEnabled();
+    await preflight.getByRole('link',{name:'Go to P1–P5 recognition / manual adjustment'}).click();
+    await expect(page.locator('#player-slot-alignment')).toBeInViewport();
+    await checkbox.check();
+    await expect(preflight).toContainText('P1–P5 manually checked');
+    await match.send({type:'skip_ban',team:'blue'});
+    await expect(checkbox).toBeChecked();
+    await page.reload();
+    await expect(checkbox).toBeChecked();
+    await match.send({type:'set_player_slot_order',side:'blue',order:[1,0,2,3,4],expectedPlayers:state.blueTeam.players});
+    await expect(preflight).toContainText('P1 Bravo');
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.check();
+    const updated=match.state();
+    updated.redTeam.players[0]='Replacement';
+    await match.send({type:'settings',settings:updated});
+    await expect(checkbox).not.toBeChecked();
+    await expect(preflight).toContainText('P1 Replacement');
+  }finally{match.close();}
+});
+
