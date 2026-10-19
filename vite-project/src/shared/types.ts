@@ -179,7 +179,7 @@ export type Action =
   | { type: 'swap_assignments'; team: Side; from: number; to: number }
   | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[] }
   | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]] }
-  | { type: 'set_lineup_assignments'; blue: number[]; red: number[] }
+  | { type: 'set_lineup_assignments'; blue: number[]; red: number[]; expectedContext?: string }
   | { type: 'settings'; settings: MatchSettings }
   | { type: 'hero_art_override'; heroId: number; override: HeroArtOverride }
   | { type: 'reset_hero_art_override'; heroId: number; layout?: HeroArtLayout }

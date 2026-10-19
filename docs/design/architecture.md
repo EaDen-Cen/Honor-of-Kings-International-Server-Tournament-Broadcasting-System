@@ -21,11 +21,13 @@
 
 服务器默认读取 `vite-project/data/match.json`，同级保存 `access.json`、`team-presets.json` 与 `uploads/player-portraits/`。`DATA_FILE` 可改变数据基准位置，`UPLOAD_DIR` 可另指定照片目录；迁移应覆盖全部数据。队伍资料载入比赛时复制阵容并保留稳定身份，现场修改不会自动覆盖资料库。
 
-## OBS 控制器新路径（设计规划）
+## 最终阵容确认与 OBS 后续规划
 
-现有 OBS Browser Source 属于单向网页展示；**OBS WebSocket 双向连接尚未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。必须先解决最终阵容归属“检测但没有应用”的服务端确认、状态竞态与帮抢问题，避免未核验 BP 触发自动转场。
+最终阵容前置修复将 UI 临时候选与权威 `assignments` 分开。`lineupIdentityContext` 绑定当前局、队伍/选手/角色与槽位映射；`lineupWriteContext` 另绑定原 assignments，阻止旧候选覆盖人工改动。Store 完成验证与落盘后发送带 revision 的 ACK；控制台以操作 ID、回执和返回快照共同确认应用。独立的按钮 pending / 连接状态不再清空候选。失败不自动重放，普通 BP Pick 历史与最终持有者继续分别保存。
 
-详见 [完整 OBS 双向集成路线图](obs-websocket-integration-roadmap.md)，内容均为**计划，不属于现有接口**。
+现有 OBS Browser Source 属于单向网页展示；**OBS WebSocket 双向连接尚未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。本轮阵容确认修复仍须通过真机双场复测，再允许依赖已保存归属的自动转场；BP 进行中的临时代持协议仍未实现。
+
+OBS 控制部分详见 [完整 OBS 双向集成路线图](obs-websocket-integration-roadmap.md)，其中场景、音频与录制控制均为**计划，不属于现有接口**。
 
 ## 性能与扩展边界
 

@@ -357,7 +357,7 @@ wss.on('connection', (ws, req) => {
       if (message.type !== 'action') throw new Error('不支持此消息类型');
       store.apply(message.id, message.revision, message.action);
       for (const client of clients.keys()) update(client);
-      ws.send(JSON.stringify({ type: 'ack', id: message.id }));
+      ws.send(JSON.stringify({ type: 'ack', id: message.id, revision: store.data.revision }));
     } catch (e) {
       diagnostics.record('action_rejected',{revision:store.data.revision});
       ws.send(JSON.stringify({ type: 'error', id: typeof id === 'string' ? id : undefined, error: e instanceof Error ? e.message : '消息无效' }));

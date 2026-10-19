@@ -33,6 +33,8 @@
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
 
+**2026-10-19 P0 修复增量**：最终英雄归属采用候选/提交/服务器确认分离、上下文防过期写入与失败后人工接管；每局 Player ID 提醒随身份或槽位变化失效。见 [操作步骤](guides/operator-guide.md#最终英雄归属先识别再核对保存结果)、[API 约束](design/api.md#最终阵容写入确认2026-10-19) 和 [验证历史](validation/history.md)。OBS WebSocket、BGM 与录制监测仍为规划。
+
 已接入每局选手槽位映射、常驻本地 OCR、双队原子顺序更新、时间一致性复核、ID 区域预设、备份/停机恢复与赛后数据草稿/MVP 页面。局内 HUD 已有人工统计、顶栏 OCR 与 OBS Overlay，但**仍处于测试阶段**；其真实比赛长时间运行和正式比分可靠性尚未验收。参见 [功能与操作说明](guides/player-alignment-recovery-hud.md) 与 [项目里程碑](../MILESTONES.md)。
 
 ## 后续广播图形发展路线（M21–M25）

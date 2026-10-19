@@ -1,21 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
+
+const checkStorage='hok-director-player-order-check-v2';
+interface IdentityCheck { context:string; verified:boolean }
+function readIdentityCheck():IdentityCheck {
+  try {
+    const value:unknown=JSON.parse(sessionStorage.getItem(checkStorage)||'null');
+    if(value&&typeof value==='object'&&'context' in value&&typeof value.context==='string'&&'verified' in value&&typeof value.verified==='boolean')return {context:value.context,verified:value.verified};
+  }catch{/* A blocked or invalid store must never imply verification. */}
+  return {context:'',verified:false};
+}
+function persistIdentityCheck(value:IdentityCheck) {
+  try{sessionStorage.setItem(checkStorage,JSON.stringify(value));}catch{/* Session-only fallback. */}
+}
 
 export function OperatorGuide({ state, connected, pending, onTeams, onSettings }: {
   state: MatchState; connected: boolean; pending: boolean; onTeams: () => void; onSettings: () => void;
 }) {
   const zh = state.language === 'zh';
-  const checkKey = [state.stage,state.blueTeam.id,state.redTeam.id,state.gameNumber,state.draftHistory.length].join(':');
-  const [verifiedIds,setVerifiedIds]=useState<Record<string,boolean>>(()=>{
-    try{return JSON.parse(sessionStorage.getItem('hok-director-player-order-checks')||'{}') as Record<string,boolean>;}catch{return {};}
-  });
-  const idOrderVerified=!!verifiedIds[checkKey];
+  const checkKey=JSON.stringify([
+    state.stage,state.draftGameNumber??state.gameNumber,state.draftHistory.length,state.displayLeftSide,
+    state.blueTeam.id,state.blueTeam.players,state.blueTeam.playerRoles,state.bluePlayerSlotOrder,
+    state.redTeam.id,state.redTeam.players,state.redTeam.playerRoles,state.redPlayerSlotOrder,
+  ]);
+  const [identityCheck,setIdentityCheck]=useState(readIdentityCheck);
+  const idOrderVerified=identityCheck.context===checkKey&&identityCheck.verified;
+  // An earlier identity snapshot is not a check of the changed lineup. Retain
+  // only the current snapshot so changing away and back cannot restore a check.
+  useEffect(()=>{
+    if(identityCheck.context===checkKey)return;
+    const next={context:checkKey,verified:false};
+    setIdentityCheck(next);persistIdentityCheck(next);
+  },[checkKey,identityCheck.context]);
   const setOrderVerified=(value:boolean)=>{
-    const next={...verifiedIds,[checkKey]:value};
-    setVerifiedIds(next);
-    try{sessionStorage.setItem('hok-director-player-order-checks',JSON.stringify(next));}catch{/* session-only fallback */}
+    const next={context:checkKey,verified:value};
+    setIdentityCheck(next);persistIdentityCheck(next);
   };
   const step = state.committedGameId ? 3 : state.draftComplete ? 2 : state.currentPhase > 0 ? 1 : 0;
   const labels = zh ? ['赛前准备', '选禁操作', '确认阵容', '记录与下一局'] : ['Preparation', 'Draft', 'Confirm lineup', 'Record & next game'];

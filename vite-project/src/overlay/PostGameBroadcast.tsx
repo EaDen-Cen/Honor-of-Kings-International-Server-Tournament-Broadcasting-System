@@ -1,4 +1,6 @@
+import {useState} from 'react';
 import type { MatchState, PlayerRole } from '../shared/types';
+import {portraitAssetURL} from '../shared/config';
 import { heroForState } from '../shared/heroData';
 import { formatPostGameValue, postGameMetricLabel, reliableField, type PostGameMetric, type PostGamePlayer, type PostGameReport } from '../shared/postGame';
 import { reportGoldDifference,formatEconomyTime } from '../shared/postGameTimeline';
@@ -34,13 +36,19 @@ function DataRadar({blue,red,zh}:{blue?:PostGamePlayer;red?:PostGamePlayer;zh:bo
   </div>;
 }
 
+function CompetitorArtwork({sources,name,zh}:{sources:string[];name:string;zh:boolean}){
+  const [index,setIndex]=useState(0),source=sources[index];
+  return source?<img src={source} alt={name} onError={()=>setIndex(previous=>previous+1)}/>:<span>{zh?'选手图片暂不可用':'Player artwork unavailable'}</span>;
+}
 function Competitor({player,state,zh}:{player?:PostGamePlayer;state:MatchState;zh:boolean}){
   const hero=player?heroForState(state,player.heroId):undefined;
   const grade=player?.grade&&(player.grade.manual||player.grade.confidence>=.85)?player.grade.value:undefined;
-  const art=player?.portrait||hero?.artLink||hero?.imageLink;
+  const runtime=player?state.heroArtOverrides[String(player.heroId)]:undefined;
+  const heroArt=state.artSourceMode==='legacy'||runtime?.useLegacyImage?hero?.imageLink:hero?.artLink;
+  const sources=[...new Set([portraitAssetURL(player?.portrait??''),heroArt,hero?.imageLink].filter((source):source is string=>!!source))];
   return <aside className={'pg-matchup-player '+(player?.side??'')} aria-label={zh?'对位选手':'Matchup player'}>
     <div className="pg-competitor-photo">
-      {art?<img src={art} alt={player?.playerId||'Player artwork'}/>:<span>{zh?'选手照片未设置':'No player photo'}</span>}
+      <CompetitorArtwork key={`${player?.rowId}:${sources.join('|')}`} sources={sources} name={player?.playerId||'Player artwork'} zh={zh}/>
     </div>
     <div className={'pg-player '+(player?.side??'')}>
       {hero?.imageLink&&<img className="pg-hero-icon" src={hero.imageLink} alt=""/>}

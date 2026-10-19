@@ -268,7 +268,7 @@ export default function BroadcastApp() {
   const [manualFallbackOpen, setManualFallbackOpen] = useState(false);
   const [delayInput, setDelayInput] = useState('');
   const [lastLanguage, setLastLanguage] = useState<Language>(() => savedLanguage(role));
-  const { snapshot, status, error, pending, send, acknowledged } = useMatch(role, token, setToken);
+  const { snapshot, status, error, pending, send, acknowledged, actionFeedback } = useMatch(role, token, setToken);
   const connected = status === 'Connected';
   const compatible = !!snapshot?.state && Array.isArray(snapshot.state.draftHistory) && !!snapshot.state.draftRuleMode && !!snapshot.state.firstPickSide && !!snapshot.state.sideSwapMode && !!snapshot.state.displayLeftSide && typeof snapshot.state.showHeroName === 'boolean' && !!snapshot.state.artSourceMode && !!snapshot.state.heroArtOverrides && typeof snapshot.state.flowbornFormsIndependent === 'boolean';
   const disabled = !connected || pending || !compatible;
@@ -342,13 +342,13 @@ export default function BroadcastApp() {
           <DraftLifecycle state={state} send={send} disabled={disabled} />
           {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} /></SettingsDialog>}
           {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
-          {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />}
+          {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} />}
         </>}>
           {state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
               <PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />
-              <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />
+              <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} />
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>

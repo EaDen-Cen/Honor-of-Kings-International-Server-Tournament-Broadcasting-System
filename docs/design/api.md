@@ -30,6 +30,12 @@
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
 
+### 最终阵容写入确认（2026-10-19）
+
+`set_lineup_assignments` 接收 `{blue,red,expectedContext?}`。新控制台使用 `lineupWriteContext(state)` 生成 expectedContext，涵盖当前局、阶段、先手/显示方、队伍/选手/角色、P1–P5 顺序、Pick 与原 assignments。服务器在修改前核对上下文，变化则整次拒绝；HUD、语言等独立变化不会使身份上下文失效。省略字段的旧客户端保持兼容，仍需 revision、完整阵容与 BP 资格校验。
+
+WebSocket `ack` 新增可选 `revision`，仅在 Store 成功持久化后返回。客户端 `send` 返回操作 ID，`actionFeedback` 区分 pending / acknowledged / rejected / unconfirmed。最终阵容的“已应用”同时要求匹配操作 ID 的 ACK、新版权威快照、相同局/身份上下文及双方目标 assignments 完全相同；单纯发出命令或仅收到 ACK 都不能证明保存完成。旧 ACK 未带 revision 时继续等待至少下一版权威状态。确认超时/断线不自动重放写入，保留候选供导播核对后重试；切局和人工修改使旧上下文失效。
+
 已接入每局选手槽位映射、常驻本地 OCR、备份/停机恢复、局内 HUD 和赛后数据草稿/MVP 页面。参见 [功能与操作说明](../guides/player-alignment-recovery-hud.md)。真实游戏和 OBS 验收状态见 [项目里程碑](../../MILESTONES.md)。
 
 Control action `set_player_slot_orders` 接收 `blue` / `red` 两个五人排列，以及 `expectedPlayers: [蓝方 roster, 红方 roster]`。一次校验、提交和撤销双方映射；任一排列非法、名单改变或本局已提交，均不修改任何一方。原 `set_player_slot_order` 继续用于单队及人工调整。

@@ -30,6 +30,7 @@ test('MVP resolves registered role, prioritizes photos, fills hero art, and sepa
     await expect(page.locator('.mvp-screen-portrait img')).toHaveClass('mvp-hero-art');await page.screenshot({path:'artifacts/game-data/mvp-role-art-fixed.png',omitBackground:true});
     await h.send({type:'post_game_grades',reportId:report.id,updates:[{rowId:selected.rowId,field:{value:'B',manual:true,confidence:1,sourcePage:'summary'}}]});
     await page.goto('/overlay/postgame-compare?role=jungle');await expect(page.locator('.pg-player.blue strong')).toHaveText('Alpha');
+    await expect(page.locator('.pg-matchup-player.blue .pg-competitor-photo img')).toHaveAttribute('src','/test-mvp-art.jpg');
     await expect(page.locator('.pg-player.blue')).toContainText('Game grade B');
     await expect(page.locator('.pg-number-compare')).toContainText('Gold share');
     await expect(page.locator('.pg-number-compare')).not.toContainText('Rating');

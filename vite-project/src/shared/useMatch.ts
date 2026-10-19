@@ -6,6 +6,13 @@ const api = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const wsURL = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
 const disconnectedMessage = '连接已断开，正在重新加载比赛状态。请确认当前选禁结果后再重试。';
 const invalidMessage = '消息格式无效，请重新连接后重试';
+export interface MatchActionFeedback {
+  id: string;
+  action: Action;
+  status: 'pending' | 'acknowledged' | 'rejected' | 'unconfirmed';
+  revision?: number;
+  error?: string;
+}
 interface Session {
   role: Role;
   token: string;
@@ -13,7 +20,7 @@ interface Session {
   ready: boolean;
   socket?: WebSocket;
   snapshot?: Snapshot;
-  pending?: { id: string; action: Action; timer: ReturnType<typeof setTimeout> };
+  pending?: { id: string; action: Action; revision: number; timer: ReturnType<typeof setTimeout> };
   recover?: (message?: string) => void;
 }
 function cancelPending(session: Session) {
@@ -28,6 +35,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [acknowledged, setAcknowledged] = useState<{ id: string; action: Action }>();
+  const [actionFeedback, setActionFeedback] = useState<MatchActionFeedback>();
   const sessionRef = useRef<Session>();
   const desiredScope = useRef({ role, token });
   desiredScope.current = { role, token };
@@ -43,7 +51,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
     let disposeSocket: (() => void) | undefined;
     const currentSession = () => !session.stopped && sessionRef.current === session && desiredScope.current.role === role && desiredScope.current.token === token;
     setScope({ role, token });
-    setPending(false); setError(''); setSnapshot(undefined); setAcknowledged(undefined);
+    setPending(false); setError(''); setSnapshot(undefined); setAcknowledged(undefined); setActionFeedback(undefined);
 
     function schedule() {
       if (!currentSession()) return;
@@ -91,6 +99,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
           // timeout or malformed message, and old sockets can still queue events.
           session.ready = false; session.socket = undefined; session.recover = undefined;
           if (message || session.pending) setError(message || disconnectedMessage);
+          if (session.pending) setActionFeedback({ id: session.pending.id, action: session.pending.action, status: 'unconfirmed', revision: session.snapshot?.revision, error: message || disconnectedMessage });
           cancelPending(session); setPending(false); setAcknowledged(undefined);
           dispose();
           setStatus(code === 1008 ? 'Access rejected' : 'Reconnecting');
@@ -118,9 +127,16 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
           } else if (msg.type === 'access_token_update') onTokenRef.current?.(msg.token);
           else if (msg.type === 'error') {
             setError(msg.error);
-            if (msg.id === session.pending?.id) { cancelPending(session); setPending(false); }
+            if (session.pending && msg.id === session.pending.id) {
+              setActionFeedback({ id: session.pending.id, action: session.pending.action, status: 'rejected', revision: session.snapshot?.revision, error: msg.error });
+              cancelPending(session); setPending(false);
+            }
           } else if (msg.type === 'ack' && msg.id === session.pending?.id) {
             setAcknowledged({ id: msg.id, action: session.pending.action });
+            // Legacy servers omit the revision. Keep the minimum expected
+            // write revision so an ACK arriving before its snapshot still
+            // waits for the authoritative update instead of timing out.
+            setActionFeedback({ id: msg.id, action: session.pending.action, status: 'acknowledged', revision: msg.revision ?? session.pending.revision + 1 });
             cancelPending(session); setPending(false);
           }
         };
@@ -148,10 +164,12 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
       if (sessionRef.current !== session || session.stopped || session.pending?.id !== id) return;
       session.recover?.('操作确认超时，正在重新加载比赛状态。请确认结果后再重试。');
     }, 8000);
-    session.pending = { id, action, timer };
+    session.pending = { id, action, revision: session.snapshot.revision, timer };
+    setActionFeedback({ id, action, status: 'pending', revision: session.snapshot.revision });
     setPending(true);
     try { session.socket.send(JSON.stringify({ type: 'action', id, revision: session.snapshot.revision, action })); }
     catch { session.recover?.(disconnectedMessage); }
+    return id;
   }, [role, token]);
 
   // A role/token change must hide the old session before its effect cleanup runs.
@@ -163,5 +181,6 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
     pending: sameSession && pending,
     send,
     acknowledged: sameSession ? acknowledged : undefined,
+    actionFeedback: sameSession ? actionFeedback : undefined,
   };
 }

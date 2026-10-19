@@ -31,7 +31,7 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
-## 两场实战复盘与对位 OBS 场景（待合并改动）
+## 两场实战复盘与对位 OBS 场景
 
 [2026-10-18 真实双局现场复盘](docs/validation/live-two-match-retrospective-2026-10-18.md) 记录单人导播操作负担、元流之子形态误识别、P1–P5 排序遗漏、录制磁盘耗尽、赛后整理效率、帮抢和 GHUD/经济对位等问题。除已有稳定功能外，不将这些问题写作“已修复”。
 
@@ -40,7 +40,9 @@ HOK 游戏画面 / BP Simulator
 
 ## OBS 双向集成及单人导播路线（计划中）
 
-OBS Browser Source 单向显示已经具备；真正由 HOK Broadcast 控制 OBS 场景、混音和读取录制状态**尚未开发**。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。**最终阵容归属识别到变化但未成功应用**是 P0 前置可靠性缺陷，必须先实现服务器确认与正确玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
+2026-10-19 优先修复最终阵容确认链路：识别候选、提交和保存成功分开显示；服务端核对当前局与原阵容，界面同时核对 ACK 和权威快照，失败保留候选供人工接管。Player ID 检查随名单/顺序变化重新提醒。使用与验证见 [导播操作](docs/guides/operator-guide.md#最终英雄归属先识别再核对保存结果) 和 [验证记录](docs/validation/history.md)。OBS 控制能力继续为规划，真实比赛与 OBS 双场复测待完成。
+
+OBS Browser Source 单向显示已经具备；真正由 HOK Broadcast 控制 OBS 场景、混音和读取录制状态**尚未开发**。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。现场原版本的**最终阵容归属识别到变化但未成功应用**是 P0 前置问题；本轮已补齐确认链路，仍须真机复测玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
 
 ## 系统组成
 

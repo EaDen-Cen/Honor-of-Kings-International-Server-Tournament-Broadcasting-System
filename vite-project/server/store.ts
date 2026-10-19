@@ -13,6 +13,7 @@ import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/hero
 import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
+import { lineupWriteContext } from '../src/shared/lineupContext.js';
 
 interface Event { id: string; timestamp: number; type: string; resultingState: MatchState; revision: number }
 interface Data { version: 2; state: MatchState; events: Event[]; history: MatchState[]; revision: number; delay: number; ids: string[] }
@@ -505,6 +506,7 @@ export class Store {
       break;
     }
     case 'set_lineup_assignments': {
+      if (action.expectedContext !== undefined && (typeof action.expectedContext !== 'string' || action.expectedContext !== lineupWriteContext(state))) throw new Error('阵容或本局已变化，请重新识别 / Lineup context changed; scan again');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
       for (const lineup of [action.blue, action.red]) {

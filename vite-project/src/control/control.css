@@ -140,7 +140,11 @@
 .lineup-auto-toolbar { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
 .lineup-auto-toolbar label { flex-direction:row; align-items:center; gap:8px; margin:0; color:#d7e5f6; }
 .lineup-auto-toolbar input[type="checkbox"] { width:18px; height:18px; margin:0; }
-.lineup-status { margin:8px 0 0; color:#9db3cd; font-size:12px; }
+.lineup-status { margin:0; padding:10px 12px; border-left:3px solid #6897c4; border-radius:4px; background:#16263b; color:#ceddf0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.lineup-sync[data-lineup-state="applied"] .lineup-status { border-left-color:#68d7a0; background:#132f2a; color:#bcf3d8; }
+.lineup-sync[data-lineup-state="rejected"] .lineup-status { border-left-color:#ff7e92; background:#39232d; color:#ffd0d8; }
+.lineup-sync[data-lineup-state="unconfirmed"] .lineup-status,
+.lineup-sync[data-lineup-state="expired"] .lineup-status { border-left-color:#f0c879; background:#342d23; color:#f6e1b9; }
 .lineup-regions { margin-top:10px; border:1px solid #31445e; border-radius:8px; padding:9px 11px; background:#091321; }
 .lineup-regions summary { cursor:pointer; font-weight:700; }
 .lineup-region-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-top:10px; }

@@ -53,6 +53,8 @@ test('socket envelopes require known types and typed identifiers and tokens', ()
   assert.deepEqual(parseMatchMessage('{"type":"pong"}'), { type: 'pong' });
   assert.deepEqual(parseMatchMessage('{"type":"error","error":"bad"}'), { type: 'error', error: 'bad', id: undefined });
   assert.deepEqual(parseMatchMessage('{"type":"ack","id":"action-123"}'), { type: 'ack', id: 'action-123' });
+  assert.deepEqual(parseMatchMessage('{"type":"ack","id":"action-123","revision":12}'), { type: 'ack', id: 'action-123', revision: 12 });
+  for (const revision of [-1, 1.5, '12', null]) assert.equal(parseMatchMessage(JSON.stringify({type:'ack',id:'action-123',revision})), undefined);
   assert.deepEqual(parseMatchMessage('{"type":"access_token_update","token":"rotated"}'), { type: 'access_token_update', token: 'rotated' });
 });
 

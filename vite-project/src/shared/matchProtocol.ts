@@ -77,7 +77,7 @@ export function isMatchSnapshot(value: unknown): value is Snapshot {
 
 export type MatchMessage = Snapshot
   | { type: 'access_token_update'; token: string }
-  | { type: 'ack'; id: string }
+  | { type: 'ack'; id: string; revision?: number }
   | { type: 'error'; id?: string; error: string }
   | { type: 'pong' };
 
@@ -88,7 +88,7 @@ export function parseMatchMessage(data: unknown): MatchMessage | undefined {
   if (!isObject(value)) return;
   if (value.type === 'match_state_update') return isMatchSnapshot(value) ? value : undefined;
   if (value.type === 'access_token_update' && typeof value.token === 'string' && value.token.trim()) return { type: value.type, token: value.token };
-  if (value.type === 'ack' && typeof value.id === 'string' && value.id) return { type: value.type, id: value.id };
+  if (value.type === 'ack' && typeof value.id === 'string' && value.id && optional(integer)(value.revision)) return { type: value.type, id: value.id, ...(value.revision === undefined ? {} : { revision: value.revision as number }) };
   if (value.type === 'error' && typeof value.error === 'string' && (value.id === undefined || typeof value.id === 'string')) return { type: value.type, error: value.error, id: value.id };
   if (value.type === 'pong') return { type: value.type };
 }
