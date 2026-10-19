@@ -11,8 +11,8 @@ test('player mapping renders correct owner, HUD reconnects, MVP switches and rec
     await page.goto('/overlay/draft');
     await expect(page.locator('.broadcast-card[data-team-id="team-a"][data-slot="0"] .player-id')).toHaveText('Echo');
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,blueKills:8,redKills:5,blueTowers:3,redTowers:2}});
-    await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud')).toBeVisible();await expect(page.locator('.game-hud-stats')).toContainText('8');
-    await page.reload();await expect(page.locator('.game-hud-stats')).toContainText('8');
+    await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud')).toBeVisible();await expect(page.locator('.game-hud-kills')).toContainText('8');
+    await page.reload();await expect(page.locator('.game-hud-kills')).toContainText('8');
     await page.setViewportSize({width:1920,height:1080});await page.screenshot({path:'artifacts/game-hud.png',omitBackground:true});
     await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     const report=h.state().postGameReports[0],player=report.players[0];
