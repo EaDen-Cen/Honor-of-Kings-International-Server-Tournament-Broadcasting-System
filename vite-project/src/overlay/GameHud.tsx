@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { MatchState, Side } from '../shared/types';
 import { currentGame, displaySides } from '../shared/draftRules';
 import { stageName } from '../shared/display';
@@ -13,6 +13,9 @@ import './gameHud.css';
 export function GameHud({state}:{state:MatchState}) {
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [left,right]=displaySides(state);
+  // Legacy states without widthPercent remain full width; ignore invalid imported values.
+  const widthPercent=Number.isInteger(stats.widthPercent)&&stats.widthPercent!>=50&&stats.widthPercent!<=100?stats.widthPercent!:100;
+  const ribbonStyle={'--hud-scale':String(widthPercent/100)} as CSSProperties;
   const [now,setNow]=useState(Date.now);
   const ocr=Object.values(stats.sources??{}).filter(source=>source.source==='ocr');
   useEffect(()=>{
@@ -44,7 +47,7 @@ export function GameHud({state}:{state:MatchState}) {
     <b className={`game-hud-metric-left ${left}`}>{l}</b><small>{label}</small><b className={`game-hud-metric-right ${right}`}>{r}</b>
   </div>;
   return <div className={`game-hud ${stats.density}`} data-testid="game-hud">
-    <div className="game-hud-scoreboard">
+    <div className="game-hud-scoreboard" style={ribbonStyle} data-testid="game-hud-ribbon">
       <header className="game-hud-main">
         {team(left,'left')}
         <div className="game-hud-center">
