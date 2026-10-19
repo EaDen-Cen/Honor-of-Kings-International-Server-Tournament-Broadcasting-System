@@ -36,6 +36,18 @@ test('MVP resolves registered role, prioritizes photos, fills hero art, and sepa
     await h.send({type:'post_game_fields',reportId:report.id,updates:[{rowId:selected.rowId,metric:'rating',field:{value:9.5,manual:true,confidence:1,sourcePage:'summary'}}]});
     await expect(page.locator('.pg-number-compare')).toContainText('Rating');
     const bounds=await page.locator('.pg-footer').boundingBox();expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(1080);
+    for(const role of ['clash','jungle','mid','farm','roam']){
+      await page.goto('/overlay/postgame-'+role);
+      await expect(page.locator('.pg-matchup-stage')).toHaveAttribute('data-matchup-role',role);
+      await expect(page.locator('.pg-matchup-player')).toHaveCount(2);
+      await expect(page.locator('.pg-role-tabs')).toHaveCount(0);
+      await expect(page.locator('.pg-center-analysis .pg-number-compare')).toBeVisible();
+      const footer=await page.locator('.pg-footer').boundingBox();
+      expect(footer).not.toBeNull();
+      expect(footer!.y+footer!.height).toBeLessThanOrEqual(1080);
+    }
+    await page.goto('/overlay/postgame-compare?role=jungle');
+    await expect(page.locator('.pg-matchup-stage')).toHaveAttribute('data-matchup-role','jungle');
     await page.screenshot({path:'artifacts/full-audit/compare-grade-and-layout.png',omitBackground:true});
     await page.goto('/overlay/mvp');
     await expect(page.locator('.mvp-screen-hero').filter({hasText:'Game rating'})).toHaveText('Game rating · 9.5');
