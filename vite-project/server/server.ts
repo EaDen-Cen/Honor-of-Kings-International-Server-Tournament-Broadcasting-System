@@ -61,7 +61,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
-    if (url.pathname === '/api/v1/obs/status' || url.pathname === '/api/v1/obs/scene') {
+    if (url.pathname === '/api/v1/obs/status' || url.pathname === '/api/v1/obs/scene' || url.pathname === '/api/v1/obs/audio') {
       // This integration never accepts a remotely proxied Control session:
       // the OBS WebSocket is deliberately bound to the local operator machine.
       if(roleFor(req.headers.authorization?.replace(/^Bearer /,''))!=='control'||!localCaptureRequest(req)){
@@ -70,6 +70,28 @@ const server = createServer(async (req, res) => {
       if(url.pathname.endsWith('/status')){
         if(req.method!=='GET'){json(405,{error:'GET required'});return;}
         json(200,await obsBridge.status());return;
+      }
+      if(url.pathname.endsWith('/audio')){
+        if(req.method==='GET'){
+          try{json(200,{inputs:await obsBridge.audioInputs()});}
+          catch(error){json(409,{error:error instanceof Error?error.message:'OBS audio inputs unavailable'});}
+          return;
+        }
+        if(req.method!=='POST'){json(405,{error:'GET or POST required'});return;}
+        let body='';
+        for await(const chunk of req){body+=chunk;if(body.length>512){json(413,{error:'Request too large'});return;}}
+        let input:unknown;
+        try{input=JSON.parse(body);}catch{json(400,{error:'Invalid request'});return;}
+        const values=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:{};
+        const {inputName,targetVolume,durationMs}=values;
+        if(typeof inputName!=='string'||!inputName.trim()||inputName.length>128||
+          typeof targetVolume!=='number'||!Number.isFinite(targetVolume)||targetVolume<0||targetVolume>2||
+          typeof durationMs!=='number'||!Number.isInteger(durationMs)||durationMs<0||durationMs>5000){
+          json(400,{error:'Invalid OBS audio fade settings'});return;
+        }
+        try{json(200,{inputName,volume:await obsBridge.fadeInput(inputName,targetVolume,durationMs)});}
+        catch(error){json(409,{error:error instanceof Error?error.message:'OBS audio fade failed'});}
+        return;
       }
       if(req.method!=='POST'){json(405,{error:'POST required'});return;}
       let body='';
