@@ -38,6 +38,10 @@ HOK 游戏画面 / BP Simulator
 此开发分支新增五个 **独立、固定角色** 的浏览器源：
 `/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 本机增加逐局 Player ID 顺序核对提醒，**仅是操作清单而非服务端身份认证**。上述改动需合并 PR 并实机验收后才是正式可用版本。
 
+## OBS 双向集成及单人导播路线（计划中）
+
+OBS Browser Source 单向显示已经具备；真正由 HOK Broadcast 控制 OBS 场景、混音和读取录制状态**尚未开发**。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。**最终阵容归属识别到变化但未成功应用**是 P0 前置可靠性缺陷，必须先实现服务器确认与正确玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
+
 ## 系统组成
 
 | 模块 | 用途 |
