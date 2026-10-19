@@ -14,7 +14,8 @@ export function GameHud({state}:{state:MatchState}) {
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [left,right]=displaySides(state);
   // Legacy states without widthPercent remain full width; ignore invalid imported values.
-  const widthPercent=Number.isInteger(stats.widthPercent)&&stats.widthPercent!>=50&&stats.widthPercent!<=100?stats.widthPercent!:100;
+  const requestedWidth=stats.widthPercent??100;
+  const widthPercent=Number.isInteger(requestedWidth)&&requestedWidth>=50&&requestedWidth<=100?requestedWidth:100;
   const ribbonStyle={'--hud-scale':String(widthPercent/100)} as CSSProperties;
   const [now,setNow]=useState(Date.now);
   const ocr=Object.values(stats.sources??{}).filter(source=>source.source==='ocr');
