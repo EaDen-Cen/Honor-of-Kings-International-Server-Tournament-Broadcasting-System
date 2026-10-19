@@ -58,7 +58,7 @@ export function GameHud({state}:{state:MatchState}) {
         <div className="game-hud-metrics">
           {metric(zh?'推塔':'TOWERS',stats[`${left}Towers`],stats[`${right}Towers`])}
           {(stats.blueGold!==undefined||stats.redGold!==undefined)&&metric(zh?'经济':'GOLD',gold(left),gold(right),true)}
-          {stats.density==='full'&&stats.neutralObjectives.map(item=><div className="game-hud-metric objective" key={item.id}>
+          {stats.neutralObjectives.slice(0,stats.density==='full'?6:2).map(item=><div className="game-hud-metric objective" key={item.id}>
             <b className="game-hud-metric-left">{item[left]}</b>
             {item.icon&&<img src={portraitAssetURL(item.icon)} alt=""/>}
             <small title={item.name}>{item.name}</small>
