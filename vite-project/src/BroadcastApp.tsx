@@ -15,6 +15,7 @@ import {
   type Language,
   type MatchSettings,
   type MatchState,
+  type PlayerRole,
   type Role,
   type Side,
 } from './shared/types';
@@ -296,7 +297,8 @@ export default function BroadcastApp() {
       </form><p>{accessError ? errorMessage(accessError, lang) : connectionLabel(status, lang)}</p>
     </main>;
   }
-  if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:location.pathname==='/overlay/postgame-compare'?<PostGameBroadcast state={state} mode="compare"/>:location.pathname==='/overlay/game-progress'?<PostGameBroadcast state={state} mode="progress"/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
+  const matchupRole=/^\\/overlay\\/postgame-(clash|jungle|mid|farm|roam)$/.exec(location.pathname)?.[1] as PlayerRole|undefined;
+  if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:matchupRole?<PostGameBroadcast state={state} mode="compare" compareRole={matchupRole}/>:location.pathname==='/overlay/postgame-compare'?<PostGameBroadcast state={state} mode="compare"/>:location.pathname==='/overlay/game-progress'?<PostGameBroadcast state={state} mode="progress"/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
   return <main className={`workspace ${role === 'control' ? 'control-workspace' : ''}`}>
     <header className="topbar">
       <div><span className="eyebrow">{t(role === 'caster' ? 'casterEyebrow' : 'controlEyebrow')}</span><h1>{t('brandTitle')} <span>{t('brandSubtitle')}</span></h1></div>
