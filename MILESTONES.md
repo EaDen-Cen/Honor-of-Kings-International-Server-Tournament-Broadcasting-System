@@ -4,6 +4,10 @@
 
 2026-10-18 本地与 GitHub 整合：以云端 PR #71–#75 为基线，保留连接恢复、设置草稿冲突保护、隔离浏览器测试及 Windows 进程管理；接入本地八页结算采集、精确经济/字母评级、共享 BP 框选、MVP 位置/照片/统计和完整时间刻度的经济优势曲线。选择依据与本次验证见 [验证记录](docs/validation/history.md#2026-10-18本地与-github-逐功能整合)。
 
+## 2026-10-19 · GHUD 交换边显示与全量 CI 回归修复
+
+PR #82 的紧凑透明 HUD 取消了旧版全屏遮罩，但旧 Playwright 测试中四处仍依赖已删除的类名，使合并后的 CI 出现 4/80 失败。修复后测试直接核查新版比分、经济、采集过期状态及真实左右队伍/选手信息；新增换边后红蓝数值着色和 Full 十人条方向修复。额外增加 P1–P5 人工核对 E2E，检查会话刷新、BP 进度、权威顺序/选手名单变化。**以最新 GitHub Actions 结果为准，仍须 OBS 1920×1080 实机彩排。**
+
 ## 2026-10-19 · 五路对位生产 HTTP 路由修正（P0）
 
 PR #77 的五条固定对位 URL 已在前端渲染，但遗漏 Node 后端 `uiRoutes.ts` HTML Shell 白名单，导致 /overlay/postgame-clash、jungle、mid、farm、roam 等正式 Browser Source 可能 404。本修复显式注册全部五条路径，并补充后台路由单测；必须经 Playwright 与 OBS 真实 Browser Source 验收。
