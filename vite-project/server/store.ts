@@ -347,13 +347,14 @@ export class Store {
       const stats=action.stats;
       if(!stats || !['compact','full'].includes(stats.density) || !Array.isArray(stats.neutralObjectives) || stats.neutralObjectives.length>6) throw new Error('局内统计格式无效 / Invalid live stats');
       for(const value of [stats.blueKills,stats.redKills,stats.blueTowers,stats.redTowers]) integer(value,0,999);
+      if(stats.widthPercent!==undefined)integer(stats.widthPercent,50,100);
       for(const key of ['blueGold','redGold','gameTimeSeconds'] as const)if(stats[key]!==undefined)integer(stats[key],0,key==='gameTimeSeconds'?7200:1000000);
       for(const item of stats.neutralObjectives){shortText(item.id,100);shortText(item.name,24);if(!item.id||!item.name.trim())throw new Error('资源名称不能为空 / Objective name required');portraitURL(item.icon);integer(item.blue,0,999);integer(item.red,0,999);}
       if(new Set(stats.neutralObjectives.map(item=>item.id)).size!==stats.neutralObjectives.length)throw new Error('资源编号重复 / Duplicate objective ID');
       next.history.push(copy(state));
       const sources={...state.liveGameStats.sources};
       for(const key of liveCaptureKeys)if(stats[key]!==state.liveGameStats[key])sources[key]={source:'manual',capturedAt:this.clock(),confidence:1};
-      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red}))};
+      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,widthPercent:stats.widthPercent??100,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red}))};
       break;
     }
 
