@@ -25,7 +25,8 @@
 .game-hud-metrics{display:flex;align-items:center;justify-content:center;gap:26px}
 .game-hud-metric{display:flex;align-items:center;gap:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .game-hud-metric b{font-size:17px;font-weight:750;min-width:27px}
-.game-hud-metric-left{color:var(--hud-blue);text-align:right}.game-hud-metric-right{color:var(--hud-red);text-align:left}
+.game-hud-metric-left{text-align:right}.game-hud-metric-right{text-align:left}
+.game-hud-metric b.blue{color:var(--hud-blue)}.game-hud-metric b.red{color:var(--hud-red)}
 .game-hud-metric small{font-size:10px;font-weight:700;letter-spacing:1px;color:#acbed0}
 .game-hud-metric.accent b{font-size:18px}
 .game-hud-metric.objective{gap:7px}
@@ -36,9 +37,9 @@
 .game-hud-indicator.verified{background:#54d5b0}.game-hud-indicator.stale{background:#ffba5c}
 .game-hud-rosters{height:32px;display:grid;grid-template-columns:minmax(0,1fr) 94px minmax(0,1fr);align-items:center;gap:10px;padding:0 28px;background:#0d192be8;border-top:1px solid #ffffff14}
 .game-hud-roster-side{display:flex;align-items:center;min-width:0;gap:10px}
-.game-hud-roster-side.red-side{flex-direction:row-reverse}
+.game-hud-roster-side.display-right{flex-direction:row-reverse}
 .game-hud-player{display:flex;align-items:center;gap:5px;min-width:0;max-width:160px;flex:1}
-.game-hud-roster-side.red-side .game-hud-player{flex-direction:row-reverse}
+.game-hud-roster-side.display-right .game-hud-player{flex-direction:row-reverse}
 .game-hud-player img,.game-hud-hero-unknown{width:23px;height:23px;flex:0 0 23px;object-fit:cover;border:1px solid #7c96ac66;border-radius:2px}
 .game-hud-hero-unknown{background:#25354b}
 .game-hud-player-id{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
