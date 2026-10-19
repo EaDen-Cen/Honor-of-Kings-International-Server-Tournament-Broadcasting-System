@@ -15,7 +15,7 @@ import {
   connectSharedBpWindow,
   subscribeSharedWindowCapture,
 } from './sharedWindowCapture';
-import { solveLineupTeam as solveTeam, type Candidate, type SlotResult } from './lineupRecognition';
+import { solveLineupTeam as solveTeam, planTrustedLineupUpdate, type Candidate, type SlotResult } from './lineupRecognition';
 
 const SLOTS_STORAGE='hok-window-capture-slots-v3';
 
@@ -35,6 +35,14 @@ function label(state:MatchState,id:number|null|undefined) {
   if(!id) return '—';
   const hero=heroForState(state,id);
   return state.language==='zh'?hero?.chineseName??'—':hero?.englishName??'—';
+}
+
+interface LineupSubmission {
+  blue:number[];
+  red:number[];
+  signature:string;
+  status:'submitting'|'applied'|'rejected';
+  reason?:string;
 }
 
 function pickKey(side:Side,index:number) {
@@ -76,19 +84,22 @@ function captureFrame(video:HTMLCanvasElement,region:NormalizedCaptureRegion) {
 }
 
 export function LineupAssignments({
-  state,revision,token,disabled,send,
+  state,revision,token,disabled,send,acknowledged,error,
 }:{
   state:MatchState;
   revision:number;
   token:string;
   disabled:boolean;
-  send:(action:Action)=>void;
+  send:(action:Action)=>boolean;
+  acknowledged?:{id:string;action:Action};
+  error:string;
 }) {
   const zh=state.language==='zh';
   const [auto,setAuto]=useState(()=>{try{return localStorage.getItem('hok-lineup-auto')!=='0';}catch{return true;}});
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [results,setResults]=useState<SlotResult[]>([]);
+  const [submission,setSubmission]=useState<LineupSubmission>();
   const [videoReady,setVideoReady]=useState(false);
   const [streamLabel,setStreamLabel]=useState('');
   const [connecting,setConnecting]=useState(false);
@@ -97,6 +108,7 @@ export function LineupAssignments({
   const streamRef=useRef<MediaStream>();
   const mounted=useRef(true);
   const applying=useRef<{signature:string;at:number}>({signature:'',at:0});
+  const rejectedSignature=useRef('');
   const stableRef=useRef({signature:'',count:0});
   const busyRef=useRef(false);
   const activeScan=useRef<AbortController>();
@@ -169,6 +181,7 @@ export function LineupAssignments({
     activeScan.current?.abort();
     stableRef.current={signature:'',count:0};
     applying.current={signature:'',at:0};
+    rejectedSignature.current='';
     setResults([]);
     setMessage('');
   },[context]);
@@ -193,10 +206,39 @@ export function LineupAssignments({
   },[disabled,zh]);
 
   const applyLineups=useCallback((blue:number[],red:number[])=>{
-    if(disabled||!state.draftComplete||state.committedGameId) return;
-    activeScan.current?.abort();stableRef.current={signature:'',count:0};setResults([]);
-    send({type:'set_lineup_assignments',blue,red});
-  },[disabled,state.draftComplete,state.committedGameId,send]);
+    if(disabled||!state.draftComplete||state.committedGameId){
+      setMessage(zh?'无法提交：比赛已提交或仍有其他操作等待服务器处理。':'Cannot apply: the game is committed or another server action is pending.');
+      return false;
+    }
+    const queued=send({type:'set_lineup_assignments',blue,red});
+    if(!queued){
+      setMessage(zh?'服务器未接收提交请求：请检查连接与待处理操作，确认后重试。':'Request was not queued. Check the connection or pending action and retry.');
+      return false;
+    }
+    // A queued WebSocket message is NOT proof the server applied this lineup.
+    activeScan.current?.abort();
+    stableRef.current={signature:'',count:0};
+    setSubmission({blue:[...blue],red:[...red],signature:`${blue.join(',')}|${red.join(',')}`,status:'submitting'});
+    return true;
+  },[disabled,state.draftComplete,state.committedGameId,send,zh]);
+
+  useEffect(()=>{
+    if(!submission||submission.status!=='submitting')return;
+    if(error){
+      rejectedSignature.current=submission.signature;
+      setSubmission(current=>current?.status==='submitting'?{...current,status:'rejected',reason:error}:current);
+      return;
+    }
+    if(acknowledged?.action.type!=='set_lineup_assignments')return;
+    const confirmed=sameLineup(state.blueAssignments,submission.blue)&&sameLineup(state.redAssignments,submission.red);
+    if(confirmed){
+      setSubmission(current=>current?.status==='submitting'?{...current,status:'applied'}:current);
+      rejectedSignature.current='';
+    }else{
+      rejectedSignature.current=submission.signature;
+      setSubmission(current=>current?.status==='submitting'?{...current,status:'rejected',reason:zh?'服务器确认与当前阵容不一致，请重新核对。':'Server acknowledgement did not match the authoritative lineup.'}:current);
+    }
+  },[acknowledged,error,state.blueAssignments,state.redAssignments,submission,zh]);
 
   const recognizeSlot=useCallback(async(side:Side,index:number,frame:HTMLCanvasElement,signal:AbortSignal)=>{
     signal.throwIfAborted();
@@ -246,32 +288,38 @@ export function LineupAssignments({
 
       const blue=solveTeam(scanned.filter(slot=>slot.side==='blue').sort((a,b)=>a.playerIndex-b.playerIndex),state.bluePicks);
       const red=solveTeam(scanned.filter(slot=>slot.side==='red').sort((a,b)=>a.playerIndex-b.playerIndex),state.redPicks);
-      if(!blue||!red){
+      if(!blue&&!red){
         stableRef.current={signature:'',count:0};
-        setMessage(zh?'暂时无法唯一确认 10 个英雄，继续监视。':'Could not uniquely resolve all ten heroes yet; continuing to watch.');
+        setMessage(zh?'双方候选均无法唯一对应五名英雄；请核对选框或人工调整。':'Neither team has a uniquely resolved lineup. Check capture regions or use manual assignment.');
         return;
       }
-
-      const signature=`${blue.heroes.join(',')}|${red.heroes.join(',')}`;
+      // A single side can be trustworthy while the other is obscured.
+      // In that case keep the server's existing lineup for the uncertain side.
+      const plan=planTrustedLineupUpdate(blue,red,state.blueAssignments,state.redAssignments);
+      if(!plan){
+        setMessage(zh?'当前阵容尚未完整，请先完成 BP 后再同步。':'The existing lineup is incomplete; finish BP before syncing swaps.');
+        return;
+      }
+      const signature=`${plan.blue.join(',')}|${plan.red.join(',')}`;
       const previous=stableRef.current;
       const count=previous.signature===signature?previous.count+1:1;
       stableRef.current={signature,count};
-      const changed=!sameLineup(state.blueAssignments,blue.heroes)||!sameLineup(state.redAssignments,red.heroes);
-      const highConfidence=blue.minimum>=.50&&red.minimum>=.50&&blue.average>=.65&&red.average>=.65;
-
+      const changed=plan.changedBlue||plan.changedRed;
+      const quality=(team:typeof blue)=>team?`${Math.round(team.average*100)}%/${Math.round(team.minimum*100)}%`:'—';
+      const checked=[plan.changedBlue?(zh?'蓝方':'Blue'):null,plan.changedRed?(zh?'红方':'Red'):null].filter(Boolean).join(' + ');
+      const unknown=(!plan.trustedBlue||!plan.trustedRed);
       setMessage(zh
-        ? `换英雄检测运行中 · 蓝均值/最低 ${Math.round(blue.average*100)}%/${Math.round(blue.minimum*100)}% · 红均值/最低 ${Math.round(red.average*100)}%/${Math.round(red.minimum*100)}% · 稳定 ${count}/2${changed?' · 检测到阵容变化':''}${changed&&!highConfidence?' · 但置信度不足，暂不自动应用':''}`
-        : `Hero-swap detection active · blue avg/min ${Math.round(blue.average*100)}%/${Math.round(blue.minimum*100)}% · red avg/min ${Math.round(red.average*100)}%/${Math.round(red.minimum*100)}% · stable ${count}/2${changed?' · lineup change detected':''}${changed&&!highConfidence?' · confidence too low to auto-apply':''}`);
-
-      const shouldApply=changed&&highConfidence&&(forceApply||(auto&&count>=2));
+        ? `换英雄检测 · 蓝均值/最低 ${quality(blue)} · 红均值/最低 ${quality(red)} · 稳定 ${count}/2${changed?' · 可信变更：'+checked:''}${unknown?' · 不可靠一方保留原阵容':''}`
+        : `Swap scan · blue avg/min ${quality(blue)} · red avg/min ${quality(red)} · stable ${count}/2${changed?' · trusted change: '+checked:''}${unknown?' · retaining uncertain side':''}`);
+      const shouldApply=changed&&(forceApply||(auto&&count>=2))&&(forceApply||rejectedSignature.current!==signature);
       const now=Date.now();
       const recentlyTried=applying.current.signature===signature&&now-applying.current.at<2500;
       if(shouldApply&&!recentlyTried){
         applying.current={signature,at:now};
-        applyLineups(blue.heroes,red.heroes);
-        setMessage(zh
-          ? `已检测到换英雄并发送自动同步 · 蓝 ${Math.round(blue.average*100)}% · 红 ${Math.round(red.average*100)}%`
-          : `Hero swap detected; automatic lineup sync sent · blue ${Math.round(blue.average*100)}% · red ${Math.round(red.average*100)}%`);
+        const queued=applyLineups(plan.blue,plan.red);
+        if(queued)setMessage(zh
+          ? '已提交可信阵容变更，等待服务器确认；不可靠一方保持原样。'
+          : 'Submitted trusted lineup change; waiting for server confirmation. The uncertain side is unchanged.');
       }
     } catch(error) {
       if(mounted.current&&capturedContext===contextRef.current&&capturedStream===streamRef.current) setMessage(controller.signal.aborted
@@ -359,8 +407,15 @@ export function LineupAssignments({
           }} /> {zh?'自动检测并同步换英雄':'Automatically detect and sync hero swaps'}</label>
           {!videoReady&&<button disabled={disabled||connecting} onClick={()=>void connectWindow()}>{connecting?(zh?'正在连接…':'Connecting…'):(zh?'连接 BP 窗口':'Connect BP window')}</button>}
           <button disabled={disabled||busy||!videoReady} onClick={()=>void scan(true)}>{busy?(zh?'正在识别…':'Recognizing…'):(zh?'立即识别并应用换英雄':'Recognize and apply swap now')}</button>
-          {blueSolved&&redSolved&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,redSolved.heroes);}}>{zh?'应用本次识别':'Apply this scan'}</button>}
+          {blueSolved&&redSolved&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,redSolved.heroes);}}>{zh?'人工确认并应用双方':'Confirm and apply both teams'}</button>}
+          {blueSolved&&!redSolved&&state.redAssignments.every(id=>id!==null)&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(blueSolved.heroes,state.redAssignments as number[]);}}>{zh?'仅确认并应用蓝方':'Confirm blue team only'}</button>}
+          {redSolved&&!blueSolved&&state.blueAssignments.every(id=>id!==null)&&<button disabled={disabled||busy} onClick={()=>{pauseAuto();applyLineups(state.blueAssignments as number[],redSolved.heroes);}}>{zh?'仅确认并应用红方':'Confirm red team only'}</button>}
         </div>
+        {submission&&<p role={submission.status==='rejected'?'alert':'status'} className={'lineup-status '+(submission.status==='rejected'?'error':'')} data-testid="lineup-apply-state" data-status={submission.status}>
+          {submission.status==='submitting'?(zh?'最终阵容已提交，等待服务器确认…':'Final lineup submitted; awaiting server confirmation…'):
+            submission.status==='applied'?(zh?'最终阵容已由服务器确认并应用。':'Final lineup applied and confirmed by the server.'):
+              (zh?'最终阵容未应用：':'Final lineup NOT applied: ')+(submission.reason||'Unknown error')}
+        </p>}
         <p role="status" className="lineup-status">
           {message||(videoReady
             ? (zh?`已复用 BP 屏幕采集：${streamLabel||'窗口'}。阵容变化连续稳定 2 次后自动更新。`:`Reusing BP capture: ${streamLabel||'window'}. A changed lineup auto-applies after 2 stable scans.`)

@@ -342,13 +342,13 @@ export default function BroadcastApp() {
           <DraftLifecycle state={state} send={send} disabled={disabled} />
           {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} /></SettingsDialog>}
           {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
-          {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />}
+          {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />}
         </>}>
           {state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
               <PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />
-              <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} />
+              <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>
