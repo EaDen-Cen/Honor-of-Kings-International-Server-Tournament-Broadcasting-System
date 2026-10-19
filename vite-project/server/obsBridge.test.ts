@@ -8,6 +8,9 @@ test('OBS bridge refuses a remote WebSocket endpoint before connecting',()=>{
   assert.throws(()=>validateLocalObsUrl('ws://example.com:4455/'),/must be/);
   assert.throws(()=>validateLocalObsUrl('wss://127.0.0.1:4455/'),/must be/);
   assert.throws(()=>validateLocalObsUrl('ws://127.0.0.1:4455/private'),/must be/);
+  const optional=new ObsBridge('ws://remote.example.com:4455','secret');
+  assert.equal(optional.configured,true);
+  optional.close();
 });
 
 test('OBS WebSocket v5 authenticates locally, reports recording, and confirms scene switching',async()=>{
