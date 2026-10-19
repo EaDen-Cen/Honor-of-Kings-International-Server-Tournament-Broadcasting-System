@@ -25,6 +25,7 @@ export function ObsDirectorPanel({token,zh}:{token:string;zh:boolean}) {
   const [audioBusy,setAudioBusy]=useState(false);
   const [audioError,setAudioError]=useState('');
   const polling=useRef(false);
+  const audioInitialized=useRef(false);
   const refresh=useCallback(async(signal?:AbortSignal)=>{
     if(polling.current)return;
     polling.current=true;
@@ -46,6 +47,10 @@ export function ObsDirectorPanel({token,zh}:{token:string;zh:boolean}) {
       if(!res.ok)throw new Error(result.error||'Unable to load OBS audio inputs');
       const inputs=result.inputs??[];
       setAudioInputs(inputs);
+      if(!audioInitialized.current&&inputs[0]){
+        setTargetVolume(Math.round(inputs[0].volume*100));
+        audioInitialized.current=true;
+      }
       setAudioName(current=>inputs.some(input=>input.name===current)?current:inputs[0]?.name??'');
       setAudioError('');
     }catch(error){setAudioError(error instanceof Error?error.message:'OBS audio unavailable');}
@@ -56,7 +61,7 @@ export function ObsDirectorPanel({token,zh}:{token:string;zh:boolean}) {
     const timer=setInterval(()=>void refresh(controller.signal),4000);
     return()=>{controller.abort();clearInterval(timer);};
   },[refresh]);
-  useEffect(()=>{if(status?.connected)void refreshAudio();else setAudioInputs([]);},[status?.connected,refreshAudio]);
+  useEffect(()=>{if(status?.connected)void refreshAudio();else{setAudioInputs([]);audioInitialized.current=false;}},[status?.connected,refreshAudio]);
   const fadeAudio=async(target:number)=>{
     if(audioBusy||!audioName||!status?.connected)return;
     setAudioBusy(true);setAudioError('');
