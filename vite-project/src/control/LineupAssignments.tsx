@@ -15,7 +15,7 @@ import {
   connectSharedBpWindow,
   subscribeSharedWindowCapture,
 } from './sharedWindowCapture';
-import { solveLineupTeam as solveTeam, type Candidate, type SlotResult } from './lineupRecognition';
+import { solveLineupTeam as solveTeam, planTrustedLineupUpdate, type Candidate, type SlotResult } from './lineupRecognition';
 
 const SLOTS_STORAGE='hok-window-capture-slots-v3';
 
@@ -288,32 +288,38 @@ export function LineupAssignments({
 
       const blue=solveTeam(scanned.filter(slot=>slot.side==='blue').sort((a,b)=>a.playerIndex-b.playerIndex),state.bluePicks);
       const red=solveTeam(scanned.filter(slot=>slot.side==='red').sort((a,b)=>a.playerIndex-b.playerIndex),state.redPicks);
-      if(!blue||!red){
+      if(!blue&&!red){
         stableRef.current={signature:'',count:0};
-        setMessage(zh?'暂时无法唯一确认 10 个英雄，继续监视。':'Could not uniquely resolve all ten heroes yet; continuing to watch.');
+        setMessage(zh?'双方候选均无法唯一对应五名英雄；请核对选框或人工调整。':'Neither team has a uniquely resolved lineup. Check capture regions or use manual assignment.');
         return;
       }
-
-      const signature=`${blue.heroes.join(',')}|${red.heroes.join(',')}`;
+      // A single side can be trustworthy while the other is obscured.
+      // In that case keep the server's existing lineup for the uncertain side.
+      const plan=planTrustedLineupUpdate(blue,red,state.blueAssignments,state.redAssignments);
+      if(!plan){
+        setMessage(zh?'当前阵容尚未完整，请先完成 BP 后再同步。':'The existing lineup is incomplete; finish BP before syncing swaps.');
+        return;
+      }
+      const signature=`${plan.blue.join(',')}|${plan.red.join(',')}`;
       const previous=stableRef.current;
       const count=previous.signature===signature?previous.count+1:1;
       stableRef.current={signature,count};
-      const changed=!sameLineup(state.blueAssignments,blue.heroes)||!sameLineup(state.redAssignments,red.heroes);
-      const highConfidence=blue.minimum>=.50&&red.minimum>=.50&&blue.average>=.65&&red.average>=.65;
-
+      const changed=plan.changedBlue||plan.changedRed;
+      const quality=(team:typeof blue)=>team?`${Math.round(team.average*100)}%/${Math.round(team.minimum*100)}%`:'—';
+      const checked=[plan.changedBlue?(zh?'蓝方':'Blue'):null,plan.changedRed?(zh?'红方':'Red'):null].filter(Boolean).join(' + ');
+      const unknown=(!plan.trustedBlue||!plan.trustedRed);
       setMessage(zh
-        ? `换英雄检测运行中 · 蓝均值/最低 ${Math.round(blue.average*100)}%/${Math.round(blue.minimum*100)}% · 红均值/最低 ${Math.round(red.average*100)}%/${Math.round(red.minimum*100)}% · 稳定 ${count}/2${changed?' · 检测到阵容变化':''}${changed&&!highConfidence?' · 但置信度不足，暂不自动应用':''}`
-        : `Hero-swap detection active · blue avg/min ${Math.round(blue.average*100)}%/${Math.round(blue.minimum*100)}% · red avg/min ${Math.round(red.average*100)}%/${Math.round(red.minimum*100)}% · stable ${count}/2${changed?' · lineup change detected':''}${changed&&!highConfidence?' · confidence too low to auto-apply':''}`);
-
-      const shouldApply=changed&&highConfidence&&(forceApply||(auto&&count>=2))&&(forceApply||rejectedSignature.current!==signature);
+        ? `换英雄检测 · 蓝均值/最低 ${quality(blue)} · 红均值/最低 ${quality(red)} · 稳定 ${count}/2${changed?' · 可信变更：'+checked:''}${unknown?' · 不可靠一方保留原阵容':''}`
+        : `Swap scan · blue avg/min ${quality(blue)} · red avg/min ${quality(red)} · stable ${count}/2${changed?' · trusted change: '+checked:''}${unknown?' · retaining uncertain side':''}`);
+      const shouldApply=changed&&(forceApply||(auto&&count>=2))&&(forceApply||rejectedSignature.current!==signature);
       const now=Date.now();
       const recentlyTried=applying.current.signature===signature&&now-applying.current.at<2500;
       if(shouldApply&&!recentlyTried){
         applying.current={signature,at:now};
-        const queued=applyLineups(blue.heroes,red.heroes);
+        const queued=applyLineups(plan.blue,plan.red);
         if(queued)setMessage(zh
-          ? '换英雄识别完成 · 已发送请求，等待服务器确认最终阵容。'
-          : 'Hero swap recognized. Waiting for server confirmation before marking it applied.');
+          ? '已提交可信阵容变更，等待服务器确认；不可靠一方保持原样。'
+          : 'Submitted trusted lineup change; waiting for server confirmation. The uncertain side is unchanged.');
       }
     } catch(error) {
       if(mounted.current&&capturedContext===contextRef.current&&capturedStream===streamRef.current) setMessage(controller.signal.aborted
