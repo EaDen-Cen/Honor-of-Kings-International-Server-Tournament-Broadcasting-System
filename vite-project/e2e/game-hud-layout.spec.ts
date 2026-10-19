@@ -10,8 +10,8 @@ test('GHUD is a transparent KPL-inspired top ribbon and never masks the minimap 
     state.language='eng';
     state.blueTeam.name='BLUE TEST';
     state.redTeam.name='RED TEST';
-    state.liveGameStats={...state.liveGameStats,blueKills:7,redKills:5,blueTowers:2,redTowers:3,blueGold:15300,redGold:14100,gameTimeSeconds:652,density:'compact'};
     await h.send({type:'settings',settings:state});
+    await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,blueKills:7,redKills:5,blueTowers:2,redTowers:3,blueGold:15300,redGold:14100,gameTimeSeconds:652,density:'compact'}});
     await page.setViewportSize({width:1920,height:1080});
     await page.goto('/overlay/game-hud');
     const hud=page.getByTestId('game-hud');
@@ -31,9 +31,7 @@ test('GHUD is a transparent KPL-inspired top ribbon and never masks the minimap 
     expect(geometry.height).toBeLessThanOrEqual(101);
     expect(geometry.rootHeight).toBe(1080);
     expect(geometry.rootBg).toBe('rgba(0, 0, 0, 0)');
-    const full=h.state();
-    full.liveGameStats={...full.liveGameStats,density:'full'};
-    await h.send({type:'settings',settings:full});
+    await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,density:'full'}});
     await expect(hud.locator('.game-hud-rosters')).toBeVisible();
     const height=await hud.locator('.game-hud-scoreboard').evaluate(node=>node.getBoundingClientRect().height);
     expect(height).toBeLessThanOrEqual(133);
