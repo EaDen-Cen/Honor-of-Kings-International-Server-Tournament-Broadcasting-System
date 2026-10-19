@@ -31,6 +31,10 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## GHUD 可调宽度（2026-10-19）
+
+导播端 **局内 HUD / 人头、推塔与资源 → HUD 宽度** 新增 50%–100%（每档 5%）滑块与恢复默认按钮。默认 100% 兼容旧比赛；建议先试 80%（顶部 1536px）。整体比分条按比例缩放，顶部居中，不会更改 OBS Browser Source 的 **1920×1080** 画布，也不会添加不透明的背景遮罩。宽度由服务器保存并同步到所有浏览器源，下一局及重置整场比赛后仍保留；原有 Compact / Full 高度档位独立设置。
+
 ## 2026-10-19 · GHUD 侧边交换与 CI 回归完善
 
 新版 99px / 131px 透明顶部 HUD 保持不变；修复换边后推塔、经济和中立资源数值仍使用固定蓝左红右颜色，以及 Full 模式十人条按红方而非右侧位置反转的问题。PR #82 后遗留的四处 Playwright 断言仍指向旧版全屏 HUD 类名，已迁移到新版 `game-hud-kills`、`game-hud-metric`、`game-hud-capture`、`game-hud-team` 等实际结构，并强化换边与人工 P1–P5 核对端到端覆盖。所有变更须经最新 CI 验证；真实 OBS 彩排仍需单独执行。
