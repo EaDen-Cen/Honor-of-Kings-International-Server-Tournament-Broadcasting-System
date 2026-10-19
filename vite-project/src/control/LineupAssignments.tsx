@@ -414,7 +414,7 @@ export function LineupAssignments({
         {submission&&<p role={submission.status==='rejected'?'alert':'status'} className={'lineup-status '+(submission.status==='rejected'?'error':'')} data-testid="lineup-apply-state" data-status={submission.status}>
           {submission.status==='submitting'?(zh?'最终阵容已提交，等待服务器确认…':'Final lineup submitted; awaiting server confirmation…'):
             submission.status==='applied'?(zh?'最终阵容已由服务器确认并应用。':'Final lineup applied and confirmed by the server.'):
-            (zh?'最终阵容未应用：':'Final lineup NOT applied: ')+(submission.reason||'Unknown error')}
+              (zh?'最终阵容未应用：':'Final lineup NOT applied: ')+(submission.reason||'Unknown error')}
         </p>}
         <p role="status" className="lineup-status">
           {message||(videoReady
