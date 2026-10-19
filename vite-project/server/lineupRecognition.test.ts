@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { solveLineupTeam, planTrustedLineupUpdate, type SlotResult } from '../src/control/lineupRecognition.js';
 
 const picks=[11,22,33,44,55];
-function slots(order:number[],primary=.95,secondary=.1):SlotResult[]{
-  return order.map((heroId,playerIndex)=>({side:'blue',playerIndex,preview:'',candidates:picks.map(id=>({heroId:id,confidence:id===heroId?primary:secondary}))}));
+function slots(order:number[],primary=.95,secondary=.1,pool=picks):SlotResult[]{
+  return order.map((heroId,playerIndex)=>({side:'blue',playerIndex,preview:'',candidates:pool.map(id=>({heroId:id,confidence:id===heroId?primary:secondary}))}));
 }
 
 test('final lineup recognition preserves the uniquely detected player-slot order',()=>{
@@ -50,7 +50,7 @@ test('a low confidence proposal never alters even one hero',()=>{
 test('two trustworthy teams may update independently and incomplete authoritative lineups are not submitted',()=>{
   const blue=solveLineupTeam(slots([22,11,33,44,55]),picks);
   const other=[66,77,88,99,111];
-  const red=solveLineupTeam(slots([77,66,88,99,111]),other);
+  const red=solveLineupTeam(slots([77,66,88,99,111],.95,.1,other),other);
   const plan=planTrustedLineupUpdate(blue,red,picks,other);
   assert.deepEqual(plan?.red,[77,66,88,99,111]);
   assert.equal(plan?.changedRed,true);

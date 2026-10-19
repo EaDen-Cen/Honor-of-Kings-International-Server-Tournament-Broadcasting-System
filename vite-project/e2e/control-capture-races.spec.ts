@@ -189,3 +189,22 @@ test('manual BP review can interrupt an in-flight recognition pass',async({page,
     await expect(bp.getByRole('button',{name:'Recognize now',exact:true})).toBeEnabled();
   }finally{release();h.close();}
 });
+
+test('manual blue-side hero reassignment reaches authoritative server state and confirmed UI status',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  try{
+    await h.send({type:'reset_match'});
+    await h.send({type:'settings',settings:{...initialState(),language:'eng',bpInputMode:'screen'}});
+    await h.fill();
+    const beforeBlue=[...h.state().blueAssignments],beforeRed=[...h.state().redAssignments];
+    const swapped=[beforeBlue[1],beforeBlue[0],...beforeBlue.slice(2)];
+    await mockWindow(page,false);
+    await page.goto('/control');
+    const select=page.locator('.lineup-team.blue .lineup-player-row select').first();
+    await expect(select).toBeVisible();
+    await select.selectOption(String(beforeBlue[1]));
+    await expect.poll(()=>h.state().blueAssignments,{timeout:15000}).toEqual(swapped);
+    expect(h.state().redAssignments).toEqual(beforeRed);
+    await expect(page.getByTestId('lineup-apply-state')).toHaveAttribute('data-status','applied',{timeout:10000});
+  }finally{h.close();}
+});
