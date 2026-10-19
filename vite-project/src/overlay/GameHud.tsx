@@ -1,52 +1,81 @@
+import { useEffect, useState } from 'react';
 import type { MatchState, Side } from '../shared/types';
 import { currentGame, displaySides } from '../shared/draftRules';
 import { stageName } from '../shared/display';
 import { portraitAssetURL } from '../shared/config';
 import { playerAtSlot } from '../shared/playerSlots';
-import { playerRoleLabel } from '../shared/postGamePresentation';
 import { heroForState } from '../shared/heroData';
 import './gameHud.css';
-import { useEffect, useState } from 'react';
-export function GameHud({state}:{state:MatchState}){
+
+/** OBS Browser Source, 1920x1080. All non-HUD pixels stay transparent.
+ * We do not replace the spectator minimap, controls or gameplay feed.
+ * The two thin top rows are the only opaque regions in the compact mode. */
+export function GameHud({state}:{state:MatchState}) {
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [left,right]=displaySides(state);
   const [now,setNow]=useState(Date.now);
-  const sources=Object.values(stats.sources??{}),ocr=sources.filter(source=>source.source==='ocr');
-  useEffect(()=>{if(!ocr.length)return;const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer);},[ocr.length]);
+  const ocr=Object.values(stats.sources??{}).filter(source=>source.source==='ocr');
+  useEffect(()=>{
+    if(!ocr.length)return;
+    const timer=window.setInterval(()=>setNow(Date.now()),1000);
+    return()=>window.clearInterval(timer);
+  },[ocr.length]);
   const stale=ocr.some(source=>now-source.capturedAt>15000);
-  const gold=(side:Side)=>stats[`${side}Gold`]===undefined?'—':`${(stats[`${side}Gold`]!/1000).toFixed(1)}K`;
-  const time=stats.gameTimeSeconds===undefined?'—':`${Math.floor(stats.gameTimeSeconds/60)}:${String(stats.gameTimeSeconds%60).padStart(2,'0')}`;
-  function team(side:Side){const data=state[`${side}Team`];return <div className={`game-hud-team ${side}`}>
-    {data.logo&&<img className="game-hud-logo" src={portraitAssetURL(data.logo)} alt=""/>}<strong>{data.name}</strong>
-    <span className="game-hud-series" aria-label={zh?'系列赛比分':'Series score'}>{state[`${side}Score`]}</span>
-  </div>;}
-  const lineup=(side:Side,position:'left'|'right')=><aside className={`game-hud-lineup ${side} display-${position}`} aria-label={zh?'选手名单':'Player lineup'}>
-    <div className="game-hud-lineup-title">{state[`${side}Team`].name}</div>
-    {Array.from({length:5},(_,slot)=>{
-      const heroId=(state[`${side}Assignments`]?.[slot]??state[`${side}Picks`]?.[slot]) as number|undefined;
-      const hero=heroId!==undefined?heroForState(state,heroId):undefined;
-      const identity=playerAtSlot(state,side,slot);
-      const player=identity.id||`P${slot+1}`;
-      return <div key={slot} className="game-hud-roster-row">
-        <span className="game-hud-roster-position">{slot+1}</span>
-        {hero?.imageLink?<img src={hero.imageLink} alt=""/>:<span className="game-hud-roster-unknown"/>}
-        <div className="game-hud-roster-identity"><strong title={player}>{player}</strong><small>{playerRoleLabel(identity.role,zh)}</small></div>
-      </div>;
-    })}
-  </aside>;
-  return <div className={`game-hud ${stats.density}`}>
-    <div className="game-hud-opaque-top" aria-hidden="true"/>
-    <div className="game-hud-opaque-left" aria-hidden="true"/>
-    <div className="game-hud-opaque-right" aria-hidden="true"/>
-    <div className="game-hud-opaque-bottom" aria-hidden="true"/>
-    <div className="game-hud-map-cover"><strong>CHASING WIND</strong><span>{zh?'赛事地图源 · 未接入':'MAP FEED · NOT CONNECTED'}</span></div>
-    {lineup(left,'left')}{lineup(right,'right')}
-    <header>{team(left)}<div className="game-hud-center"><b>{zh?'第':'Game '}{currentGame(state)}{zh?'局':''} · {state.seriesFormat}</b><small>{stageName(state.stage,state.language)}</small><time>{time}</time></div>{team(right)}</header>
-    <div className="game-hud-stats"><span><b>{stats[`${left}Kills`]}</b> {zh?'人头':'Kills'} <b>{stats[`${right}Kills`]}</b></span>
-      <span><b>{stats[`${left}Towers`]}</b> {zh?'推塔':'Towers'} <b>{stats[`${right}Towers`]}</b></span>
-      {(stats.blueGold!==undefined||stats.redGold!==undefined)&&<span><b>{gold(left)}</b> {zh?'经济':'Gold'} <b>{gold(right)}</b></span>}
-      {stats.density==='full'&&stats.neutralObjectives.map(item=><span key={item.id}><b>{item[left]}</b>{item.icon&&<img src={portraitAssetURL(item.icon)} alt=""/>}<em title={item.name}>{item.name}</em><b>{item[right]}</b></span>)}
+  const gold=(side:Side)=>stats[`${side}Gold`]===undefined?'—':`${(stats[`${side}Gold`]!/1000).toFixed(1)}k`;
+  const time=stats.gameTimeSeconds===undefined?'--:--':`${Math.floor(stats.gameTimeSeconds/60)}:${String(stats.gameTimeSeconds%60).padStart(2,'0')}`;
+  const team=(side:Side,position:'left'|'right')=>{
+    const data=state[`${side}Team`];
+    return <div className={`game-hud-team ${side} display-${position}`}>
+      {data.logo?<img className="game-hud-logo" src={portraitAssetURL(data.logo)} alt=""/>:<span className="game-hud-logo-placeholder" aria-hidden="true"/>}
+      <strong title={data.name}>{data.name}</strong>
+      <span className="game-hud-series" aria-label={zh?'系列赛比分':'Series score'}>{state[`${side}Score`]}</span>
+    </div>;
+  };
+  const roster=(side:Side)=>Array.from({length:5},(_,slot)=>{
+    const heroId=state[`${side}Assignments`]?.[slot]??state[`${side}Picks`]?.[slot];
+    const hero=heroId!=null?heroForState(state,heroId):undefined;
+    const identity=playerAtSlot(state,side,slot);
+    return <span key={slot} className="game-hud-player" title={identity.id||`P${slot+1}`}>
+      {hero?.imageLink?<img src={hero.imageLink} alt=""/>:<span className="game-hud-hero-unknown"/>}
+      <span className="game-hud-player-id">{identity.id||`P${slot+1}`}</span>
+    </span>;
+  });
+  const metric=(label:string,l:string|number,r:string|number,accent=false)=><div className={`game-hud-metric ${accent?'accent':''}`}>
+    <b className="game-hud-metric-left">{l}</b><small>{label}</small><b className="game-hud-metric-right">{r}</b>
+  </div>;
+  return <div className={`game-hud ${stats.density}`} data-testid="game-hud">
+    <div className="game-hud-scoreboard">
+      <header className="game-hud-main">
+        {team(left,'left')}
+        <div className="game-hud-center">
+          <span className="game-hud-match">{zh?`第${currentGame(state)}局`:`GAME ${currentGame(state)}`} · {state.seriesFormat}</span>
+          <div className="game-hud-kills"><b className={left}>{stats[`${left}Kills`]}</b><span className="game-hud-clock">{time}</span><b className={right}>{stats[`${right}Kills`]}</b></div>
+        </div>
+        {team(right,'right')}
+      </header>
+      <div className="game-hud-details">
+        <span className="game-hud-stage" title={stageName(state.stage,state.language)}>{stageName(state.stage,state.language)}</span>
+        <div className="game-hud-metrics">
+          {metric(zh?'推塔':'TOWERS',stats[`${left}Towers`],stats[`${right}Towers`])}
+          {(stats.blueGold!==undefined||stats.redGold!==undefined)&&metric(zh?'经济':'GOLD',gold(left),gold(right),true)}
+          {stats.neutralObjectives.slice(0,stats.density==='full'?6:2).map(item=><div className="game-hud-metric objective" key={item.id}>
+            <b className="game-hud-metric-left">{item[left]}</b>
+            {item.icon&&<img src={portraitAssetURL(item.icon)} alt=""/>}
+            <small title={item.name}>{item.name}</small>
+            <b className="game-hud-metric-right">{item[right]}</b>
+          </div>)}
+        </div>
+        <span className="game-hud-capture" title={stale?(zh?'采集数据已过期':'Capture data is stale'):ocr.length?(zh?'数据由采集核验':'Capture verified'):(zh?'人工数据':'Manual data')}>
+          <span className={`game-hud-indicator ${stale?'stale':ocr.length?'verified':'manual'}`}/>
+          {stale?(zh?'数据待更新':'STALE'):ocr.length?(zh?'已核验':'VERIFIED'):(zh?'人工':'MANUAL')}
+        </span>
+      </div>
+      {stats.density==='full'&&<div className="game-hud-rosters">
+        <div className="game-hud-roster-side blue-side">{roster(left)}</div>
+        <span className="game-hud-roster-label">{zh?'最终阵容':'LINEUPS'}</span>
+        <div className="game-hud-roster-side red-side">{roster(right)}</div>
+      </div>}
     </div>
-    <small className={`game-hud-status ${stale?'stale':''}`}>Experimental · {stale?(zh?'采集过期，保留最后可信值':'Capture stale · last trusted values'):ocr.length?(zh?'已核验采样':'Verified capture'):(zh?'人工数据':'Manual data')}</small>
+    <span className="game-hud-accessible-status">{zh?'局内赛事信息':'Live match scoreboard'} · {zh?'游戏时间':'Game time'} {time}</span>
   </div>;
 }
