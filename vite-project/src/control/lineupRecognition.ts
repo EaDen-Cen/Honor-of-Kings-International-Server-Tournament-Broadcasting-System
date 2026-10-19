@@ -7,7 +7,7 @@ export interface SlotResult {
   preview: string;
   candidates: Candidate[];
 }
-interface SolvedTeam {
+export interface SolvedTeam {
   heroes: number[];
   confidence: number[];
   average: number;
@@ -38,4 +38,29 @@ export function solveLineupTeam(slots:SlotResult[],picks:number[]):SolvedTeam|un
   // The total score of the runner-up must trail by at least 0.075 across five
   // slots. Repeated frames cannot make an indistinguishable assignment safe.
   if(best&&best.average-secondBest>=.015)return best;
+}
+
+/** Apply only sides proven reliable; preserve the other side's authoritative
+ * assignments. One team's uncertain OCR must never block a safe swap on the
+ * other team, and must never write guessed hero IDs into MatchState. */
+export function planTrustedLineupUpdate(
+  blue:SolvedTeam|undefined,
+  red:SolvedTeam|undefined,
+  currentBlue:readonly (number|null)[],
+  currentRed:readonly (number|null)[],
+):{blue:number[];red:number[];changedBlue:boolean;changedRed:boolean;trustedBlue:boolean;trustedRed:boolean}|undefined {
+  const complete=(a:readonly (number|null)[])=>a.length===5&&a.every((id):id is number=>Number.isInteger(id)&&id!==null);
+  if(!complete(currentBlue)||!complete(currentRed))return;
+  const trusted=(team:SolvedTeam|undefined)=>!!team&&team.heroes.length===5&&new Set(team.heroes).size===5&&team.minimum>=.50&&team.average>=.65;
+  const trustedBlue=trusted(blue),trustedRed=trusted(red);
+  const nextBlue=trustedBlue?blue!.heroes:[...currentBlue] as number[];
+  const nextRed=trustedRed?red!.heroes:[...currentRed] as number[];
+  return {
+    blue:nextBlue,
+    red:nextRed,
+    changedBlue:trustedBlue&&nextBlue.some((id,i)=>id!==currentBlue[i]),
+    changedRed:trustedRed&&nextRed.some((id,i)=>id!==currentRed[i]),
+    trustedBlue,
+    trustedRed,
+  };
 }
