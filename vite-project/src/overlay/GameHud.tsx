@@ -41,7 +41,7 @@ export function GameHud({state}:{state:MatchState}) {
     </span>;
   });
   const metric=(label:string,l:string|number,r:string|number,accent=false)=><div className={`game-hud-metric ${accent?'accent':''}`}>
-    <b className="game-hud-metric-left">{l}</b><small>{label}</small><b className="game-hud-metric-right">{r}</b>
+    <b className={`game-hud-metric-left ${left}`}>{l}</b><small>{label}</small><b className={`game-hud-metric-right ${right}`}>{r}</b>
   </div>;
   return <div className={`game-hud ${stats.density}`} data-testid="game-hud">
     <div className="game-hud-scoreboard">
@@ -59,10 +59,10 @@ export function GameHud({state}:{state:MatchState}) {
           {metric(zh?'推塔':'TOWERS',stats[`${left}Towers`],stats[`${right}Towers`])}
           {(stats.blueGold!==undefined||stats.redGold!==undefined)&&metric(zh?'经济':'GOLD',gold(left),gold(right),true)}
           {stats.neutralObjectives.slice(0,stats.density==='full'?6:2).map(item=><div className="game-hud-metric objective" key={item.id}>
-            <b className="game-hud-metric-left">{item[left]}</b>
+            <b className={`game-hud-metric-left ${left}`}>{item[left]}</b>
             {item.icon&&<img src={portraitAssetURL(item.icon)} alt=""/>}
             <small title={item.name}>{item.name}</small>
-            <b className="game-hud-metric-right">{item[right]}</b>
+            <b className={`game-hud-metric-right ${right}`}>{item[right]}</b>
           </div>)}
         </div>
         <span className="game-hud-capture" title={stale?(zh?'采集数据已过期':'Capture data is stale'):ocr.length?(zh?'数据由采集核验':'Capture verified'):(zh?'人工数据':'Manual data')}>
@@ -71,9 +71,9 @@ export function GameHud({state}:{state:MatchState}) {
         </span>
       </div>
       {stats.density==='full'&&<div className="game-hud-rosters">
-        <div className="game-hud-roster-side blue-side">{roster(left)}</div>
+        <div className={`game-hud-roster-side display-left ${left}`}>{roster(left)}</div>
         <span className="game-hud-roster-label">{zh?'最终阵容':'LINEUPS'}</span>
-        <div className="game-hud-roster-side red-side">{roster(right)}</div>
+        <div className={`game-hud-roster-side display-right ${right}`}>{roster(right)}</div>
       </div>}
     </div>
     <span className="game-hud-accessible-status">{zh?'局内赛事信息':'Live match scoreboard'} · {zh?'游戏时间':'Game time'} {time}</span>
