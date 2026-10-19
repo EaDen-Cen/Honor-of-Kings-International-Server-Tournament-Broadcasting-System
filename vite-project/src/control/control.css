@@ -1660,12 +1660,19 @@
 .operator-steps li[aria-current="step"] { color: #83d8ff; font-weight: 700; }
 .operator-guide p { margin: 12px 0; }
 .operator-guide nav a { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 10px; color: #b9e6ff; text-decoration: underline; text-underline-offset: 3px; }
-#draft-workspace, #game-lifecycle, #postgame-tools { scroll-margin-top: 16px; }
+#draft-workspace, #game-lifecycle, #postgame-tools, #player-id-alignment, #obs-director { scroll-margin-top: 16px; }
 .operator-guide :focus-visible { outline: 2px solid #83d8ff; outline-offset: 3px; }
 @media (max-width: 600px) { .operator-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; } }
 
-/* Optional, session-local preflight: the operator must not confuse a
-   default P1-P5 permutation with a verified live-game identity binding. */
-.operator-id-preflight{display:flex;gap:10px;align-items:center;padding:10px 14px;border:1px solid #c79b4a88;background:#eabf4d16;border-radius:7px;font-size:14px;font-weight:600}
-.operator-id-preflight input{flex:none;width:17px;height:17px}
+/* Server-backed identity checks link directly to the actual alignment panel. */
+.operator-id-preflight{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border:1px solid #c79b4a88;background:#eabf4d16;border-radius:7px;font-size:14px;font-weight:600}
+.operator-id-preflight>span{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+.operator-id-preflight a,.operator-game-preflight a{display:inline-flex;align-items:center;min-height:36px;color:#b9e6ff;text-underline-offset:3px}
 .operator-id-preflight.verified{border-color:#4eac9188;background:#5ab99a15}
+.operator-game-preflight{margin-top:10px;padding:10px 14px;border-left:3px solid #e0b45d;background:#eabf4d10;border-radius:4px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.operator-game-preflight ul{padding-left:20px;margin:6px 0}
+.operator-game-preflight.verified{border-left-color:#68d7a0;background:#5ab99a15}
+.player-id-verification-actions{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:12px 0;padding:12px;border:1px solid #31445e;border-radius:7px;background:#0b1625}
+.player-id-verification-actions>p{flex:1 1 100%;margin:0;color:#aabed4;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.player-id-verification-actions .player-id-write-status{flex:1 1 220px;color:#b9e6ff}
+.player-slot-summary [data-player-id-verified="true"]{color:#8de0b7}

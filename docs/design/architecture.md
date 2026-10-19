@@ -25,9 +25,9 @@
 
 最终阵容前置修复将 UI 临时候选与权威 `assignments` 分开。`lineupIdentityContext` 绑定当前局、队伍/选手/角色与槽位映射；`lineupWriteContext` 另绑定原 assignments，阻止旧候选覆盖人工改动。Store 完成验证与落盘后发送带 revision 的 ACK；控制台以操作 ID、回执和返回快照共同确认应用。独立的按钮 pending / 连接状态不再清空候选。失败不自动重放，普通 BP Pick 历史与最终持有者继续分别保存。
 
-现有 OBS Browser Source 属于单向网页展示；**OBS WebSocket 双向连接尚未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。本轮阵容确认修复仍须通过真机双场复测，再允许依赖已保存归属的自动转场；BP 进行中的临时代持协议仍未实现。
+OBS Browser Source 继续负责网页展示；新增本地 Node `ObsService` 通过 OBS 5.x 读取 Program Scene、录制/直播状态并下发白名单场景、音频预设。Control 通过独立 `/api/obs` 接口轮询实际状态，Caster/Overlay 无权读取或控制。`ObsConfig` 的密码独立保存在本机配置，不进入 MatchState、前端存储或比赛备份；OBS 故障和配置损坏不阻断比赛服务。输出目录空间由本机文件系统检查，不能靠远程浏览器读取。
 
-OBS 控制部分详见 [完整 OBS 双向集成路线图](obs-websocket-integration-roadmap.md)，其中场景、音频与录制控制均为**计划，不属于现有接口**。
+Player ID 对齐/核验成功后，Store 保存绑定当前身份与排列的 `playerSlotVerification`，身份变化即清理；`gamePreflight` 同时供 UI 与 OBS Game 预设执行前检查。OBS 事件优先于迟到轮询，人工操作取消旧渐变，命令去重且断线不重放。录制与直播只读，不提供启动/停止控制。后续可信自动切镜、BP 临时代持协议和远程 Agent 仍为规划，见 [路线图](obs-websocket-integration-roadmap.md) 与 [配置指南](../guides/obs-director-setup.md)。
 
 ## 性能与扩展边界
 

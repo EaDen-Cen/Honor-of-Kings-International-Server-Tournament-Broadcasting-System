@@ -94,7 +94,7 @@ test('two matching borderline OCR frames combine into an automatic player-order 
     await page.getByRole('button',{name:'Choose game window',exact:true}).click();
     await expect.poll(()=>calls).toBeGreaterThanOrEqual(2);
     await expect.poll(()=>`${h.state().bluePlayerSlotOrder}|${h.state().redPlayerSlotOrder}`).toBe('4,3,2,1,0|4,3,2,1,0');
-    await expect(page.locator('.player-slot-summary')).toContainText('Both synced');
+    await expect(page.locator('.player-slot-summary')).toContainText('Both teams server verified');
   }finally{
     h.close();
   }
@@ -147,7 +147,7 @@ test('shared capture auto-aligns both teams once and manual correction remains a
     await expect.poll(()=>h.state().bluePlayerSlotOrder.join(',')).toBe('4,3,2,1,0');
     await expect.poll(()=>h.state().redPlayerSlotOrder.join(',')).toBe('4,3,2,1,0');
     await expect(page.locator('.player-slot-alignment input[type=checkbox]')).toBeChecked();
-    await expect(page.locator('.player-slot-summary')).toContainText('Both synced');
+    await expect(page.locator('.player-slot-summary')).toContainText('Both teams server verified');
     await expect(page.getByRole('combobox',{name:'red P1 player',exact:true})).toHaveCount(0);
   }finally{h.close();}
 });

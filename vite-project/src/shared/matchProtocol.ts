@@ -54,6 +54,7 @@ const state = object({
   // older backend can still display its upgrade notice without crashing.
   blueAssignments: optional(slots), redAssignments: optional(slots),
   bluePlayerSlotOrder: optional(playerOrder), redPlayerSlotOrder: optional(playerOrder),
+  playerSlotVerification: optional(object({blue: optional(text), red: optional(text)})),
   heroPool: optional(choices('global', 'cn')), banCount: optional(integer),
   displayLeftSide: optional(side), firstPickSide: optional(side), sideSwapMode: optional(choices('moveTeams', 'colorsOnly')),
   draftRuleMode: optional(choices('normal', 'player', 'global')), flowbornFormsIndependent: optional(boolean),

@@ -14,6 +14,7 @@ import { initialState, phases, type Action, type MatchState, type Role, type Sna
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
 import { lineupWriteContext } from '../src/shared/lineupContext.js';
+import { playerIdentityIssues, playerSlotVerificationContext, playerSlotWriteContext, prunePlayerSlotVerification } from '../src/shared/gamePreflight.js';
 
 interface Event { id: string; timestamp: number; type: string; resultingState: MatchState; revision: number }
 interface Data { version: 2; state: MatchState; events: Event[]; history: MatchState[]; revision: number; delay: number; ids: string[] }
@@ -110,6 +111,7 @@ export function portraitURL(value: unknown): asserts value is string {
   throw new Error('portraitInvalid');
 }
 function clearDraft(state: MatchState) {
+  delete state.playerSlotVerification;
   state.liveGameStats = nextLiveGameStats(state.liveGameStats);
   Object.assign(state, {
     bluePlayerSlotOrder: [0,1,2,3,4], redPlayerSlotOrder: [0,1,2,3,4],
@@ -182,9 +184,14 @@ export class Store {
     this.data = loaded !== undefined
       ? loaded.version === 1 ? migrateLegacyData(loaded) : loaded
       : { version: 2, state: initialState(), events: [], history: [], revision: 0, delay: 180, ids: [] };
-    this.data.state = normalizeState(this.data.state);
-    this.data.history = this.data.history.map(normalizeState);
-    this.data.events = this.data.events.map(event => ({ ...event, resultingState: normalizeState(event.resultingState) }));
+    const normalizeVerifiedState = (state: MatchState) => {
+      const normalized = normalizeState(state);
+      prunePlayerSlotVerification(normalized);
+      return normalized;
+    };
+    this.data.state = normalizeVerifiedState(this.data.state);
+    this.data.history = this.data.history.map(normalizeVerifiedState);
+    this.data.events = this.data.events.map(event => ({ ...event, resultingState: normalizeVerifiedState(event.resultingState) }));
   }
   private delayedEvent() {
     const cutoff = this.clock() - this.data.delay * 1000;
@@ -486,7 +493,21 @@ export class Store {
       validateLineup(state, true);
       break;
     }
+    case 'verify_player_slot_orders': {
+      if (action.expectedContext !== playerSlotWriteContext(state)) throw new Error('选手或本局已变化，请重新核验 / Player identity context changed; verify again');
+      if (JSON.stringify(action.expectedPlayers) !== JSON.stringify([state.blueTeam.players, state.redTeam.players])
+        || !validPlayerSlotOrder(action.blue) || !validPlayerSlotOrder(action.red)
+        || JSON.stringify([action.blue, action.red]) !== JSON.stringify([state.bluePlayerSlotOrder, state.redPlayerSlotOrder])) throw new Error('选手顺序已改变，请重新核验 / Player order changed; verify again');
+      const issue = playerIdentityIssues(state)[0];
+      if (issue) throw new Error(issue.message);
+      next.history.push(copy(state));
+      state.playerSlotVerification = {
+        blue: playerSlotVerificationContext(state, 'blue'), red: playerSlotVerificationContext(state, 'red'),
+      };
+      break;
+    }
     case 'set_player_slot_orders': {
+      if (action.expectedContext !== undefined && action.expectedContext !== playerSlotWriteContext(state)) throw new Error('选手或本局已变化，请重新核验 / Player identity context changed; verify again');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!validPlayerSlotOrder(action.blue) || !validPlayerSlotOrder(action.red)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify([state.blueTeam.players,state.redTeam.players])) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
@@ -494,15 +515,20 @@ export class Store {
       state.bluePlayerSlotOrder = [...action.blue];
       state.redPlayerSlotOrder = [...action.red];
       if (state.draftComplete) validateLineup(state, true);
+      state.playerSlotVerification = {
+        blue: playerSlotVerificationContext(state, 'blue'), red: playerSlotVerificationContext(state, 'red'),
+      };
       break;
     }
     case 'set_player_slot_order': {
+      if (action.expectedContext !== undefined && action.expectedContext !== playerSlotWriteContext(state)) throw new Error('选手或本局已变化，请重新核验 / Player identity context changed; verify again');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!['blue','red'].includes(action.side) || !validPlayerSlotOrder(action.order)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify(state[`${action.side}Team`].players)) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
       next.history.push(copy(state));
       state[`${action.side}PlayerSlotOrder`] = [...action.order];
       if (state.draftComplete) validateLineup(state, true);
+      state.playerSlotVerification = {...state.playerSlotVerification, [action.side]: playerSlotVerificationContext(state, action.side)};
       break;
     }
     case 'set_lineup_assignments': {
@@ -530,6 +556,7 @@ export class Store {
       const previous = next.history.pop();
       if (!previous) throw new Error('没有可以撤销的操作');
       next.state = previous;
+      delete next.state.playerSlotVerification;
       break;
     }
     case 'reset_draft':
@@ -784,6 +811,7 @@ export class Store {
     case 'delay': integer(action.seconds, 0, 3600); next.delay = action.seconds; break;
     default: throw new Error('不支持此操作');
     }
+    prunePlayerSlotVerification(next.state);
     next.revision++;
     if (action.type !== 'delay') next.events.push({ id, timestamp: Math.max(this.clock(), next.events.at(-1)?.timestamp ?? 0), type: action.type, resultingState: copy(next.state), revision: next.revision });
     if(action.type==='live_game_ocr'){

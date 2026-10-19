@@ -36,13 +36,13 @@ HOK 游戏画面 / BP Simulator
 [2026-10-18 真实双局现场复盘](docs/validation/live-two-match-retrospective-2026-10-18.md) 记录单人导播操作负担、元流之子形态误识别、P1–P5 排序遗漏、录制磁盘耗尽、赛后整理效率、帮抢和 GHUD/经济对位等问题。除已有稳定功能外，不将这些问题写作“已修复”。
 
 此开发分支新增五个 **独立、固定角色** 的浏览器源：
-`/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 本机增加逐局 Player ID 顺序核对提醒，**仅是操作清单而非服务端身份认证**。上述改动需合并 PR 并实机验收后才是正式可用版本。
+`/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 的 Player ID 核验现由服务器保存，并与本局身份和 P1–P5 排列绑定；正式赛事仍需实机验收。
 
-## OBS 双向集成及单人导播路线（计划中）
+## OBS 导播台与开播联动
 
-2026-10-19 优先修复最终阵容确认链路：识别候选、提交和保存成功分开显示；服务端核对当前局与原阵容，界面同时核对 ACK 和权威快照，失败保留候选供人工接管。Player ID 检查随名单/顺序变化重新提醒。使用与验证见 [导播操作](docs/guides/operator-guide.md#最终英雄归属先识别再核对保存结果) 和 [验证记录](docs/validation/history.md)。OBS 控制能力继续为规划，真实比赛与 OBS 双场复测待完成。
+2026-10-19 新增本地 OBS 5.x 认证连接、真实 Program 场景与录制/直播状态、12 个手动阶段/对位预设、音源绑定与并行渐变、BGM 应急静音、录制中断与磁盘容量告警。原开播勾选已改为真实 Player ID 核验操作；「进入比赛」要求已保存的身份顺序和合法最终阵容，前后端均检查并提供处理入口。首次配置见 [OBS 导播台设置](docs/guides/obs-director-setup.md)，软件结果见 [验证记录](docs/validation/history.md)。
 
-OBS Browser Source 单向显示已经具备；真正由 HOK Broadcast 控制 OBS 场景、混音和读取录制状态**尚未开发**。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。现场原版本的**最终阵容归属识别到变化但未成功应用**是 P0 前置问题；本轮已补齐确认链路，仍须真机复测玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
+OBS 控制由本机 Node 执行，密码独立本地保存，不回显或进入赛事备份。OBS 手动操作优先，断线不重放旧命令；不提供停播/停止录制接口。当前交付人工触发，可信自动切镜、媒体播放管理和远程 Agent 仍按 [路线图](docs/design/obs-websocket-integration-roadmap.md) 后续实施。真实比赛与 OBS 双场/长时间复测待完成，GHUD 仍为 Experimental。
 
 ## 系统组成
 

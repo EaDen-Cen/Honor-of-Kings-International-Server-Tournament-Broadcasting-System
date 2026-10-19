@@ -127,6 +127,8 @@ export interface MatchState {
   /** Screen P1–P5 -> roster index; never mutates Team or presets. */
   bluePlayerSlotOrder: number[];
   redPlayerSlotOrder: number[];
+  /** Server-persisted P1–P5 verification, scoped to this game's player identity. */
+  playerSlotVerification?: Partial<Record<Side, string>>;
   blueAssignments: Array<number | null>;
   redAssignments: Array<number | null>;
 }
@@ -177,8 +179,9 @@ export type Action =
   | { type: 'score'; team: Side; delta: 1 | -1 }
   | { type: 'swap_picks'; team: Side; from: number; to: number } // legacy alias: swaps assignments, never pick order
   | { type: 'swap_assignments'; team: Side; from: number; to: number }
-  | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[] }
-  | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]] }
+  | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[]; expectedContext?: string }
+  | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]]; expectedContext?: string }
+  | { type: 'verify_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]]; expectedContext: string }
   | { type: 'set_lineup_assignments'; blue: number[]; red: number[]; expectedContext?: string }
   | { type: 'settings'; settings: MatchSettings }
   | { type: 'hero_art_override'; heroId: number; override: HeroArtOverride }

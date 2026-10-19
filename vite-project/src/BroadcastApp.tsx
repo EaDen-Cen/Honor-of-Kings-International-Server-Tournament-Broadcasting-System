@@ -41,6 +41,8 @@ import { LineupAssignments } from './control/LineupAssignments';
 import { Score } from './shared/Score';
 import { DraftHistory } from './shared/DraftHistory';
 import { OperatorGuide } from './control/OperatorGuide';
+import { ObsDirectorPanel } from './control/ObsDirectorPanel';
+import { validateGameReady } from './shared/gamePreflight';
 import { DraftLifecycle } from './control/DraftLifecycle';
 import { DraftOverlay } from './overlay/DraftOverlay';
 const name = (state: MatchState, id: number, lang: Language) => { const h = heroForState(state, id); return h ? (lang === 'zh' ? h.chineseName : h.englishName) : '—'; };
@@ -317,6 +319,7 @@ export default function BroadcastApp() {
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
         <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
+        <ObsDirectorPanel token={token} language={state.language} gameReadiness={pending?{ready:false,issues:[{code:'pending',message:lang==='zh'?'等待当前比赛操作由服务器确认。':'Wait for the server to confirm the current match action.'}]}:validateGameReady(state)} />
         <ControlDraftWorkspace monitor={<>
           <Board state={state} lang={lang} compact />
           <section className="operator-bar panel">
@@ -341,13 +344,13 @@ export default function BroadcastApp() {
 
           <DraftLifecycle state={state} send={send} disabled={disabled} />
           {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} /></SettingsDialog>}
-          {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
+          {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} onTeams={()=>setShowTeamSettings(true)} />}
           {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} />}
         </>}>
           {state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
-              <PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />
+              <PlayerSlotAlignment state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} onTeams={()=>setShowTeamSettings(true)} />
               <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} actionFeedback={actionFeedback} />
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>

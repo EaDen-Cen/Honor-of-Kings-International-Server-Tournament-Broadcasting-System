@@ -2,12 +2,14 @@
 
 [返回项目首页](../README.md)
 
+**2026-10-19 OBS 首期接入**：[OBS 导播台设置与故障处理](guides/obs-director-setup.md)。包含真实选手核验联动、手动阶段/对位预设、音乐渐变及录制磁盘提醒；真实 OBS 长时间验收待完成。
+
 > **v1.0.0 发布准备状态（2026-10-10）**：核心 BP / Auto BP / Player ID / 换英雄链路已进入 Release Candidate。局内 HUD `/overlay/game-hud` 仍为 **Experimental / 测试阶段**，可用于彩排和 OBS 预览。顶栏七项 HUD OCR 与两帧核验已有实验原型，真实比赛长时间稳定性待实机验收；正式比赛保留官方/人工比分兜底。
 
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
 | 当前操作 | [新手上手](guides/beginner-guide.md)、[运行指南](guides/getting-started.md)、[操作指南](guides/operator-guide.md)、[Auto BP / Player ID](guides/screen-recognition.md)、[选手对齐 / 恢复 / HUD / MVP](guides/player-alignment-recovery-hud.md)、[国服/国际服英雄池与 0–5 Ban](guides/hero-pool-and-ban-rules.md)、[Windows 启动器](guides/windows-launcher.md) | 第一次使用、安装部署、现场操作、屏幕识别、恢复与实验功能 |
-| 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md)、[OBS WebSocket 双向集成路线图](design/obs-websocket-integration-roadmap.md) | 状态架构、控制边界、OBS 连接/场景/音乐/录制监测的待开发计划 |
+| 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md)、[OBS WebSocket 双向集成路线图](design/obs-websocket-integration-roadmap.md) | 状态架构、控制边界、已实现的 OBS 首期接入及后续自动化计划 |
 | 发布说明 | [v1.0.0](releases/v1.0.0.md) | Release Candidate 功能、发布检查、升级和已知边界 |
 | 验证记录 | [历次验证](validation/history.md)、[2026-10-18 两场实战复盘](validation/live-two-match-retrospective-2026-10-18.md) | 按日期/版本保留结果、真实操作困难及未验收范围 |
 | 研究资料 | [研究索引](research/README.md)、[英雄名单](research/hero-roster.md)、[英雄自动同步](research/hero-sync.md) | 当前英雄池、release-order ID、英雄核查、Panel/Side 公共裁切发布与原始 JSON 证据 |
@@ -33,7 +35,7 @@
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
 
-**2026-10-19 P0 修复增量**：最终英雄归属采用候选/提交/服务器确认分离、上下文防过期写入与失败后人工接管；每局 Player ID 提醒随身份或槽位变化失效。见 [操作步骤](guides/operator-guide.md#最终英雄归属先识别再核对保存结果)、[API 约束](design/api.md#最终阵容写入确认2026-10-19) 和 [验证历史](validation/history.md)。OBS WebSocket、BGM 与录制监测仍为规划。
+**2026-10-19 P0 修复增量**：最终英雄归属采用候选/提交/服务器确认分离、上下文防过期写入与失败后人工接管；Player ID 现有服务器核验与 OBS Game 门禁。见 [操作步骤](guides/operator-guide.md#最终英雄归属先识别再核对保存结果)、[API 约束](design/api.md#最终阵容写入确认2026-10-19) 和 [验证历史](validation/history.md)。OBS 首期人工控制已实现，可信自动切镜和高级媒体管理后置。
 
 已接入每局选手槽位映射、常驻本地 OCR、双队原子顺序更新、时间一致性复核、ID 区域预设、备份/停机恢复与赛后数据草稿/MVP 页面。局内 HUD 已有人工统计、顶栏 OCR 与 OBS Overlay，但**仍处于测试阶段**；其真实比赛长时间运行和正式比分可靠性尚未验收。参见 [功能与操作说明](guides/player-alignment-recovery-hud.md) 与 [项目里程碑](../MILESTONES.md)。
 

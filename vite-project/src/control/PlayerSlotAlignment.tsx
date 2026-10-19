@@ -1,13 +1,15 @@
 import {playerIdCropSize} from './playerIdCropSize.js';
 import {mergeVerification} from '../shared/playerSlotVerification.js';
 import type {VerificationEvidence} from '../shared/playerSlotVerification.js';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Action, MatchState, Side } from '../shared/types';
 import { playerAtSlot, type PlayerSlotSolution } from '../shared/playerSlots';
 import { defaultCaptureSlots, normalizeCaptureSlots, type CaptureSlots, type CaptureSlotKey } from './bpCaptureLayout';
 import { normalizeCaptureRegion, regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
 import { getSharedWindowCaptureStream, subscribeSharedWindowCapture } from './sharedWindowCapture';
 import { CaptureRegionPicker } from './CaptureRegionPicker';
+import type { MatchActionFeedback } from '../shared/useMatch';
+import { isPlayerSlotVerified, playerIdentityIssues, playerSlotWriteContext } from '../shared/gamePreflight';
 import {
   PLAYER_ID_REGION_KEYS,
   PLAYER_ID_REGION_PRESETS_STORAGE,
@@ -80,12 +82,14 @@ interface Scan {
 
 const sameOrder=(a:readonly number[],b:readonly number[])=>a.length===b.length&&a.every((value,index)=>value===b[index]);
 
-export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchState;token:string;disabled:boolean;send:(action:Action)=>void}) {
+export function PlayerSlotAlignment({state,revision,token,disabled,send,actionFeedback,onTeams}:{state:MatchState;revision?:number;token:string;disabled:boolean;send:(action:Action)=>string|undefined;actionFeedback?:MatchActionFeedback;onTeams?:()=>void}) {
   const zh=state.language==='zh';
   const [ready,setReady]=useState(false);
   const [status,setStatus]=useState('');
   const [scan,setScan]=useState<Scan>();
   const [busy,setBusy]=useState(false);
+  const [writeStatus,setWriteStatus]=useState('');
+  const [pendingWrite,setPendingWrite]=useState<{id:string;orders:Partial<Record<Side,number[]>>;context:string;baseRevision?:number}>();
   const [auto,setAuto]=useState(()=>{try{return localStorage.getItem('hok-player-slot-auto')!=='0';}catch{return true;}});
   const [manualScan,setManualScan]=useState(0);
   const [manualEdit,setManualEdit]=useState<Record<Side,boolean>>({blue:false,red:false});
@@ -101,19 +105,56 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const [idRegionPresetName,setIdRegionPresetName]=useState('');
 
   const video=useRef<HTMLVideoElement>(null);
-  const latest=useRef({state,disabled,send,scanContext:scan?.context,scan});
+  const latest=useRef({state,revision,disabled,send,scanContext:scan?.context,scan});
   const inFlight=useRef(false);
   const activeRequest=useRef<AbortController>();
   const generation=useRef(0);
   const accepted=useRef<Partial<Record<Side,string>>>({});
   const verification=useRef<Partial<Record<Side,VerificationEvidence>>>({});
   const submittedScan=useRef<{scan:Scan;orders:Partial<Record<Side,number[]>>}>();
+  const verifiedWriteContext=useRef<string>();
+  const pendingWriteId=useRef<string>();
   const lastSample=useRef<{schemaVersion:1;capturedAt:string;attempts:{images:string[];players:string[][];result:unknown}[]}>();
-  latest.current={state,disabled,send,scanContext:scan?.context,scan};
+  latest.current={state,revision,disabled,send,scanContext:scan?.context,scan};
 
-  const context=JSON.stringify([state.blueTeam.id,state.redTeam.id,state.blueTeam.players,state.redTeam.players,state.gameNumber,state.bpInputMode,state.committedGameId]);
+  const context=JSON.stringify([playerSlotWriteContext(state),state.bpInputMode,state.committedGameId]);
   const contextRef=useRef(context);
   contextRef.current=context;
+
+  const unconfirmOrderWrite=useCallback((message:string)=>{
+    setWriteStatus(message);setPendingWrite(undefined);pendingWriteId.current=undefined;
+    setAuto(false);generation.current++;activeRequest.current?.abort();
+    try{localStorage.setItem('hok-player-slot-auto','0');}catch{/* Pause applies for this session. */}
+  },[]);
+
+  useEffect(()=>{
+    if(!pendingWrite||actionFeedback?.id!==pendingWrite.id)return;
+    if(actionFeedback.status==='rejected'||actionFeedback.status==='unconfirmed'){
+      unconfirmOrderWrite(`${actionFeedback.status==='rejected'?(zh?'核验被拒绝':'Verification rejected'):(zh?'核验尚未确认':'Verification unconfirmed')}: ${actionFeedback.error||''}`);
+    }else if(actionFeedback.status==='acknowledged'){
+      if(revision!==undefined&&actionFeedback.revision!==undefined&&revision<actionFeedback.revision)return;
+      if(actionFeedback.revision!==undefined&&pendingWrite.baseRevision!==undefined&&actionFeedback.revision<=pendingWrite.baseRevision){
+        unconfirmOrderWrite(zh?'核验尚未确认：服务器未返回更新版本，请重新核验。':'Verification unconfirmed: no newer server version. Verify again.');return;
+      }
+      const matches=pendingWrite.context===playerSlotWriteContext(state)&&(Object.keys(pendingWrite.orders) as Side[]).every(side=>
+        isPlayerSlotVerified(state,side)&&sameOrder(state[`${side}PlayerSlotOrder`],pendingWrite.orders[side]!)
+      );
+      if(matches){
+        setWriteStatus(zh?'核验已保存 · 服务器已确认':'Verification saved · server confirmed');
+        verifiedWriteContext.current=playerSlotWriteContext(state);
+        setPendingWrite(undefined);pendingWriteId.current=undefined;
+      }else if(revision!==undefined&&actionFeedback.revision!==undefined){
+        unconfirmOrderWrite(zh?'核验尚未确认：当前名单或顺序已变化，请核对后重试。':'Verification unconfirmed: the current roster or order changed. Review and retry.');
+      }
+    }
+  },[actionFeedback,pendingWrite,revision,state,zh,unconfirmOrderWrite]);
+
+  useEffect(()=>{
+    if(verifiedWriteContext.current&&verifiedWriteContext.current!==playerSlotWriteContext(state)){
+      verifiedWriteContext.current=undefined;
+      setWriteStatus(zh?'选手身份或顺序已变化，请重新核验。':'Player identity or order changed. Verify the current lineup again.');
+    }
+  },[state,zh]);
 
   useEffect(()=>{
     submittedScan.current=undefined;
@@ -131,7 +172,6 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     generation.current++;
     activeRequest.current?.abort();
     verification.current={};
-    setScan(undefined);
   },[disabled]);
 
   useEffect(()=>{
@@ -140,7 +180,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     submittedScan.current=undefined;
     if(submitted.scan.context!==context)return;
     const sides=Object.keys(submitted.orders) as Side[];
-    if(!sides.every(side=>sameOrder(state[`${side}PlayerSlotOrder`],submitted.orders[side]!)))return;
+    if(!sides.every(side=>isPlayerSlotVerified(state,side)&&sameOrder(state[`${side}PlayerSlotOrder`],submitted.orders[side]!)))return;
     for(const side of sides)accepted.current[side]=submitted.orders[side]!.join(',');
     // Only a proposal confirmed by authoritative state may regain its synced
     // display after a pending write. Unconfirmed or failed scans stay invalid.
@@ -151,6 +191,24 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     const refresh=()=>{generation.current++;activeRequest.current?.abort();accepted.current={};verification.current={};setScan(undefined);lastSample.current=undefined;setSlots(readSlots());};
     window.addEventListener('hok-capture-slots-changed',refresh);
     return()=>window.removeEventListener('hok-capture-slots-changed',refresh);
+  },[]);
+
+  const submitOrder=useCallback((action:Action,orders:Partial<Record<Side,number[]>>) => {
+    if(pendingWriteId.current)return;
+    const zh=latest.current.state.language==='zh';
+    verifiedWriteContext.current=undefined;
+    const id=latest.current.send(action);
+    if(!id){
+      generation.current++;activeRequest.current?.abort();verification.current={};setAuto(false);setManualScan(0);setBusy(false);
+      try{localStorage.setItem('hok-player-slot-auto','0');}catch{/* Pause applies for this session. */}
+      setWriteStatus(zh?'尚未提交：服务器通道未就绪，当前候选已保留。':'Not submitted: server channel is not ready. Candidate retained.');
+      return;
+    }
+    pendingWriteId.current=id;
+    const state=latest.current.state;
+    const target={...state,bluePlayerSlotOrder:orders.blue??state.bluePlayerSlotOrder,redPlayerSlotOrder:orders.red??state.redPlayerSlotOrder};
+    setPendingWrite({id,orders,context:playerSlotWriteContext(target),baseRevision:latest.current.revision});
+    setWriteStatus(zh?'正在等待服务器保存与确认…':'Waiting for server save and confirmation…');
   },[]);
 
   useEffect(()=>{
@@ -181,17 +239,18 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     return()=>{active=false;sourceGeneration.current++;unsubscribe();element?.removeEventListener('resize',resize);activeRequest.current?.abort();if(element)element.srcObject=null;};
   },[]);
 
-  function apply(side:Side,solution:PlayerSlotSolution) {
+  const apply=useCallback((side:Side,solution:PlayerSlotSolution) => {
     const current=latest.current;
     if(current.disabled||current.state.committedGameId||current.scanContext!==contextRef.current)return;
     if(current.scan)submittedScan.current={scan:current.scan,orders:{[side]:[...solution.order]}};
-    current.send({
+    submitOrder({
       type:'set_player_slot_order',
       side,
       order:solution.order,
       expectedPlayers:[...current.state[`${side}Team`].players],
-    });
-  }
+      expectedContext:playerSlotWriteContext(current.state),
+    },{[side]:[...solution.order]});
+  },[submitOrder]);
 
   function saveRecognitionSample(){
     if(!lastSample.current)return;
@@ -248,7 +307,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     async function run() {
       const current=latest.current;
       if(inFlight.current||Date.now()<retryAt||(auto&&(['blue','red'] as const).every(side=>
-        accepted.current[side]===current.state[`${side}PlayerSlotOrder`].join(',')
+        accepted.current[side]===current.state[`${side}PlayerSlotOrder`].join(',')&&isPlayerSlotVerified(current.state,side)
       )))return;
       inFlight.current=true;
       const controller=new AbortController();
@@ -376,29 +435,32 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
 
   useEffect(()=>{
     if(!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
+    if(playerIdentityIssues(state).length)return;
     // The channel permits one pending action. Apply a trusted ten-slot frame
     // atomically instead of depending on a later render/OCR frame for red.
     if(scan.blue?.automatic&&scan.red?.automatic&&(
       !sameOrder(state.bluePlayerSlotOrder,scan.blue.order)||
-      !sameOrder(state.redPlayerSlotOrder,scan.red.order)
+      !sameOrder(state.redPlayerSlotOrder,scan.red.order)||
+      !isPlayerSlotVerified(state,'blue')||!isPlayerSlotVerified(state,'red')
     )){
       submittedScan.current={scan,orders:{blue:[...scan.blue.order],red:[...scan.red.order]}};
-      latest.current.send({type:'set_player_slot_orders',blue:scan.blue.order,red:scan.red.order,
-        expectedPlayers:[[...state.blueTeam.players],[...state.redTeam.players]]});
+      submitOrder({type:'set_player_slot_orders',blue:scan.blue.order,red:scan.red.order,
+        expectedPlayers:[[...state.blueTeam.players],[...state.redTeam.players]],expectedContext:playerSlotWriteContext(state)},
+      {blue:[...scan.blue.order],red:[...scan.red.order]});
       return;
     }
     for(const side of ['blue','red'] as const){
       const solution=scan[side];
       if(!solution?.automatic)continue;
       const signature=solution.order.join(',');
-      if(state[`${side}PlayerSlotOrder`].join(',')===signature){accepted.current[side]=signature;continue;}
+      if(state[`${side}PlayerSlotOrder`].join(',')===signature&&isPlayerSlotVerified(state,side)){accepted.current[side]=signature;continue;}
       // An earlier accepted signature must not suppress restoration after a
       // manual or external order change. Authoritative state decides success.
       delete accepted.current[side];
       apply(side,solution);
       break;
     }
-  },[auto,disabled,scan,state]);
+  },[auto,disabled,scan,state,apply,submitOrder]);
 
   const selectedSide:Side=selected.startsWith('blue')?'blue':'red';
   const selectedIndex=Number(selected.slice(-1))-1;
@@ -549,7 +611,8 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     return()=>clearInterval(timer);
   },[calibrationOpen,ready,selectedIndex,selectedSide,slots]);
 
-  const confirmedSides=(['blue','red'] as const).filter(side=>scan?.[side]&&(!auto||scan[side]!.automatic)&&sameOrder(state[`${side}PlayerSlotOrder`],scan[side]!.order)).length;
+  const identityIssues=playerIdentityIssues(state);
+  const confirmedSides=(['blue','red'] as const).filter(side=>isPlayerSlotVerified(state,side)).length;
   const recognizedSlots=(['blue','red'] as const).reduce((sum,side)=>sum+(scan?.[side]?.confidence.filter((value,index)=>value>=.8&&!scan[side]!.anomalies.includes(index)).length??0),0);
 
   function renderTeam(side:Side) {
@@ -557,19 +620,17 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     const currentOrder=state[`${side}PlayerSlotOrder`];
     const solution=scan?.[side];
     const displayOrder=solution?.order??currentOrder;
-    const confirmed=!!solution&&(!auto||solution.automatic)&&sameOrder(currentOrder,solution.order);
+    const confirmed=isPlayerSlotVerified(state,side)&&(!solution||sameOrder(currentOrder,solution.order));
     const needsReview=!!solution&&!solution.automatic;
-    const statusText=!solution
+    const statusText=confirmed?(zh?'服务器已核验':'Server verified'):!solution
       ? (zh?'等待识别':'Waiting')
-      : confirmed
-        ? (zh?'已同步':'Synced')
-        : solution.automatic
-          ? (solution.verificationFrames&&solution.verificationFrames>=2
-            ? (zh?`${solution.verificationFrames} 帧复核通过`:`${solution.verificationFrames}-frame verified`)
-            : (zh?'高置信度':'High confidence'))
-          : (auto
-            ? (zh?`自动复核中${solution.verificationFrames&&solution.verificationFrames>1?` · ${solution.verificationFrames} 帧一致`:''}`:`Retrying OCR${solution.verificationFrames&&solution.verificationFrames>1?` · ${solution.verificationFrames} matching frames`:''}`)
-            : (zh?'需确认':'Review'));
+      : solution.automatic
+        ? (solution.verificationFrames&&solution.verificationFrames>=2
+          ? (zh?`${solution.verificationFrames} 帧复核通过`:`${solution.verificationFrames}-frame verified`)
+          : (zh?'高置信度':'High confidence'))
+        : (auto
+          ? (zh?`自动复核中${solution.verificationFrames&&solution.verificationFrames>1?` · ${solution.verificationFrames} 帧一致`:''}`:`Retrying OCR${solution.verificationFrames&&solution.verificationFrames>1?` · ${solution.verificationFrames} matching frames`:''}`)
+          : (zh?'需确认':'Review'));
 
     return <article className={`player-slot-team-card ${side}`} key={side}>
       <header>
@@ -622,7 +683,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
             [order[index],order[other]]=[order[other],order[index]];
             pauseRecognition();
             setScan(undefined);
-            send({type:'set_player_slot_order',side,order,expectedPlayers:[...team.players]});
+            submitOrder({type:'set_player_slot_order',side,order,expectedPlayers:[...team.players],expectedContext:playerSlotWriteContext(state)},{[side]:order});
           }}>
             {team.players.map((name,i)=><option key={i} value={i}>{name||`${zh?'选手':'Player'} ${i+1}`}</option>)}
           </select>
@@ -633,7 +694,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     </article>;
   }
 
-  return <section className="panel player-slot-alignment">
+  return <section id="player-id-alignment" className="panel player-slot-alignment" aria-label={zh?'选手 ID 核验':'Player ID verification'}>
     <video className="lineup-capture-video" ref={video} muted playsInline />
 
     <header className="player-slot-heading">
@@ -657,7 +718,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     </header>
 
     <div className="player-slot-summary">
-      <div><span>{zh?'识别状态':'Recognition'}</span><strong>{scan?(confirmedSides===2?(zh?'双方已同步':'Both synced'):(zh?'已有候选结果':'Candidates ready')):(zh?'等待画面':'Waiting')}</strong></div>
+      <div><span>{zh?'核验状态':'Verification'}</span><strong data-player-id-verified={confirmedSides===2}>{confirmedSides===2?(zh?'双方已由服务器核验':'Both teams server verified'):(zh?`${confirmedSides}/2 队已核验`:`${confirmedSides}/2 teams verified`)}</strong></div>
       <div><span>{zh?'可靠槽位':'Reliable slots'}</span><strong>{scan?`${recognizedSlots}/10`:'—'}</strong></div>
       <div><span>{zh?'本地耗时':'Local OCR'}</span><strong>{scan?`${Math.round(scan.elapsedMs)} ms`:'—'}</strong></div>
       <div className="player-slot-summary-actions">
@@ -666,6 +727,19 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
         </button>}
         <button disabled={busy||disabled||state.bpInputMode!=='screen'} onClick={requestRescan}>{busy?(zh?'识别中…':'Scanning…'):(zh?'重新识别':'Rescan')}</button>
       </div>
+    </div>
+
+    <div className="player-id-verification-actions">
+      <p>{zh?'核对下方双方 P1–P5 与游戏画面一致；可自动识别、手动调整，或直接保存当前已核对的顺序。名单、分路、顺序、换边或局数变化后需重新核验。':'Compare both teams’ P1–P5 below with the game. Use OCR, edit the order, or verify the checked order. Roster, role, order, side or game changes require a new check.'}</p>
+      {identityIssues.length>0&&<p role="status">{identityIssues.map(issue=>issue.message).join(' ')}</p>}
+      {identityIssues.length>0&&onTeams&&<button type="button" className="secondary" onClick={onTeams}>{zh?'填写选手 ID 与分路':'Edit player IDs & roles'}</button>}
+      <button type="button" disabled={disabled||!!pendingWrite||identityIssues.length>0} onClick={()=>{
+        pauseRecognition();
+        submitOrder({type:'verify_player_slot_orders',blue:[...state.bluePlayerSlotOrder],red:[...state.redPlayerSlotOrder],
+          expectedPlayers:[[...state.blueTeam.players],[...state.redTeam.players]],expectedContext:playerSlotWriteContext(state)},
+        {blue:[...state.bluePlayerSlotOrder],red:[...state.redPlayerSlotOrder]});
+      }}>{zh?'核验当前双方 P1–P5':'Verify current P1–P5'}</button>
+      {writeStatus&&<p className="player-id-write-status" role="status" aria-live="polite">{writeStatus}</p>}
     </div>
 
     <div className="player-slot-team-grid">

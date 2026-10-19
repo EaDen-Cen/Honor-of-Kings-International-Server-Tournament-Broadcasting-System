@@ -1,43 +1,14 @@
-import { useEffect, useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
-
-const checkStorage='hok-director-player-order-check-v2';
-interface IdentityCheck { context:string; verified:boolean }
-function readIdentityCheck():IdentityCheck {
-  try {
-    const value:unknown=JSON.parse(sessionStorage.getItem(checkStorage)||'null');
-    if(value&&typeof value==='object'&&'context' in value&&typeof value.context==='string'&&'verified' in value&&typeof value.verified==='boolean')return {context:value.context,verified:value.verified};
-  }catch{/* A blocked or invalid store must never imply verification. */}
-  return {context:'',verified:false};
-}
-function persistIdentityCheck(value:IdentityCheck) {
-  try{sessionStorage.setItem(checkStorage,JSON.stringify(value));}catch{/* Session-only fallback. */}
-}
+import { isPlayerSlotVerified, validateGameReady } from '../shared/gamePreflight';
 
 export function OperatorGuide({ state, connected, pending, onTeams, onSettings }: {
   state: MatchState; connected: boolean; pending: boolean; onTeams: () => void; onSettings: () => void;
 }) {
   const zh = state.language === 'zh';
-  const checkKey=JSON.stringify([
-    state.stage,state.draftGameNumber??state.gameNumber,state.draftHistory.length,state.displayLeftSide,
-    state.blueTeam.id,state.blueTeam.players,state.blueTeam.playerRoles,state.bluePlayerSlotOrder,
-    state.redTeam.id,state.redTeam.players,state.redTeam.playerRoles,state.redPlayerSlotOrder,
-  ]);
-  const [identityCheck,setIdentityCheck]=useState(readIdentityCheck);
-  const idOrderVerified=identityCheck.context===checkKey&&identityCheck.verified;
-  // An earlier identity snapshot is not a check of the changed lineup. Retain
-  // only the current snapshot so changing away and back cannot restore a check.
-  useEffect(()=>{
-    if(identityCheck.context===checkKey)return;
-    const next={context:checkKey,verified:false};
-    setIdentityCheck(next);persistIdentityCheck(next);
-  },[checkKey,identityCheck.context]);
-  const setOrderVerified=(value:boolean)=>{
-    const next={context:checkKey,verified:value};
-    setIdentityCheck(next);persistIdentityCheck(next);
-  };
+  const idOrderVerified = isPlayerSlotVerified(state, 'blue') && isPlayerSlotVerified(state, 'red');
+  const preflight = validateGameReady(state);
   const step = state.committedGameId ? 3 : state.draftComplete ? 2 : state.currentPhase > 0 ? 1 : 0;
   const labels = zh ? ['赛前准备', '选禁操作', '确认阵容', '记录与下一局'] : ['Preparation', 'Draft', 'Confirm lineup', 'Record & next game'];
   const hint = !connected
@@ -51,11 +22,16 @@ export function OperatorGuide({ state, connected, pending, onTeams, onSettings }
   return <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
     <ol className="operator-steps">{labels.map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}</ol>
     <p role="status" aria-live="polite">{hint}</p>
-    {state.bpInputMode==='screen'&&!state.committedGameId&&<label className={'operator-id-preflight'+(idOrderVerified?' verified':'')}>
-      <input type="checkbox" checked={idOrderVerified} onChange={event=>setOrderVerified(event.target.checked)}/>
-      <span>{idOrderVerified?(zh?'本局选手 ID / P1–P5 已由导播核对':'Player IDs / P1–P5 checked for this game'):
-        (zh?'开播检查：尚未确认本局 P1–P5 选手 ID 对应顺序，赛后对位可能错配。':'Preflight: Player ID / P1–P5 order not confirmed for this game; postgame matchups may be wrong.')}</span>
-    </label>}
+    <div className={'operator-id-preflight'+(idOrderVerified?' verified':'')} data-id-verified={idOrderVerified} role="status">
+      <span>{idOrderVerified?(zh?'选手 ID / P1–P5 已由服务器核验保存。':'Player IDs / P1–P5 verified and saved by server.'):
+        (zh?'开播检查：选手 ID / P1–P5 尚未完成服务器核验。':'Preflight: Player IDs / P1–P5 are not server verified.')}</span>
+      <a href="#player-id-alignment">{zh?'核验 / 调整选手 ID':'Verify / align Player IDs'}</a>
+    </div>
+    {state.draftComplete&&<div className={'operator-game-preflight'+(preflight.ready?' verified':'')} data-game-ready={preflight.ready}>
+      <strong>{preflight.ready?(zh?'比赛预设检查通过':'Game preset checks passed'):(zh?'进入比赛前仍需处理：':'Before entering Game:')}</strong>
+      {preflight.issues.length>0&&<ul>{preflight.issues.map(issue=><li key={issue.code}>{issue.message}</li>)}</ul>}
+      {!preflight.ready&&<a href={preflight.issues.some(issue=>issue.code==='player_order')?'#player-id-alignment':preflight.issues.some(issue=>issue.code==='current_game')?'#game-lifecycle':'#draft-workspace'}>{zh?'前往修复':'Review and repair'}</a>}
+    </div>}
     <nav className="toolbar" aria-label={zh ? '工作区导航' : 'Workspace navigation'}>
       <button type="button" onClick={onTeams}>{zh ? '设置队伍' : 'Set up teams'}</button>
       <button type="button" onClick={onSettings}>{zh ? '检查赛制与显示' : 'Review rules & display'}</button>

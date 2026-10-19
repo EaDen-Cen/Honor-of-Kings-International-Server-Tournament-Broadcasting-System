@@ -16,6 +16,11 @@
 | `/api/v1/recognition/postgame` | POST | 提交十行数字裁剪 images、reportId 与必填 metric，返回 OCR 草稿、置信度与证据；支持字段适用的 K/万/% 单位，不合法数字返回 null |
 | `/api/v1/recognition/settlement` | POST | Control 提交 `{image, reportId, page, region?}`；page 为 auto/overview/damage/survival/economy/record/team/recap，返回整页数字候选、身份匹配与原图证据 |
 | `/api/v1/recognition/live-hud` | POST | Control 提交 `{image, context, region?}`，返回七项顶栏候选、置信度与服务器采集时间；context 由当前局、队伍、已提交局 ID 和 Picks 组成，变化返回 409 |
+| `/api/obs` | GET | Control 专属 OBS public config 与真实状态聚合；不含连接密码 |
+| `/api/obs/config` | GET / PUT | 查询公开配置或保存连接/场景/音源/警告阈值；password 只写，省略保留，clearPassword 配合 enabled:false 移除 |
+| `/api/obs/status` | GET | 当前 OBS 连接、场景、录制/直播、音源与磁盘状态 |
+| `/api/obs/connect`、`/api/obs/disconnect` | POST | 建立/断开本机 OBS 控制连接，不操作录制/直播输出 |
+| `/api/obs/command` | POST | 白名单命令与独立 id；等待 OBS 确认并返回 succeeded / failed / cancelled / unconfirmed |
 | `/ws` | WebSocket | 身份认证、修订号动作、ACK 和状态广播 |
 
 识别请求：`{revision, image, allowedHeroIds?, shape?}`。`image` 为 PNG/JPEG/WebP 的 base64 data URL；`shape` 为 square / circle。限制为 4 MiB 请求、3 MiB 解码文件及 400 万像素。显式空英雄池不会回退到全部英雄。响应包含 `preview`、`fingerprint`、`lockFingerprint`、`meanLuma`、`candidates: [{heroId, confidence}]`。confidence 是相似度，不是准确率。陈旧修订号返回 409。
@@ -29,6 +34,14 @@
 密码 8–256 字符，保存盐和 scrypt 哈希；修改后已连接页面通过 `access_token_update` 获取本角色新 token。离线页面重新登录。密码可取得 Control 权限，只读成员应使用角色分享 token。环境变量 `ACCESS_PASSWORD` 只在尚未配置密码时初始化。
 
 ## 选手对齐、恢复、HUD 与赛后 MVP
+
+### 服务器身份核验与 OBS 联动（2026-10-19）
+
+`set_player_slot_order(s)` 新增可选 `expectedContext`，成功保存有效身份排列后写入 `playerSlotVerification`。`verify_player_slot_orders` 接收 `{blue,red,expectedPlayers,expectedContext}`，仅核验当前不变的双方排列；可用于当前已提交局，不允许借机改变历史。上下文含本局、队伍/ID/分路、显示方向及 P1–P5，身份变化、重置与 Undo 清理过期核验。前端等待对应操作 ACK 与已保存核验结果，旧本地勾选不再生效。
+
+OBS API 仅 Control 可访问，包括配置和本地录制目录；没有 localhost 权限绕过。写入限制 64 KiB，校验来源与 JSON。命令为 `{id,type:'preset',preset}`、`{id,type:'scene',sceneName}`、`{id,type:'bgm',volume?,muted?,fadeMs?}`、`{id,type:'cancel'}` 或 refresh；不支持任意 OBS request。preset 为共享协议中的 12 个固定逻辑阶段，场景/音源实际名称需绑定 OBS 返回资源。相同 id+命令返回原结果，不重复执行；重用 id 改命令被拒绝，缓存为当前服务进程最近 1024 条，服务重启不重放历史。
+
+进入 Game 预设或切到所绑定的 Game 场景都必须通过 `validateGameReady`，渐变结束且切镜前再次检查。未核验身份、未完成 BP、非法阵容或错误局号会阻止动作。OBS 手动变化取消冲突动作，超时/断线结果为未确认，必须读回实际状态后人工决定下一步。连接密码位于独立本机文件，不在任何比赛快照、导出和恢复备份中。更多设置与限制见 [OBS 导播台](../guides/obs-director-setup.md)。
 
 ### 最终阵容写入确认（2026-10-19）
 

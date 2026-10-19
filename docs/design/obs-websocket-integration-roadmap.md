@@ -1,13 +1,13 @@
 # HOK Broadcast × OBS Studio 双向控制与单人导播自动化路线图
 
-> 状态：**设计企划 / 尚未实现**；创建：2026-10-19；对应里程碑：M24（优先级调整为 P0）  
+> 状态：**首期人工 OBS 控制已实现，真实 OBS 待验收**；创建/更新：2026-10-19；对应里程碑：M24（P0）
 > 依据：[2026-10-18 双场实战复盘](../validation/live-two-match-retrospective-2026-10-18.md)  
 > 前置缺陷：**最终阵容英雄归属检测到变化但不一定应用成功（P0）**。此问题必须在自动联动正式启用前修复及复测。  
 > 基本原则：少操作、可人工接管、状态可信、失败可见、不破坏 BP、录制及 MVP 已稳定的主链路。
 
 ## 1. 需求背景
 
-现有系统通过 OBS Browser Source **单向**渲染 Draft、MVP、赛后对位及实验性 GHUD；Control 还不能主动切换 OBS Program Scene、控制 BGM 或读回录制状态。两场实战暴露了导播必须同时顾及 BP、P1–P5 身份、转场、游戏/解说音频、录制磁盘和赛后数据的负担。第二场 E 盘容量耗尽导致录制中断。
+原系统通过 OBS Browser Source **单向**渲染 Draft、MVP、赛后对位及实验性 GHUD。两场实战暴露了导播必须同时顾及 BP、P1–P5 身份、转场、游戏/解说音频、录制磁盘和赛后数据的负担。第二场 E 盘容量耗尽导致录制中断。本轮加入人工阶段预设、真实状态回读、音量动作与录制健康提醒；[设置指南](../guides/obs-director-setup.md) 和 [实际验证记录](../validation/history.md) 区分软件实现与真实设备验收。
 
 目标是建立本地优先的 **双向 OBS 控制器**：HOK Broadcast 下发经过授权的场景/音频动作，OBS 回传真实的当前场景、录制/直播和音频状态；用一次按键完成一个阶段内的安全联动。
 
@@ -22,7 +22,7 @@
                 Control / Caster
 ```
 
-### 计划（尚未实现）
+### 首期实现结构（人工触发）
 
 ```text
 导播 Control（React）
@@ -52,17 +52,18 @@ OBS Studio（本机）
 - OBS 的**实际 Program Scene 和 Recording 状态**是播出控制的权威来源。现有 MatchState 继续负责比分、BP、阵容和赛事数据；不能让两套状态互相循环覆写。
 - OBS 连接或控制失败不能阻断 BP 屏幕采集、Player ID OCR、Overlay 显示、Caster 或本地赛事数据持久化。
 
-### 计划文件职责（只是拟建文件）
+### 首期文件职责
 
 | 模块 | 主要职责 |
 | --- | --- |
-| `server/obs/ObsAdapter.ts` | 握手认证、状态查询、事件订阅、重连与版本兼容 |
-| `server/obs/ObsCommandQueue.ts` | 有限动作白名单、权限验证、命令去重、超时及错误提示 |
-| `server/obs/ObsPresets.ts` | 阶段 → OBS 场景、音量与转场动作的可配置映射 |
+| `server/obs/ObsService.ts` | 握手认证、状态查询、事件订阅、重连、命令去重/超时、人工接管与并行音量动作 |
+| `server/obs/ObsConfig.ts` | 独立私有连接配置、密码只写、回环地址与绑定参数校验 |
+| `server/obsRoutes.ts` | Control 专属 API、来源检查与请求边界 |
 | `server/obs/ObsRecordHealth.ts` | 录制输出路径、目标卷剩余空间、预计录制时间与告警 |
 | `src/control/ObsDirectorPanel.tsx` | OBS 连接/场景/BGM/录制状态、告警及导演预设按钮 |
 | `src/shared/obsProtocol.ts` | 授权命令/事件类型，和赛事 Draft Action 分离 |
-| `docs/guides/obs-director-setup.md` | 集成真正实现后编写的安装、配置和现场故障操作手册 |
+| `src/shared/gamePreflight.ts` | 当前身份顺序、局数、角色与合法阵容检查；服务器与界面共用 |
+| `docs/guides/obs-director-setup.md` | 安装、配置和现场故障操作手册 |
 
 实际开发应复用仓库现有访问控制、Node 服务路由、状态订阅、日志和设置框架，而不是另建未经审计的公共接口。
 
@@ -98,7 +99,7 @@ OBS Studio（本机）
 1. **阶段音量预设**：按场景设置目标音量和静音状态，实际声卡设备由 OBS/Voicemeeter 负责。
 2. **渐变**：以合理间隔平滑调整音量，避免密集 WebSocket 消息；重复动作取消旧渐变，并从 OBS 当前真实音量继续。
 3. **解说 Ducking（后续）**：优先结合 OBS 可用的 Compressor/Sidechain 或当前音频路由；WebSocket 本身不等于语音活动识别。
-4. **BGM 控制**：首期操作现有 OBS Media Source 的播放和输入增益；不要求新增独立播放器，更不能在重连时重复开歌。
+4. **BGM 控制**：本轮操作现有 OBS 输入增益、静音及渐变；曲目需先在 OBS 准备/播放，未加入播放、暂停或歌单接口，重连不重复开歌。媒体播放管理后置。
 5. **应急回退**：独立 BGM/SFX 静音，不得误静音解说和游戏；不以停止 OBS 录制处理声音故障。
 
 ## 5. 录制状态、E 盘空间与中断预警（P0）
@@ -147,7 +148,7 @@ OBS Studio（本机）
 - 支持完成 BP 后的多次帮抢/交换归属和单队可信候选人工应用，Pick 历史不变；Player BP 资格限制不绕过。
 - P1–P5 人工提醒随名单/分路/顺序/当前局/换边变化失效；补齐五个固定对位页的服务端入口，照片加载失败可继续回退到英雄素材。
 
-自动化验证单独记录于 [验证历史](../validation/history.md)。现场根因的全部触发因素、真机双场复测与 OBS/CPU 高负载仍需采样；OBS 双向控制、录制安全和 BP 中临时代持状态仍属规划，未因这次修复自动启用。
+自动化验证单独记录于 [验证历史](../validation/history.md)。后续同日增量已加入人工 OBS 控制、音量与录制健康读取，并将开播检查改成服务器身份核验和 Game 预设门禁。现场根因的全部触发因素、真机双场复测与 OBS/CPU 高负载仍需采样；可信自动切镜与 BP 中临时代持状态仍属规划。
 
 ## 7. 部署、安全与权限
 
@@ -194,6 +195,6 @@ OBS Studio（本机）
 
 ## 10. 发布条件
 
-所有功能状态必须区分 `Planned` / `Implemented` / `CI-validated` / `Real-OBS-validated`。本文目前全部 OBS 控制能力均为 **Planned**；Browser Source 单向展示属既有功能。
+所有功能状态必须区分 `Planned` / `Implemented` / `CI-validated` / `Real-OBS-validated`。M24.0/.1、M24.2 输入音量/静音/渐变及 M24.3 录制健康读取已有软件实现和协议模拟测试；浏览器结果见验证记录，尚不标记 Real-OBS-validated。M24.4 可信自动化、M24.5 Ducking/媒体播放/远程 Agent 仍为 Planned；Browser Source 单向展示属既有功能。
 
 发布前同步更新根 README、`MILESTONES.md`、`docs/README.md`、`docs/design/architecture.md`、接口指南、操作指南与测试记录。严禁将规划描述成已经上线的 OBS 控制能力。GHUD 仍为 Experimental，不应作为唯一官方比分来源。

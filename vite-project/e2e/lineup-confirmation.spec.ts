@@ -354,28 +354,88 @@ for(const change of ['player order','side swap','next game'] as const){
   });
 }
 
-test('ID preflight confirmation expires when identities, roles, player order or displayed sides change',async({page,baseURL})=>{
+test('ID preflight opens real alignment, stores server verification and expires when player identities change',async({page,baseURL})=>{
   const match=await harness(baseURL);
   try{
     const initial=initialState();initial.language='eng';initial.bpInputMode='screen';initial.sideSwapMode='colorsOnly';
     initial.blueTeam.players=['Alpha','Bravo','Charlie','Delta','Echo'];
+    initial.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
     await match.send({type:'settings',settings:initial});
+    await page.addInitScript(()=>localStorage.setItem('hok-player-slot-auto','0'));
     await page.goto('/control#token=e2e-control');
-    const checked=page.locator('.operator-id-preflight input');
-    await expect(checked).not.toBeChecked();await checked.check();
-    await page.reload();await expect(checked).toBeChecked();
-    await match.send({type:'settings',settings:{...match.state(),language:'zh'}});await expect(checked).toBeChecked();
+    const check=page.locator('.operator-id-preflight'),panel=page.locator('#player-id-alignment');
+    const verify=async()=>{
+      await panel.getByRole('button',{name:'Verify current P1–P5',exact:true}).click();
+      await expect(panel.locator('.player-id-write-status')).toHaveText('Verification saved · server confirmed');
+      await expect(check).toHaveAttribute('data-id-verified','true');
+      const saved=(await savedSnapshot(page)).state;
+      expect(saved.playerSlotVerification?.blue).toBeTruthy();expect(saved.playerSlotVerification?.red).toBeTruthy();
+    };
+    await expect(check).toHaveAttribute('data-id-verified','false');
+    await expect(check.locator('input[type=checkbox]')).toHaveCount(0);
+    await check.getByRole('link',{name:'Verify / align Player IDs',exact:true}).click();
+    await expect(panel).toBeInViewport();await verify();
+    await page.reload();await expect(check).toHaveAttribute('data-id-verified','true');
+    await match.send({type:'settings',settings:{...match.state(),language:'zh'}});await expect(check).toHaveAttribute('data-id-verified','true');
     await match.send({type:'settings',settings:{...match.state(),language:'eng'}});
+    // An actual legal alignment write is itself a fresh server verification.
     await match.send({type:'set_player_slot_order',side:'blue',order:[1,0,2,3,4],expectedPlayers:match.state().blueTeam.players});
-    await expect(checked).not.toBeChecked();await checked.check();
+    await expect(check).toHaveAttribute('data-id-verified','true');
+    expect((await savedSnapshot(page)).state.bluePlayerSlotOrder).toEqual([1,0,2,3,4]);
     const roles=match.state();roles.blueTeam.playerRoles=['jungle','clash','mid','farm','roam'];
-    await match.send({type:'settings',settings:roles});await expect(checked).not.toBeChecked();await checked.check();
+    await match.send({type:'settings',settings:roles});await expect(check).toHaveAttribute('data-id-verified','false');await verify();
     const roster=match.state();roster.blueTeam.players[0]='New starter';
-    await match.send({type:'settings',settings:roster});await expect(checked).not.toBeChecked();await checked.check();
-    await match.send({type:'swap_sides'});await expect(checked).not.toBeChecked();
-    await match.send({type:'swap_sides'});await expect(checked).not.toBeChecked();
-    await page.reload();await expect(checked).not.toBeChecked();
-    await checked.check();await match.fill();await expect(checked).toBeChecked();
-    await match.send({type:'score',team:'blue',delta:1});await expect(checked).toBeChecked();
+    await match.send({type:'settings',settings:roster});await expect(check).toHaveAttribute('data-id-verified','false');await verify();
+    await match.send({type:'swap_sides'});await expect(check).toHaveAttribute('data-id-verified','false');
+    await match.send({type:'swap_sides'});await expect(check).toHaveAttribute('data-id-verified','false');
+    await page.reload();await expect(check).toHaveAttribute('data-id-verified','false');
+    await verify();await match.fill();await expect(check).toHaveAttribute('data-id-verified','true');
+    await expect(page.locator('.operator-game-preflight')).toHaveAttribute('data-game-ready','true');
+    await match.send({type:'score',team:'blue',delta:1});await expect(check).toHaveAttribute('data-id-verified','true');
+    await expect(page.locator('.operator-game-preflight')).toHaveAttribute('data-game-ready','false');
+    await expect(page.locator('.operator-game-preflight')).toContainText('The score has advanced');
   }finally{match.close();}
+});
+
+test('manual Player ID verification waits for its ACK and a rejected attempt cannot clear the preflight',async({page,baseURL})=>{
+  const match=await harness(baseURL);let releaseAck=()=>{};
+  try{
+    const state=initialState();state.language='eng';state.bpInputMode='manual';
+    state.blueTeam.players=['Alpha','Bravo','Charlie','Delta','Echo'];state.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
+    await match.send({type:'settings',settings:state});
+    let reject=true,requestId='',held=false;
+    await page.routeWebSocket('**/ws',socket=>{
+      const server=socket.connectToServer();
+      socket.onMessage(raw=>{
+        const message=JSON.parse(raw.toString()) as {type:string;id?:string;action?:Action};
+        if(message.type==='action'&&message.action?.type==='verify_player_slot_orders'){
+          if(reject){socket.send(JSON.stringify({type:'error',id:message.id,error:'Verification rejected: review the visible game IDs'}));return;}
+          requestId=message.id!;
+        }
+        server.send(raw);
+      });
+      server.onMessage(raw=>{
+        const message=JSON.parse(raw.toString()) as {type:string;id?:string};
+        if(message.type==='ack'&&message.id===requestId){held=true;releaseAck=()=>{socket.send(raw);held=false;};return;}
+        socket.send(raw);
+      });
+    });
+    await page.goto('/control#token=e2e-control');await expect(page.locator('.status')).toHaveText('Connected');
+    const check=page.locator('.operator-id-preflight'),panel=page.locator('#player-id-alignment');
+    const verify=panel.getByRole('button',{name:'Verify current P1–P5',exact:true});
+    await verify.click();await expect(panel.locator('.player-id-write-status')).toContainText('Verification rejected: review the visible game IDs');
+    await expect(check).toHaveAttribute('data-id-verified','false');expect((await savedSnapshot(page)).state.playerSlotVerification).toBeUndefined();
+    reject=false;await verify.click();await expect.poll(()=>held).toBe(true);
+    expect((await savedSnapshot(page)).state.playerSlotVerification?.blue).toBeTruthy();
+    await expect(panel.locator('.player-id-write-status')).toHaveText('Waiting for server save and confirmation…');
+    await expect(panel.locator('.player-id-write-status')).not.toContainText('server confirmed');
+    releaseAck();await expect(panel.locator('.player-id-write-status')).toHaveText('Verification saved · server confirmed');
+    await expect(check).toHaveAttribute('data-id-verified','true');
+    // An unchanged order still needs its own guarded write and ACK; old proof
+    // cannot make a newly clicked verification appear complete immediately.
+    await verify.click();await expect.poll(()=>held).toBe(true);
+    await expect(verify).toBeDisabled();
+    await expect(panel.locator('.player-id-write-status')).toHaveText('Waiting for server save and confirmation…');
+    releaseAck();await expect(panel.locator('.player-id-write-status')).toHaveText('Verification saved · server confirmed');
+  }finally{releaseAck();match.close();}
 });
