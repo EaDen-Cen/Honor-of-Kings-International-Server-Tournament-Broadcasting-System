@@ -1268,3 +1268,11 @@
   .hero-art-editor-header { flex-wrap:wrap; gap:6px; }
   .player-setting-row { grid-template-columns:1fr; }
 }
+
+/* Local-only OBS phase 0 panel: collapsed during normal single-person BP. */
+.obs-director{margin:12px 0;padding:12px 18px}
+.obs-director summary{cursor:pointer;font-weight:700}
+.obs-director-content{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:13px 4px 3px}
+.obs-director-content p{margin:0}
+.obs-director-content .muted{width:100%;font-size:13px}
+.obs-director-content select{margin-left:8px;max-width:320px}

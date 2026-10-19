@@ -21,9 +21,15 @@
 
 服务器默认读取 `vite-project/data/match.json`，同级保存 `access.json`、`team-presets.json` 与 `uploads/player-portraits/`。`DATA_FILE` 可改变数据基准位置，`UPLOAD_DIR` 可另指定照片目录；迁移应覆盖全部数据。队伍资料载入比赛时复制阵容并保留稳定身份，现场修改不会自动覆盖资料库。
 
+## OBS M24.0 最小落地（未经过实机验收）
+
+`server/obsBridge.ts` 建立受回环 URL 约束的 OBS WebSocket v5 连接；支持本地密码挑战鉴权、场景列表、当前节目场景和录制状态。Node 暴露仅本地 Control 身份可调用的 `GET /api/v1/obs/status`、`POST /api/v1/obs/scene`；场景必须属于 OBS 返回的名单，切换后重新读取 Program Scene 确认。密码位于服务器环境变量，客户端从不获取。新 `ObsDirectorPanel.tsx` 显示状态并提供人工切换。
+
+这一实现是 M24.0 的代码候选，必须与完整 [OBS 设计路线](obs-websocket-integration-roadmap.md) 区分：音乐 Fade、盘符容量、自动联动、跨公网 Agent 仍为规划。
+
 ## OBS 控制器新路径（设计规划）
 
-现有 OBS Browser Source 属于单向网页展示；**OBS WebSocket 双向连接尚未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。必须先解决最终阵容归属“检测但没有应用”的服务端确认、状态竞态与帮抢问题，避免未核验 BP 触发自动转场。
+现有 OBS Browser Source 属于单向网页展示；**M24.0 本地 OBS WebSocket 场景/录制状态已提交开发候选，尚未真实 OBS 验收；完整双向音频/场景自动化未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。必须先解决最终阵容归属“检测但没有应用”的服务端确认、状态竞态与帮抢问题，避免未核验 BP 触发自动转场。
 
 详见 [完整 OBS 双向集成路线图](obs-websocket-integration-roadmap.md)，内容均为**计划，不属于现有接口**。
 

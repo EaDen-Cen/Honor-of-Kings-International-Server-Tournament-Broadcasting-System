@@ -6,6 +6,7 @@
 
 | 类别 | 入口 | 用途 |
 | --- | --- | --- |
+| OBS Director（M24.0） | [本地连接与场景控制指南](guides/obs-director-setup.md) | WebSocket 本地配置、场景/录制状态、未实现能力及安全限制（开发分支） |
 | 当前操作 | [新手上手](guides/beginner-guide.md)、[运行指南](guides/getting-started.md)、[操作指南](guides/operator-guide.md)、[Auto BP / Player ID](guides/screen-recognition.md)、[选手对齐 / 恢复 / HUD / MVP](guides/player-alignment-recovery-hud.md)、[国服/国际服英雄池与 0–5 Ban](guides/hero-pool-and-ban-rules.md)、[Windows 启动器](guides/windows-launcher.md) | 第一次使用、安装部署、现场操作、屏幕识别、恢复与实验功能 |
 | 当前设计 | [系统结构](design/architecture.md)、[API 接口](design/api.md)、[OBS WebSocket 双向集成路线图](design/obs-websocket-integration-roadmap.md) | 状态架构、控制边界、OBS 连接/场景/音乐/录制监测的待开发计划 |
 | 发布说明 | [v1.0.0](releases/v1.0.0.md) | Release Candidate 功能、发布检查、升级和已知边界 |

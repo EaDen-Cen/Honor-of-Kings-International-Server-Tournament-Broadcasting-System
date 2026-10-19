@@ -41,6 +41,7 @@ import { LineupAssignments } from './control/LineupAssignments';
 import { Score } from './shared/Score';
 import { DraftHistory } from './shared/DraftHistory';
 import { OperatorGuide } from './control/OperatorGuide';
+import { ObsDirectorPanel } from './control/ObsDirectorPanel';
 import { DraftLifecycle } from './control/DraftLifecycle';
 import { DraftOverlay } from './overlay/DraftOverlay';
 const name = (state: MatchState, id: number, lang: Language) => { const h = heroForState(state, id); return h ? (lang === 'zh' ? h.chineseName : h.englishName) : '—'; };
@@ -317,6 +318,7 @@ export default function BroadcastApp() {
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
         <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
+        <ObsDirectorPanel token={token} zh={lang==='zh'} />
         <ControlDraftWorkspace monitor={<>
           <Board state={state} lang={lang} compact />
           <section className="operator-bar panel">
