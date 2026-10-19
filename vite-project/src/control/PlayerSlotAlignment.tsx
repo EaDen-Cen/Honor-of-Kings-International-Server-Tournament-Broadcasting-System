@@ -633,7 +633,16 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     </article>;
   }
 
-  return <section className="panel player-slot-alignment">
+  const sourceConnected=!!getSharedWindowCaptureStream()?.getVideoTracks().some(track=>track.readyState==='live');
+  const recognitionLabel=scan
+    ? (confirmedSides===2?(zh?'双方已同步':'Both synced'):(zh?'已有候选结果':'Candidates ready'))
+    : !sourceConnected?(zh?'未连接采集窗口':'Capture disconnected')
+      : !ready?(zh?'等待视频画面就绪':'Waiting for video frames')
+        : busy?(zh?'OCR 识别中':'OCR running')
+          : !auto?(zh?'自动识别已暂停':'Auto recognition paused')
+            : status||(zh?'等待 OCR 结果':'Waiting for OCR');
+
+  return <section id="player-slot-alignment" className="panel player-slot-alignment">
     <video className="lineup-capture-video" ref={video} muted playsInline />
 
     <header className="player-slot-heading">
@@ -657,7 +666,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     </header>
 
     <div className="player-slot-summary">
-      <div><span>{zh?'识别状态':'Recognition'}</span><strong>{scan?(confirmedSides===2?(zh?'双方已同步':'Both synced'):(zh?'已有候选结果':'Candidates ready')):(zh?'等待画面':'Waiting')}</strong></div>
+      <div><span>{zh?'识别状态':'Recognition'}</span><strong>{recognitionLabel}</strong></div>
       <div><span>{zh?'可靠槽位':'Reliable slots'}</span><strong>{scan?`${recognizedSlots}/10`:'—'}</strong></div>
       <div><span>{zh?'本地耗时':'Local OCR'}</span><strong>{scan?`${Math.round(scan.elapsedMs)} ms`:'—'}</strong></div>
       <div className="player-slot-summary-actions">
