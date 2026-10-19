@@ -3,7 +3,7 @@
    bottom controls, side hero frames or spectator video. */
 .game-hud{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;color:#f4f7fd;background:transparent;font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;--hud-blue:#55c4f5;--hud-red:#ff7782;--hud-bg:#0c1626}
 .game-hud *{box-sizing:border-box}
-.game-hud-scoreboard{position:absolute;z-index:5;left:0;right:0;top:0;background:linear-gradient(90deg,#101d31 0%,#0a1220 47%,#101b2c 100%);border-bottom:1px solid #a8c5d34d;box-shadow:0 4px 14px #0007}
+.game-hud-scoreboard{position:absolute;z-index:5;left:50%;right:auto;top:0;width:1920px;transform:translateX(-50%) scale(var(--hud-scale,1));transform-origin:top center;background:linear-gradient(90deg,#101d31 0%,#0a1220 47%,#101b2c 100%);border-bottom:1px solid #a8c5d34d;box-shadow:0 4px 14px #0007}
 .game-hud-main{height:65px;display:grid;grid-template-columns:minmax(0,1fr) 350px minmax(0,1fr);align-items:center;padding:0 28px;border-bottom:1px solid #ffffff1a}
 .game-hud-team{min-width:0;display:flex;align-items:center;gap:12px;height:100%;--side:var(--hud-blue)}
 .game-hud-team.red{--side:var(--hud-red)}

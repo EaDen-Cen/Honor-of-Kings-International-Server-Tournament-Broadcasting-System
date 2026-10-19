@@ -8,6 +8,8 @@ import { ManualNumberInput } from './ManualNumberInput';
 export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;token:string;disabled:boolean;send:(action:Action)=>void}){
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [name,setName]=useState(''),[icon,setIcon]=useState('');
+  const [draftWidth,setDraftWidth]=useState(stats.widthPercent??100);
+  useEffect(()=>setDraftWidth(stats.widthPercent??100),[stats.widthPercent]);
   const pendingObjective=useRef<{id:string;name:string;icon:string}>();
   const gameKey=`${state.draftGameNumber??state.gameNumber}:${state.committedGameId??''}`;
   useEffect(()=>{
@@ -17,6 +19,9 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
     }
   },[stats.neutralObjectives]);
   const update=(value:LiveGameStats)=>send({type:'live_game_stats',stats:value});
+  const saveWidth=()=>{
+    if(!disabled&&draftWidth!==(stats.widthPercent??100))update({...stats,widthPercent:draftWidth});
+  };
   const counter=(key:'blueKills'|'redKills'|'blueTowers'|'redTowers',label:string)=><div className="toolbar" key={key}><span>{label}</span>
     <button disabled={disabled||stats[key]===0} aria-label={`${key} minus`} onClick={()=>update({...stats,[key]:stats[key]-1})}>−</button>
     <ManualNumberInput key={`${gameKey}:${key}`} label={key} zh={zh} min={0} max={999} value={stats[key]} disabled={disabled} onCommit={value=>update({...stats,[key]:value!})}/>
@@ -29,6 +34,15 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
     <div className="toolbar">{(['blueGold','redGold','gameTimeSeconds'] as const).map(key=><label key={key}>{liveCaptureLabel(key,zh)}<ManualNumberInput key={`${gameKey}:${key}`} label={key} zh={zh} min={0} max={key==='gameTimeSeconds'?7200:1000000} value={stats[key]} disabled={disabled} allowEmpty onCommit={value=>update({...stats,[key]:value})}/></label>)}</div>
     <div className="toolbar">{liveCaptureKeys.map(key=><label key={key}><input type="checkbox" checked={stats.sources?.[key]?.source==='manual'} disabled={disabled} onChange={e=>send({type:'live_game_freeze',key,frozen:e.target.checked})}/>{liveCaptureLabel(key,zh)} · {zh?'冻结（取消恢复自动）':'Freeze (uncheck to resume automatic)'}</label>)}</div>
     <label>{zh?'密度':'Density'} <select value={stats.density} disabled={disabled} onChange={e=>update({...stats,density:e.target.value as 'compact'|'full'})}><option value="compact">{zh?'简约 · 顶栏 99px':'Compact · 99px top'}</option><option value="full">{zh?'完整 · 顶栏 131px':'Full · 131px top'}</option></select></label>
+    <div className="toolbar">
+      <label htmlFor="game-hud-width">{zh?'HUD 宽度':'HUD width'} · {draftWidth}% ({Math.round(1920*draftWidth/100)}px)</label>
+      <input id="game-hud-width" aria-label="HUD width" type="range" min={50} max={100} step={5}
+        value={draftWidth} disabled={disabled} onChange={event=>setDraftWidth(Number(event.target.value))}
+        onPointerUp={saveWidth} onKeyUp={saveWidth} onBlur={saveWidth}/>
+      <button type="button" disabled={disabled||((stats.widthPercent??100)===100&&draftWidth===100)}
+        onClick={()=>{setDraftWidth(100);update({...stats,widthPercent:100});}}>{zh?'恢复默认宽度':'Reset width'}</button>
+      <small className="muted">{zh?'整体按比例缩放并顶部居中，OBS 浏览器源仍设为 1920×1080。':'Scales the whole ribbon from top center; keep the OBS Browser Source at 1920×1080.'}</small>
+    </div>
     {stats.neutralObjectives.map(item=><div className="toolbar" key={item.id}><b>{item.name}</b>{(['blue','red'] as const).map(side=><label key={side}>{state[`${side}Team`].name}<ManualNumberInput key={`${gameKey}:${item.id}:${side}`} label={`${item.name} ${side}`} zh={zh} min={0} max={999} value={item[side]} disabled={disabled} onCommit={value=>update({...stats,neutralObjectives:stats.neutralObjectives.map(v=>v.id===item.id?{...v,[side]:value!}:v)})}/></label>)}<button disabled={disabled} onClick={()=>update({...stats,neutralObjectives:stats.neutralObjectives.filter(v=>v.id!==item.id)})}>{zh?'移除':'Remove'}</button></div>)}
     <form className="toolbar" onSubmit={event=>{
       event.preventDefault();if(disabled||!name.trim()||stats.neutralObjectives.length>=6)return;

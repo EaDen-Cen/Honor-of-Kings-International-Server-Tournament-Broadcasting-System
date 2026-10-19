@@ -41,7 +41,7 @@ const report = object({
 const liveStats = object({
   blueKills: number, redKills: number, blueTowers: number, redTowers: number,
   blueGold: optional(number), redGold: optional(number), gameTimeSeconds: optional(number),
-  density: choices('compact', 'full'),
+  density: choices('compact', 'full'), widthPercent: optional(number),
   neutralObjectives: list(object({ id: text, name: text, icon: text, blue: number, red: number })),
   sources: optional(record(object({ source: choices('manual', 'ocr'), capturedAt: number, confidence: number }))),
 });
