@@ -733,6 +733,11 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const openManualCandidateReview=()=>{
     if(!manualResult||!phase||disabled||manualResult.context!==recognitionContext) return;
+    // Operator override has priority over background OCR. Cancel the pending
+    // request so a late response cannot replace the review or submit a pick.
+    captureRequest.current.cancel();
+    busyRef.current=false;
+    setBusy(false);
     if(manualResult.kind==='pick-group'){
       setGroupSelected(Object.fromEntries(manualResult.entries.flatMap(entry=>{
         const top=entry.candidates[0];
@@ -900,7 +905,8 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           <button className="primary capture-now-button" disabled={disabled||busy||!phase||!!state.committedGameId||!videoReady} onClick={()=>void capture()}>{busy?(zh?'正在识别…':'Recognizing…'):t('captureNow')}</button>
           <button
             className="manual-candidate-button"
-            disabled={disabled||busy||!phase||!!state.committedGameId||!manualResult}
+            type="button"
+            disabled={disabled||!phase||!!state.committedGameId||!manualResult||manualResult.context!==recognitionContext}
             onClick={openManualCandidateReview}
             title={t('captureManualCandidateHint')}
           >{t('captureManualCandidate')}</button>
