@@ -23,6 +23,7 @@ export function validateLocalObsUrl(value:string) {
 
 export class ObsBridge {
   private readonly address:string|undefined;
+  private readonly configurationError:string|undefined;
   private readonly password:string;
   private socket?:WebSocket;
   private connection?:Promise<void>;
@@ -33,10 +34,15 @@ export class ObsBridge {
   private lastRecording:boolean|null=null;
   private lastError='';
   constructor(address=process.env.OBS_WS_URL,password=process.env.OBS_WS_PASSWORD||''){
-    this.address=address?validateLocalObsUrl(address):undefined;
+    // OBS is optional. Bad OBS configuration must never prevent the BP server
+    // from starting or interrupt an already running game.
+    if(address){
+      try{this.address=validateLocalObsUrl(address);}
+      catch{this.configurationError='OBS_WS_URL must target a loopback WebSocket';}
+    }
     this.password=password;
   }
-  get configured(){return !!this.address;}
+  get configured(){return !!this.address||!!this.configurationError;}
   private reset(error:Error) {
     this.ready=false;
     this.lastError=error.message;
@@ -102,6 +108,7 @@ export class ObsBridge {
     });
   }
   async status():Promise<ObsSnapshot>{
+    if(this.configurationError)return{configured:true,connected:false,scenes:[],programScene:null,recording:null,error:this.configurationError};
     if(!this.configured)return{configured:false,connected:false,scenes:[],programScene:null,recording:null};
     try{
       const [scenes,recording]=await Promise.allSettled([this.request('GetSceneList'),this.request('GetRecordStatus')]);
