@@ -21,11 +21,11 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
   const challenge='test-challenge',salt='test-salt',password='test-password';
   const digest=(value:string)=>createHash('sha256').update(value).digest('base64');
   const expected=digest(digest(password+salt)+challenge);
-  let scene='BP',authenticated=false;
+  let scene='BP',authenticated=false,musicVolume=0.65;
   wss.on('connection',socket=>{
     socket.send(JSON.stringify({op:0,d:{obsWebSocketVersion:'5.5.0',rpcVersion:1,authentication:{challenge,salt}}}));
     socket.on('message',raw=>{
-      const packet=JSON.parse(raw.toString()) as {op:number;d:{authentication?:string;requestId?:string;requestType?:string;requestData?:{sceneName?:string}}};
+      const packet=JSON.parse(raw.toString()) as {op:number;d:{authentication?:string;requestId?:string;requestType?:string;requestData?:{sceneName?:string;inputName?:string;inputVolumeMul?:number}}};
       if(packet.op===1){
         assert.equal(packet.d.authentication,expected);
         authenticated=true;socket.send(JSON.stringify({op:2,d:{negotiatedRpcVersion:1}}));
@@ -34,6 +34,17 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
         let responseData:Record<string,unknown>={};
         if(packet.d.requestType==='GetSceneList')responseData={scenes:[{sceneName:'BP'},{sceneName:'Game'}],currentProgramSceneName:scene};
         else if(packet.d.requestType==='GetRecordStatus')responseData={outputActive:true};
+        else if(packet.d.requestType==='GetInputList')responseData={inputs:[{inputName:'Music'},{inputName:'Video'}]};
+        else if(packet.d.requestType==='GetInputVolume'){
+          if(packet.d.requestData?.inputName!=='Music'){
+            socket.send(JSON.stringify({op:7,d:{requestId:packet.d.requestId,requestStatus:{result:false,code:600,comment:'Not an audio input'}}}));return;
+          }
+          responseData={inputVolumeMul:musicVolume};
+        }
+        else if(packet.d.requestType==='SetInputVolume'){
+          if(packet.d.requestData?.inputName!=='Music')throw new Error('Unexpected input');
+          musicVolume=packet.d.requestData.inputVolumeMul!;
+        }
         else if(packet.d.requestType==='SetCurrentProgramScene'){
           scene=packet.d.requestData?.sceneName||scene;
           socket.send(JSON.stringify({op:5,d:{eventType:'CurrentProgramSceneChanged',eventData:{sceneName:scene}}}));
@@ -53,6 +64,12 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
     const changed=await bridge.switchScene('Game');
     assert.equal(changed.programScene,'Game');
     assert.equal(changed.recording,true);
+    assert.deepEqual(await bridge.audioInputs(),[{name:'Music',volume:0.65}]);
+    await assert.rejects(()=>bridge.fadeInput('Music',-1,1000),/0 and 200/);
+    await assert.rejects(()=>bridge.fadeInput('Music',0,6000),/0–5000/);
+    assert.equal(await bridge.fadeInput('Music',0,400),0);
+    assert.equal(await bridge.fadeInput('Music',0.65,0),0.65);
+    assert.equal((await bridge.status()).recording,true);
   }finally{
     bridge.close();
     await new Promise<void>(resolve=>wss.close(()=>resolve()));

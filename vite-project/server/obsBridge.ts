@@ -33,6 +33,7 @@ export class ObsBridge {
   private lastScenes:string[]=[];
   private lastRecording:boolean|null=null;
   private lastError='';
+  private readonly fadingInputs=new Set<string>();
   constructor(address=process.env.OBS_WS_URL,password=process.env.OBS_WS_PASSWORD||''){
     // OBS is optional. Bad OBS configuration must never prevent the BP server
     // from starting or interrupt an already running game.
@@ -62,6 +63,9 @@ export class ObsBridge {
       const timer=setTimeout(()=>{ws.terminate();fail(new Error('OBS connection timed out'));},6000);
       const success=()=>{if(settled)return;settled=true;clearTimeout(timer);this.ready=true;this.lastError='';resolve();};
       const fail=(error:Error)=>{
+        // Ignore duplicate close/error notifications after an initial handshake failure.
+        // Otherwise a useful authentication/refused error gets overwritten by 'disconnected'.
+        if(settled&&!this.ready)return;
         if(!settled){settled=true;clearTimeout(timer);reject(error);}
         if(this.socket===ws)this.reset(error);
       };
@@ -91,8 +95,11 @@ export class ObsBridge {
           else waiter.reject(new Error(typeof status.comment==='string'?status.comment:'OBS request was rejected'));
         }
       });
-      ws.on('error',()=>{fail(new Error('Cannot connect to local OBS WebSocket'));});
-      ws.on('close',()=>{fail(new Error('OBS disconnected'));});
+      ws.on('error',(error:Error)=>{const code=(error as NodeJS.ErrnoException).code;
+        fail(new Error(code==='ECONNREFUSED'?'OBS refused connection: enable WebSocket Server in Tools → WebSocket Server Settings and check its port.':code==='EADDRNOTAVAIL'?'Local OBS address is unavailable':'Cannot connect to local OBS WebSocket'));});
+      ws.on('close',(code:number)=>{
+        fail(new Error(code===4008?'OBS WebSocket authentication failed: check OBS_WS_PASSWORD.':code===4009?'OBS WebSocket RPC version is unsupported.':'OBS disconnected'));
+      });
     }).finally(()=>{this.connection=undefined;});
     return this.connection;
   }
@@ -135,6 +142,46 @@ export class ObsBridge {
     const next=await this.status();
     if(next.programScene!==name)throw new Error('OBS did not confirm scene change');
     return next;
+  }
+  /** Only audio-capable OBS inputs respond to GetInputVolume. Never expose credentials. */
+  async audioInputs():Promise<Array<{name:string;volume:number}>> {
+    const data=await this.request('GetInputList');
+    const names=Array.isArray(data.inputs)?data.inputs.map(item=>record(item).inputName).filter((name):name is string=>typeof name==='string'&&name.length>0).slice(0,64):[];
+    const results=await Promise.all(names.map(async name=>{
+      try {
+        const volume=await this.request('GetInputVolume',{inputName:name});
+        const value=volume.inputVolumeMul;
+        return typeof value==='number'&&Number.isFinite(value)&&value>=0?{name,volume:value}:null;
+      }catch{return null;} // Non-audio OBS sources reject GetInputVolume.
+    }));
+    return results.filter((item):item is {name:string;volume:number}=>item!==null);
+  }
+  /** Local-only, explicit fade request. Each OBS step is acknowledged before the next. */
+  async fadeInput(name:string,targetVolume:number,durationMs:number):Promise<number> {
+    if(typeof name!=='string'||!name.trim()||name.length>128)throw new Error('Invalid OBS audio input');
+    if(typeof targetVolume!=='number'||!Number.isFinite(targetVolume)||targetVolume<0||targetVolume>2)
+      throw new Error('OBS volume must be between 0 and 200%');
+    if(!Number.isInteger(durationMs)||durationMs<0||durationMs>5000)
+      throw new Error('OBS fade duration must be 0–5000ms');
+    if(this.fadingInputs.has(name))throw new Error('An OBS fade is already running for this input');
+    this.fadingInputs.add(name);
+    try{
+      const current=await this.request('GetInputVolume',{inputName:name});
+      const start=current.inputVolumeMul;
+      if(typeof start!=='number'||!Number.isFinite(start)||start<0)throw new Error('OBS did not return a valid audio level');
+      const steps=durationMs===0?1:Math.max(1,Math.ceil(durationMs/200));
+      for(let i=1;i<=steps;i++){
+        if(i>1){
+          await new Promise<void>(resolve=>setTimeout(resolve,durationMs/steps));
+          if(!this.ready||this.socket?.readyState!==WebSocket.OPEN)throw new Error('OBS disconnected during audio fade');
+        }
+        const volume=i===steps?targetVolume:start+(targetVolume-start)*i/steps;
+        await this.request('SetInputVolume',{inputName:name,inputVolumeMul:volume});
+      }
+      const final=await this.request('GetInputVolume',{inputName:name});
+      if(typeof final.inputVolumeMul!=='number')throw new Error('OBS did not confirm audio volume');
+      return final.inputVolumeMul;
+    }finally{this.fadingInputs.delete(name);}
   }
   close() {
     this.socket?.close();
