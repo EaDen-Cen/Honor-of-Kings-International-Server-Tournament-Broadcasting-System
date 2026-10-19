@@ -29,7 +29,7 @@
 
 ## OBS 控制器新路径（设计规划）
 
-现有 OBS Browser Source 属于单向网页展示；**OBS WebSocket 双向连接尚未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。必须先解决最终阵容归属“检测但没有应用”的服务端确认、状态竞态与帮抢问题，避免未核验 BP 触发自动转场。
+现有 OBS Browser Source 属于单向网页展示；**M24.0 本地 OBS WebSocket 场景/录制状态已提交开发候选，尚未真实 OBS 验收；完整双向音频/场景自动化未实现**。计划由本地 Node `ObsAdapter` 通过 OBS 5.x 读取 Program Scene / Recording 真正状态并下发受限场景、音频预设，Control 只访问经过权限验证的本地 HOK API，不在远程浏览器保存 OBS 密码。OBS 输出目录空间由本地文件系统检查，不能靠网页或云端服务器读取本机 E 盘。必须先解决最终阵容归属“检测但没有应用”的服务端确认、状态竞态与帮抢问题，避免未核验 BP 触发自动转场。
 
 详见 [完整 OBS 双向集成路线图](obs-websocket-integration-roadmap.md)，内容均为**计划，不属于现有接口**。
 
