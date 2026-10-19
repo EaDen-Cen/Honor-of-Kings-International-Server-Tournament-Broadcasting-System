@@ -3,7 +3,7 @@ import type { MatchState } from './types.js';
 import { consistentLiveValue, liveCaptureKeys, parseLiveNumber, type LiveCandidate, type LiveCaptureKey } from './gameCapture.js';
 export interface LiveFieldSource { source:'manual'|'ocr'; capturedAt:number; confidence:number }
 export interface LiveHudSample { capturedAt:number; candidates:LiveCandidate[]; profile?:string }
-export interface LiveGameStats { blueKills:number; redKills:number; blueTowers:number; redTowers:number; blueGold?:number; redGold?:number; gameTimeSeconds?:number; sources?:Partial<Record<LiveCaptureKey,LiveFieldSource>>; neutralObjectives:NeutralObjective[]; density:'compact'|'full' }
+export interface LiveGameStats { blueKills:number; redKills:number; blueTowers:number; redTowers:number; blueGold?:number; redGold?:number; gameTimeSeconds?:number; sources?:Partial<Record<LiveCaptureKey,LiveFieldSource>>; neutralObjectives:NeutralObjective[]; density:'compact'|'full'; widthPercent?:number }
 export const liveGameContext=(state:MatchState)=>JSON.stringify([state.draftGameNumber??state.gameNumber,state.blueTeam.id,state.redTeam.id,state.committedGameId,state.bluePicks,state.redPicks]);
 export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sample:LiveHudSample){
   const updates:Partial<Record<LiveCaptureKey,number>>={};
@@ -31,5 +31,5 @@ export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sa
   }
   return updates;
 }
-export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[],density:'compact'});
-export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0}))};}
+export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[],density:'compact',widthPercent:100});
+export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,widthPercent:previous.widthPercent??100,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0}))};}
