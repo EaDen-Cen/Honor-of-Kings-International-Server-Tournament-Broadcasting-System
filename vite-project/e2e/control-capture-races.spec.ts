@@ -189,3 +189,32 @@ test('manual BP review can interrupt an in-flight recognition pass',async({page,
     await expect(bp.getByRole('button',{name:'Recognize now',exact:true})).toBeEnabled();
   }finally{release();h.close();}
 });
+
+test('trusted blue-only swap is applied and server-confirmed despite unresolved red team',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  try{
+    await h.send({type:'reset_match'});
+    await h.send({type:'settings',settings:{...initialState(),language:'eng',bpInputMode:'screen'}});
+    await h.fill();
+    const beforeBlue=[...h.state().blueAssignments],beforeRed=[...h.state().redAssignments];
+    const pickedBlue=[...h.state().bluePicks],pickedRed=[...h.state().redPicks];
+    const swapped=[pickedBlue[1],pickedBlue[0],...pickedBlue.slice(2)];
+    const counts=new Map<string,number>();
+    await mockWindow(page,true);
+    await page.route('**/api/recognize-frame',async route=>{
+      const input=route.request().postDataJSON() as {allowedHeroIds:number[]};
+      const ids=input.allowedHeroIds,key=ids.join(',');
+      const ix=(counts.get(key)??0)%5;counts.set(key,(counts.get(key)??0)+1);
+      const isBlue=key===pickedBlue.join(',');
+      const candidates=isBlue?ids.map(id=>({heroId:id,confidence:id===swapped[ix]?.99:.10})):[];
+      await route.fulfill({json:{candidates,preview:'data:image/png;base64,iVBORw0KGgo='}});
+    });
+    await page.goto('/control');
+    await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    await expect.poll(()=>h.state().blueAssignments,{timeout:30000}).toEqual(swapped);
+    expect(h.state().redAssignments).toEqual(beforeRed);
+    expect(h.state().blueAssignments).not.toEqual(beforeBlue);
+    await expect(page.getByTestId('lineup-apply-state')).toHaveAttribute('data-status','applied',{timeout:10000});
+    expect(pickedRed).toEqual(beforeRed);
+  }finally{h.close();}
+});
