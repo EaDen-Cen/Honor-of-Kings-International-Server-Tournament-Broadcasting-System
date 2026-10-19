@@ -33,31 +33,46 @@ function DataRadar({blue,red,zh}:{blue?:PostGamePlayer;red?:PostGamePlayer;zh:bo
     <p>{zh?'每个轴仅比较两人的相对数值，不是游戏官方评分；承伤、治疗等也不直接代表表现优劣。':'Axes are relative to these two players, not official ratings or an overall performance verdict.'}</p>
   </div>;
 }
+
 function Competitor({player,state,zh}:{player?:PostGamePlayer;state:MatchState;zh:boolean}){
   const hero=player?heroForState(state,player.heroId):undefined;
   const grade=player?.grade&&(player.grade.manual||player.grade.confidence>=.85)?player.grade.value:undefined;
-  return <div className={`pg-player ${player?.side??''}`}>
-    {hero?.imageLink&&<img className="pg-hero-icon" src={hero.imageLink} alt=""/>}
-    <div><small>{player?.teamName??'—'}</small><strong>{player?.playerId||'—'}</strong><span>{zh?hero?.chineseName:hero?.englishName}{grade&&` · ${zh?'游戏评级':'Game grade'} ${grade}`}</span></div>
-  </div>;
-}
-function Comparison({state,report,zh}:{state:MatchState;report:PostGameReport;zh:boolean}){
-  const wanted=new URLSearchParams(window.location.search).get('role');
-  const selected=roles.includes(wanted as PlayerRole)?wanted as PlayerRole:'clash';
-  const pair=(side:'blue'|'red',role:PlayerRole)=>report.players.map(player=>postGamePlayerIdentity(state,player)).find(p=>p.side===side&&p.role===role);
-  const blue=pair('blue',selected),red=pair('red',selected);
-  const stats:PostGameMetric[]=['kills','deaths','assists','gold','goldShare','totalDamage','damageShare','damageTaken','participation','towerDamage'];
-  if(reliableField(blue?.fields.rating)||reliableField(red?.fields.rating))stats.unshift('rating');
-  return <>
-    <nav className="pg-role-tabs" aria-label={zh?'对位位置':'Matchup role'}>{roles.map(role=><a key={role} href={`/overlay/postgame-compare?role=${role}${window.location.hash}`} className={role===selected?'active':''} aria-current={role===selected?'page':undefined}>{roleNames[role][zh?0:1]}</a>)}</nav>
-    <div className="pg-compare-body">
-      <div className="pg-duel-top"><Competitor player={blue} state={state} zh={zh}/><span className="pg-versus">VS</span><Competitor player={red} state={state} zh={zh}/></div>
-      <div className="pg-compare-layout">
-        <div className="pg-number-compare">{stats.map(key=><div key={key} className="pg-stat-line"><strong>{format(blue,key)}</strong><span>{postGameMetricLabel(key,zh)}</span><strong>{format(red,key)}</strong></div>)}</div>
-        <DataRadar blue={blue} red={red} zh={zh}/>
-      </div>
+  const art=player?.portrait||hero?.artLink||hero?.imageLink;
+  return <aside className={'pg-matchup-player '+(player?.side??'')} aria-label={zh?'对位选手':'Matchup player'}>
+    <div className="pg-competitor-photo">
+      {art?<img src={art} alt={player?.playerId||'Player artwork'}/>:<span>{zh?'选手照片未设置':'No player photo'}</span>}
     </div>
-    <footer className="pg-footer">{zh?'仅展示已核验/人工确认数据 · 改变 OBS 链接的 ?role=clash/jungle/mid/farm/roam 可切换对位':'Verified or manually confirmed data only · Set ?role=clash/jungle/mid/farm/roam to choose a matchup'}</footer>
+    <div className={'pg-player '+(player?.side??'')}>
+      {hero?.imageLink&&<img className="pg-hero-icon" src={hero.imageLink} alt=""/>}
+      <div><small>{player?.teamName??'—'}</small><strong>{player?.playerId||'—'}</strong><span>{zh?hero?.chineseName:hero?.englishName}{grade&&(' · '+(zh?'游戏评级':'Game grade')+' '+grade)}</span></div>
+    </div>
+  </aside>;
+}
+function Comparison({state,report,zh,selectedRole}:{state:MatchState;report:PostGameReport;zh:boolean;selectedRole?:PlayerRole}){
+  // Fixed OBS paths do not expose a role switcher; support legacy ?role links.
+  const wanted=selectedRole??new URLSearchParams(window.location.search).get('role');
+  const selected=roles.includes(wanted as PlayerRole)?wanted as PlayerRole:'clash';
+  const players=report.players.map(player=>postGamePlayerIdentity(state,player));
+  const blue=players.filter(p=>p.side==='blue'&&p.role===selected);
+  const red=players.filter(p=>p.side==='red'&&p.role===selected);
+  if(blue.length!==1||red.length!==1)return <div className="pg-unavailable pg-center">
+    {zh?('无法安全展示'+roleNames[selected][0]+'对位：双方必须各有一位已绑定该位置的选手。请在 Control 核对选手 ID 顺序及本局角色。'):
+      ('Cannot safely show '+roleNames[selected][1]+' matchup: each side needs exactly one player with this role. Verify ID order and roles in Control.')}
+  </div>;
+  const left=blue[0],right=red[0];
+  const stats:PostGameMetric[]=['kills','deaths','assists','gold','goldShare','totalDamage','damageShare','damageTaken','participation','towerDamage'];
+  if(reliableField(left.fields.rating)||reliableField(right.fields.rating))stats.unshift('rating');
+  return <>
+    <div className="pg-matchup-heading"><span>{roleNames[selected][zh?0:1]}</span><strong>HEAD TO HEAD</strong></div>
+    <div className="pg-matchup-stage" data-matchup-role={selected}>
+      <Competitor player={left} state={state} zh={zh}/>
+      <div className="pg-center-analysis">
+        <DataRadar blue={left} red={right} zh={zh}/>
+        <div className="pg-number-compare">{stats.map(key=><div key={key} className="pg-stat-line"><strong>{format(left,key)}</strong><span>{postGameMetricLabel(key,zh)}</span><strong>{format(right,key)}</strong></div>)}</div>
+      </div>
+      <Competitor player={right} state={state} zh={zh}/>
+    </div>
+    <footer className="pg-footer">{zh?'仅展示已核验或人工确认的数据 · 此 OBS 对位场景固定绑定该位置':'Verified or manually confirmed metrics only · This OBS matchup scene has a fixed role'}</footer>
   </>;
 }
 function Progress({report,zh}:{report:PostGameReport;zh:boolean}){
@@ -71,7 +86,7 @@ function Progress({report,zh}:{report:PostGameReport;zh:boolean}){
     {report.goldDifference?.partial&&<p className="pg-footer">{zh?'部分曲线：末尾标记被遮挡，仅显示已识别点。':'Partial screenshot curve: final marker obscured; observed points only.'}</p>}
   </div>;
 }
-export function PostGameBroadcast({state,mode}:{state:MatchState;mode:'compare'|'progress'}){
+export function PostGameBroadcast({state,mode,compareRole}:{state:MatchState;mode:'compare'|'progress';compareRole?:PlayerRole}){
   const report=state.postGameReports.find(r=>r.id===state.activePostGameReportId),zh=state.language==='zh';
   if(!report)return <section className="pg-broadcast"><div className="pg-broadcast-glow"/><header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{zh?'暂无本局赛后报告':'NO POST-GAME REPORT'}</h1><p>{zh?'请在 Control 中确认本局有效并创建十人赛后报告，再打开此 OBS 场景。':'Confirm and prepare the ten-player report in Control before opening this scene.'}</p></header></section>;
   const blue=report.players.find(p=>p.side==='blue'),red=report.players.find(p=>p.side==='red');
@@ -79,6 +94,6 @@ export function PostGameBroadcast({state,mode}:{state:MatchState;mode:'compare'|
     <div className="pg-broadcast-glow"/>
     <header className="pg-broadcast-header"><div className="pg-eyebrow">CHASING WIND · ESPORT BROADCAST</div><h1>{mode==='progress'?(zh?'游戏进程 · 经济优势':'GAME PROGRESS · ECONOMY ADVANTAGE'):(zh?'赛后对位分析':'POST-GAME MATCHUP')}</h1><p>{report.stage} · GAME {report.gameNumber} · {report.seriesFormat}</p></header>
     <div className="pg-team-banner"><span>{blue?.teamName||'BLUE TEAM'}</span><em>VS</em><span>{red?.teamName||'RED TEAM'}</span></div>
-    {mode==='progress'?<Progress report={report} zh={zh}/>:<Comparison state={state} report={report} zh={zh}/>}
+    {mode==='progress'?<Progress report={report} zh={zh}/>:<Comparison state={state} report={report} zh={zh} selectedRole={compareRole}/>}
   </section>;
 }

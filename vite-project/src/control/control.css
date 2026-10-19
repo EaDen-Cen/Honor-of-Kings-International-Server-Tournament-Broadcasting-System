@@ -1659,3 +1659,9 @@
 #draft-workspace, #game-lifecycle, #postgame-tools { scroll-margin-top: 16px; }
 .operator-guide :focus-visible { outline: 2px solid #83d8ff; outline-offset: 3px; }
 @media (max-width: 600px) { .operator-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; } }
+
+/* Optional, session-local preflight: the operator must not confuse a
+   default P1-P5 permutation with a verified live-game identity binding. */
+.operator-id-preflight{display:flex;gap:10px;align-items:center;padding:10px 14px;border:1px solid #c79b4a88;background:#eabf4d16;border-radius:7px;font-size:14px;font-weight:600}
+.operator-id-preflight input{flex:none;width:17px;height:17px}
+.operator-id-preflight.verified{border-color:#4eac9188;background:#5ab99a15}

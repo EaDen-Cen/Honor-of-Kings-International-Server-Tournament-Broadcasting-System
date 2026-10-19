@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
@@ -6,6 +7,16 @@ export function OperatorGuide({ state, connected, pending, onTeams, onSettings }
   state: MatchState; connected: boolean; pending: boolean; onTeams: () => void; onSettings: () => void;
 }) {
   const zh = state.language === 'zh';
+  const checkKey = [state.stage,state.blueTeam.id,state.redTeam.id,state.gameNumber,state.draftHistory.length].join(':');
+  const [verifiedIds,setVerifiedIds]=useState<Record<string,boolean>>(()=>{
+    try{return JSON.parse(sessionStorage.getItem('hok-director-player-order-checks')||'{}') as Record<string,boolean>;}catch{return {};}
+  });
+  const idOrderVerified=!!verifiedIds[checkKey];
+  const setOrderVerified=(value:boolean)=>{
+    const next={...verifiedIds,[checkKey]:value};
+    setVerifiedIds(next);
+    try{sessionStorage.setItem('hok-director-player-order-checks',JSON.stringify(next));}catch{/* session-only fallback */}
+  };
   const step = state.committedGameId ? 3 : state.draftComplete ? 2 : state.currentPhase > 0 ? 1 : 0;
   const labels = zh ? ['赛前准备', '选禁操作', '确认阵容', '记录与下一局'] : ['Preparation', 'Draft', 'Confirm lineup', 'Record & next game'];
   const hint = !connected
@@ -19,6 +30,11 @@ export function OperatorGuide({ state, connected, pending, onTeams, onSettings }
   return <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
     <ol className="operator-steps">{labels.map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}</ol>
     <p role="status" aria-live="polite">{hint}</p>
+    {state.bpInputMode==='screen'&&!state.committedGameId&&<label className={'operator-id-preflight'+(idOrderVerified?' verified':'')}>
+      <input type="checkbox" checked={idOrderVerified} onChange={event=>setOrderVerified(event.target.checked)}/>
+      <span>{idOrderVerified?(zh?'本局选手 ID / P1–P5 已由导播核对':'Player IDs / P1–P5 checked for this game'):
+        (zh?'开播检查：尚未确认本局 P1–P5 选手 ID 对应顺序，赛后对位可能错配。':'Preflight: Player ID / P1–P5 order not confirmed for this game; postgame matchups may be wrong.')}</span>
+    </label>}
     <nav className="toolbar" aria-label={zh ? '工作区导航' : 'Workspace navigation'}>
       <button type="button" onClick={onTeams}>{zh ? '设置队伍' : 'Set up teams'}</button>
       <button type="button" onClick={onSettings}>{zh ? '检查赛制与显示' : 'Review rules & display'}</button>

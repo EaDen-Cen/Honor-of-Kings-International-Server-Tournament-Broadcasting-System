@@ -54,3 +54,31 @@
 .pg-compare .pg-stat-line{padding:7px 20px;min-height:44px}
 .pg-compare .pg-stat-line strong{font-size:22px}
 .pg-compare .pg-radar svg{width:450px;height:450px}
+
+/* Postgame role overlays are independent 1920x1080 OBS scenes:
+   players occupy opposite sides, with a single split axis and central metrics. */
+.pg-compare{padding:30px 60px 26px}
+.pg-compare .pg-broadcast-header h1{font-size:41px;margin:9px 0 5px}
+.pg-compare .pg-team-banner{min-height:65px;margin:15px 0 8px;padding:10px 26px}
+.pg-compare .pg-matchup-heading{display:flex;justify-content:center;align-items:center;gap:28px;height:38px;font-size:25px;font-weight:800;color:#e7c783}
+.pg-compare .pg-matchup-heading strong{font-size:13px;letter-spacing:4px;color:#aebdd0}
+.pg-compare .pg-matchup-stage{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.58fr) minmax(0,1fr);gap:24px;min-height:0;height:650px;padding:10px 0}
+.pg-compare .pg-matchup-stage::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:linear-gradient(transparent,#e9ce9366,transparent);pointer-events:none}
+.pg-compare .pg-matchup-player{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:flex-end;min-width:0;border:1px solid #c6d8ef24;border-radius:8px;overflow:hidden;background:linear-gradient(170deg,#18394e88,#09121f)}
+.pg-compare .pg-matchup-player.red{background:linear-gradient(190deg,#512c3888,#09121f)}
+.pg-compare .pg-competitor-photo{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;position:relative;overflow:hidden}
+.pg-compare .pg-competitor-photo img{width:100%;height:100%;object-fit:cover;object-position:center 22%;mask-image:linear-gradient(#000 75%,transparent)}
+.pg-compare .pg-competitor-photo span{font-size:21px;color:#c1cbd6}
+.pg-compare .pg-matchup-player .pg-player{padding:15px 18px;min-height:105px;background:#080e19bf}
+.pg-compare .pg-matchup-player .pg-player strong{font-size:27px}
+.pg-compare .pg-matchup-player .pg-hero-icon{width:66px;height:66px;flex:none}
+.pg-compare .pg-center-analysis{position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;padding:2px 13px;background:#09121ef0;border:1px solid #d6e2f126;border-radius:8px}
+.pg-compare .pg-center-analysis .pg-radar{width:100%}
+.pg-compare .pg-center-analysis .pg-radar svg{width:292px;height:292px;flex:none}
+.pg-compare .pg-center-analysis .pg-radar p{margin:-8px 0 0;max-width:540px;font-size:12px;line-height:1.2}
+.pg-compare .pg-center-analysis .pg-unavailable{padding:55px 10px 30px;font-size:18px}
+.pg-compare .pg-center-analysis .pg-number-compare{width:100%;display:grid;gap:2px}
+.pg-compare .pg-center-analysis .pg-stat-line{min-height:27px;padding:2px 9px;grid-template-columns:1fr 160px 1fr;gap:8px}
+.pg-compare .pg-center-analysis .pg-stat-line strong{font-size:17px}
+.pg-compare .pg-center-analysis .pg-stat-line span{font-size:13px}
+.pg-compare .pg-footer{margin-top:11px;font-size:14px}

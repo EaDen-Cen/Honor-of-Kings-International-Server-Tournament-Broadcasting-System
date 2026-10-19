@@ -157,3 +157,35 @@ test('red-left settlement pages bind the correct roster, retain numerical drafts
     await expect(settlement.getByLabel('Settlement left team',{exact:true})).toHaveValue('blue');
   }finally{h.close();}
 });
+
+test('manual BP review can interrupt an in-flight recognition pass',async({page,baseURL})=>{
+  const h=await harness(baseURL);
+  let release=()=>{};
+  try{
+    await h.send({type:'reset_match'});
+    await h.send({type:'settings',settings:{...initialState(),language:'eng',bpInputMode:'screen'}});
+    await mockWindow(page);
+    let calls=0,secondStarted=false;
+    await page.route('**/api/recognize-frame',async route=>{
+      calls++;
+      if(calls===2){
+        secondStarted=true;
+        await new Promise<void>(resolve=>{release=resolve;});
+      }
+      try{await route.fulfill({json:{candidates:[{heroId:1,confidence:.99}],preview:'data:image/png;base64,iVBORw0KGgo=',lockCue:'unknown'}});}catch{/* operator aborted this request */}
+    });
+    await page.goto('/control');
+    await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    const bp=page.locator('.screen-input');
+    await bp.getByRole('button',{name:'Recognize now',exact:true}).click();
+    await expect(bp.getByRole('button',{name:'Review current top candidate',exact:true})).toBeEnabled();
+    await bp.getByRole('button',{name:'Recognize now',exact:true}).click();
+    await expect.poll(()=>secondStarted).toBe(true);
+    await expect(bp.getByRole('button',{name:'Review current top candidate',exact:true})).toBeEnabled();
+    await bp.getByRole('button',{name:'Review current top candidate',exact:true}).click();
+    await expect(bp.locator('dialog')).toBeVisible();
+    release();
+    await expect(bp.locator('dialog')).toBeVisible();
+    await expect(bp.getByRole('button',{name:'Recognize now',exact:true})).toBeEnabled();
+  }finally{release();h.close();}
+});
