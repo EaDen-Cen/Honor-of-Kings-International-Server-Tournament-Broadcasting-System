@@ -31,6 +31,10 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## 2026-10-19 · GHUD 侧边交换与 CI 回归完善
+
+新版 99px / 131px 透明顶部 HUD 保持不变；修复换边后推塔、经济和中立资源数值仍使用固定蓝左红右颜色，以及 Full 模式十人条按红方而非右侧位置反转的问题。PR #82 后遗留的四处 Playwright 断言仍指向旧版全屏 HUD 类名，已迁移到新版 `game-hud-kills`、`game-hud-metric`、`game-hud-capture`、`game-hud-team` 等实际结构，并强化换边与人工 P1–P5 核对端到端覆盖。所有变更须经最新 CI 验证；真实 OBS 彩排仍需单独执行。
+
 ## P1–P5 开播核对回归修复（2026-10-19）
 
 修复 PR #77 引入的核对状态随 BP 历史条数变化而失效的问题。现在 Control 顶部直接显示服务器当前蓝红 P1–P5 选手顺序，并可跳转自动识别 / 手动调整面板；人工核对在同一局 Ban/Pick 过程中保持有效，但名单或权威顺序变更、进入下一局后必须重新确认。OCR 状态区分采集未连接、视频未就绪、识别中和暂停。**核对勾选仅是当前浏览器的人工确认记录，不代表 OCR 成功。** 见 [比赛操作指南](docs/guides/operator-guide.md)。
