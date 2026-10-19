@@ -31,6 +31,10 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## OBS 本地音频控制与连接诊断（2026-10-19）
+
+在 **OBS 导播联动（本地）** 面板中可刷新连接状态，查看当前场景/录制状态；新增 OBS 音频源列表与 0/1/3/5 秒手动淡入淡出，可独立调整目标音量（0%–200%）或淡出至 0%。只修改选定 OBS 音频源的音量，不更改静音开关，不影响 OBS 录制和推流状态；后端只接受本机 Control 授权，密码仍只存于 Node 环境。连接失败提示与 [OBS 本地设置指南](docs/guides/obs-director-setup.md) 已同步完善。**真实 OBS 音频设备仍需实机测试；磁盘告警、自动 Ducking 和自动切镜未实现。**
+
 ## GHUD 可调宽度（2026-10-19）
 
 导播端 **局内 HUD / 人头、推塔与资源 → HUD 宽度** 新增 50%–100%（每档 5%）滑块与恢复默认按钮。默认 100% 兼容旧比赛；建议先试 80%（顶部 1536px）。整体比分条按比例缩放，顶部居中，不会更改 OBS Browser Source 的 **1920×1080** 画布，也不会添加不透明的背景遮罩。宽度由服务器保存并同步到所有浏览器源，下一局及重置整场比赛后仍保留；原有 Compact / Full 高度档位独立设置。
@@ -58,7 +62,7 @@ HOK 游戏画面 / BP Simulator
 
 新增可选的 OBS WebSocket v5 Node 连接器及 Control 内的可折叠 OBS Director 面板。支持在本地读取当前场景、OBS 场景列表、录制状态，并人工切换经 OBS 确认的 Program Scene。使用服务端 `OBS_WS_URL` / `OBS_WS_PASSWORD` 变量，不把 OBS 密码送入前端。仅本地 Control 有权调用；默认不配置则完全禁用。参见 [OBS Director 本地设置](docs/guides/obs-director-setup.md)。
 
-请注意：**音频淡入淡出、录制容量预警、自动场景联动和云端远控尚未实现**。已有单向 Browser Source 仍然独立运行。本候选尚须通过 CI 和 Windows OBS 真实设备测试。
+请注意：**手动音频淡入淡出已提交候选，但录制容量预警、自动场景联动和云端远控尚未实现**。已有单向 Browser Source 仍然独立运行。本候选尚须通过 CI 和 Windows OBS 真实设备测试。
 
 ## OBS 双向集成及单人导播路线（计划中）
 
