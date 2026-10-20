@@ -4,7 +4,7 @@ import {initialState} from '../src/shared/types';
 import {phases} from '../src/shared/types';
 import {simulatorSlotForPhase,simulatorSlotKey} from '../src/simulator/bpSimulatorModel';
 
-test('GHUD follows displayed sides and resolves the registered role after a roster mapping and color swap',async({page,baseURL})=>{
+test('GHUD retains blue-left metrics while draft keeps registered slot roles after a color swap',async({page,baseURL})=>{
   const h=await harness(baseURL);
   try{
     await h.send({type:'reset_match'});
@@ -15,22 +15,23 @@ test('GHUD follows displayed sides and resolves the registered role after a rost
     await h.send({type:'swap_sides'});await h.fill();
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,density:'full',blueGold:12300,redGold:14200}});
     await page.setViewportSize({width:1920,height:1080});await page.goto('/overlay/game-hud');
-    const left=page.locator('.game-hud-team.display-left'),right=page.locator('.game-hud-team.display-right');
-    await expect(left).toHaveClass(/red/);await expect(right).toHaveClass(/blue/);
-    await expect(left.locator('strong')).toHaveText('Alpha team');
-    await expect(right.locator('strong')).toHaveText('Bravo team');
+    const hud=page.getByTestId('game-hud');
+    const left=hud.getByTestId('game-hud-blue-team'),right=hud.getByTestId('game-hud-red-team');
+    await expect(left.locator('strong')).toHaveText('Bravo team');
+    await expect(right.locator('strong')).toHaveText('Alpha team');
     expect(await left.locator('strong').evaluate(element=>element.clientHeight>=element.scrollHeight)).toBe(true);
-    const leftRoster=page.locator('.game-hud-roster-side.display-left');
-    await expect(leftRoster).toHaveClass(/red/);
-    await expect(leftRoster.locator('.game-hud-player-id').first()).toHaveText('Bravo');
-    await expect(leftRoster.locator('.game-hud-player')).toHaveCount(5);
-    await expect(page.locator('.game-hud-metric.accent .game-hud-metric-left')).toHaveClass(/red/);
-    await expect(page.locator('.game-hud-metric.accent .game-hud-metric-right')).toHaveClass(/blue/);
-    await expect(page.locator('.game-hud-metric.accent')).toContainText('14.2k');
-    await expect(page.locator('.game-hud-metric.accent')).toContainText('12.3k');
+    await expect(hud.getByTestId('game-hud-blue-gold')).toContainText('12.3k');
+    await expect(hud.getByTestId('game-hud-red-gold')).toContainText('14.2k');
+    await expect(hud.locator('.game-hud-rosters')).toHaveCount(0);
     const leftBox=await left.boundingBox(),rightBox=await right.boundingBox();
-    expect(leftBox!.x).toBeLessThan(40);expect(rightBox!.x).toBeGreaterThan(1100);
+    expect(leftBox!.x).toBeLessThan(rightBox!.x);
     await page.screenshot({path:'artifacts/full-audit/ghud-sides-and-roles.png',omitBackground:true});
+    // The compact HUD intentionally has no player roster. Verify identity and
+    // registered roles on the draft overlay that actually presents them.
+    await page.goto('/overlay/draft');
+    const card=page.locator(`.broadcast-card[data-team-id="${state.blueTeam.id}"][data-slot="0"]`);
+    await expect(card.locator('.player-id')).toHaveText('Bravo');
+    await expect(card.getByRole('img',{name:'Roaming',exact:true})).toBeVisible();
   }finally{h.close();}
 });
 

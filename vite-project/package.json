@@ -22,7 +22,11 @@
     "benchmark:recognition": "node --import tsx scripts/benchmark-recognition.ts",
     "recovery": "node --env-file-if-exists=.env --import tsx scripts/recovery.ts",
     "benchmark:players": "node --import tsx scripts/benchmark-player-recognition.ts",
-    "hero:cn-sync": "tsx scripts/hero-sync/syncCn.ts"
+    "hero:cn-sync": "tsx scripts/hero-sync/syncCn.ts",
+    "hero:art-cache": "tsx scripts/cache-broadcast-art.ts",
+    "format": "node scripts/format-core.mjs --write",
+    "format:check": "node scripts/format-core.mjs --check",
+    "benchmark:hud": "node --import tsx scripts/benchmark-hud-recognition.ts"
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",
@@ -48,9 +52,10 @@
     "eslint-plugin-react-refresh": "^0.4.13",
     "globals": "^15.11.0",
     "postcss": "^8.4.47",
+    "prettier": "^3.6.2",
     "tsx": "^4.19.0",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.70.0",
-    "vite": "^8.3.0"
+    "vite": "^8.3.4"
   }
 }

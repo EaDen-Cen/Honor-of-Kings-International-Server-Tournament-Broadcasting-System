@@ -86,6 +86,7 @@ test('guide follows lineup, commit and next-game transitions in both languages',
     await expect(page.locator('.operator-guide [aria-current="step"]')).toContainText('记录与下一局');
     await expect(page.getByRole('button', { name: '开始下一局', exact: true })).toBeDisabled();
     await match.send({ type: 'score', team: 'blue', delta: 1 });
+    await expect(page.locator('.operator-guide [aria-current="step"]')).toContainText('记录与下一局');
     await match.send({ type: 'next_game' });
     await expect(page.locator('.operator-guide [aria-current="step"]')).toContainText('赛前准备');
     await match.send({ type: 'settings', settings: { ...match.state(), language: 'eng' } });

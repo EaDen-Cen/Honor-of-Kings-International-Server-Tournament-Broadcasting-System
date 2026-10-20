@@ -56,6 +56,9 @@ jobs:
       - name: Lint
         run: npm run lint 2>&1 | tee artifacts/ci/lint.log
 
+      - name: Check recognition and OBS code formatting
+        run: npm run format:check 2>&1 | tee artifacts/ci/format.log
+
       - name: Run unit and server tests
         run: npm test 2>&1 | tee artifacts/ci/tests.log
 

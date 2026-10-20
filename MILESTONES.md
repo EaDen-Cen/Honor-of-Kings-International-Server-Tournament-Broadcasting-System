@@ -1,5 +1,9 @@
 # HOK Broadcast 项目里程碑
 
+## 2026-10-20 · 识别延迟与 OBS 原画改进
+
+完成七区无损 HUD 传输、直接从视频裁切、启动预热、重复 OCR 重试消除、拉丁名单首轮和最终阵容完成后调度；保留多语言回退、两帧核验和服务器确认。默认 112 项原画本地化，异步解码与迟到结果取消；HUD/OBS 导航及结算左右队伍切换的身份复核已覆盖浏览器回归。维护命令、受控样本结果和真实赛事机待复测范围见 [性能指南](docs/guides/recognition-latency-and-obs-assets.md)，最终 CI 结果见 [PR #90](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/90)。GHUD 继续为 Experimental，不把固定样本成绩当作实机准确率验收。
+
 ## 2026-10-19 · GHUD 单行重构与秒级 OCR（开发分支）
 
 - 主栏单行 13 格：蓝队名 / 资源 / 推塔 / 经济 / 人头 / 比分 / 时间 / 红比分 / 人头 / 经济 / 推塔 / 资源 / 红队名。

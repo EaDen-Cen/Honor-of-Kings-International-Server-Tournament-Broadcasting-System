@@ -11,8 +11,8 @@ test('player mapping renders correct owner, HUD reconnects, MVP switches and rec
     await page.goto('/overlay/draft');
     await expect(page.locator('.broadcast-card[data-team-id="team-a"][data-slot="0"] .player-id')).toHaveText('Echo');
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,blueKills:8,redKills:5,blueTowers:3,redTowers:2}});
-    await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud')).toBeVisible();await expect(page.locator('.game-hud-kills')).toContainText('8');
-    await page.reload();await expect(page.locator('.game-hud-kills')).toContainText('8');
+    await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud')).toBeVisible();await expect(page.getByTestId('game-hud-blue-kills')).toContainText('8');
+    await page.reload();await expect(page.getByTestId('game-hud-blue-kills')).toContainText('8');
     await page.setViewportSize({width:1920,height:1080});await page.screenshot({path:'artifacts/game-hud.png',omitBackground:true});
     await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     const report=h.state().postGameReports[0],player=report.players[0];
@@ -121,7 +121,11 @@ test('real offline OCR captures and synchronizes both teams within two seconds',
     },{labels,slots:defaultCaptureSlots});
     await page.goto('/control');
     await expect.poll(async()=>{const r=await page.request.get('/api/v1/recognition/players',{headers:{Authorization:'Bearer e2e-control'}});return (await r.json()).status;}).toBe('ready');
-    const start=Date.now();await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    // Measure capture through authoritative state, after the lazy capture UI is ready.
+    // Keep module/page startup separate from the unchanged two-second OCR budget.
+    const choose=page.getByRole('button',{name:'Choose game window',exact:true});
+    await expect(choose).toBeEnabled();
+    const start=Date.now();await choose.click();
     await expect.poll(()=>`${h.state().bluePlayerSlotOrder}|${h.state().redPlayerSlotOrder}`,{intervals:[20,30,50]}).toBe('4,3,2,1,0|4,3,2,1,0');
     const elapsed=Date.now()-start;console.log(`Real capture → OCR → both authoritative orders: ${elapsed} ms`);expect(elapsed).toBeLessThan(2000);
   }finally{h.close();}

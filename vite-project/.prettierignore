@@ -1,0 +1,9 @@
+node_modules
+dist
+artifacts
+test-results
+playwright-report
+public
+server/fixtures
+src/data/broadcastArtAssets.ts
+package-lock.json

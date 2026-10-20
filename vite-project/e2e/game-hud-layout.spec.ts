@@ -90,6 +90,7 @@ test('full GHUD second row shows manually verified boss presence without hero li
   const h=await harness(baseURL);
   try{
     await h.send({type:'reset_match'});
+    await h.send({type:'settings',settings:{...h.state(),language:'eng'}});
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,density:'full',
       neutralObjectives:[{id:'tyrant',name:'Tyrant',icon:'',blue:2,red:1,status:'alive'},
         {id:'overlord',name:'Overlord',icon:'',blue:0,red:1,status:'down'}]}});
