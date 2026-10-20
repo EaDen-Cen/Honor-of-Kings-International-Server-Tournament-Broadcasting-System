@@ -25,7 +25,7 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await match.send({type:'reset_match'});
     await page.goto('/control#token=e2e-control');
     const panel=page.getByTestId('obs-director');
-    await panel.locator('summary').click();
+    await panel.locator(':scope > summary').click();
     await expect(panel.getByTestId('obs-cue-waiting')).toHaveClass(/is-recommended/);
     const state=match.state();
     const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[0];
@@ -46,13 +46,13 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await expect(panel.getByTestId('obs-layout-audit')).toContainText('1280 × 720');
     await panel.getByRole('combobox',{name:'OBS cue map game'}).selectOption('MVP');
     await page.reload();
-    await panel.locator('summary').click();
+    await panel.locator(':scope > summary').click();
     await expect(panel.getByRole('combobox',{name:'OBS cue map game'})).toHaveValue('MVP');
     await panel.getByRole('button',{name:'自定义顺序'}).click();
     await buttons.getByRole('button',{name:'Move MVP up'}).click();
     await expect(buttons.locator('.obs-scene-button-item').nth(2)).toContainText('MVP');
     await page.reload();
-    await panel.locator('summary').click();
+    await panel.locator(':scope > summary').click();
     await expect(panel.getByTestId('obs-scene-buttons').locator('.obs-scene-button-item').nth(2)).toContainText('MVP');
     expect(changes).toEqual(['BP']);
   }finally{match.close();}

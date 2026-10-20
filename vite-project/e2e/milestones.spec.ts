@@ -121,7 +121,11 @@ test('real offline OCR captures and synchronizes both teams within two seconds',
     },{labels,slots:defaultCaptureSlots});
     await page.goto('/control');
     await expect.poll(async()=>{const r=await page.request.get('/api/v1/recognition/players',{headers:{Authorization:'Bearer e2e-control'}});return (await r.json()).status;}).toBe('ready');
-    const start=Date.now();await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    // Measure capture through authoritative state, after the lazy capture UI is ready.
+    // Keep module/page startup separate from the unchanged two-second OCR budget.
+    const choose=page.getByRole('button',{name:'Choose game window',exact:true});
+    await expect(choose).toBeEnabled();
+    const start=Date.now();await choose.click();
     await expect.poll(()=>`${h.state().bluePlayerSlotOrder}|${h.state().redPlayerSlotOrder}`,{intervals:[20,30,50]}).toBe('4,3,2,1,0|4,3,2,1,0');
     const elapsed=Date.now()-start;console.log(`Real capture → OCR → both authoritative orders: ${elapsed} ms`);expect(elapsed).toBeLessThan(2000);
   }finally{h.close();}

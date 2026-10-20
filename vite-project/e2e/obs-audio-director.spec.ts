@@ -16,7 +16,7 @@ test('local OBS director lists audio sources and sends deliberate fade commands'
   });
   await page.goto('/control#token=e2e-control');
   const director=page.getByTestId('obs-director');
-  await director.locator('summary').click();
+  await director.locator(':scope > summary').click();
   await expect(director).toContainText('已连接');
   const mixer=page.getByTestId('obs-audio-mixer');
   await expect(mixer.getByRole('combobox',{name:'OBS audio input'})).toHaveValue('Music');
