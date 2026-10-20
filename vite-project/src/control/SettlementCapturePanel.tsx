@@ -4,7 +4,7 @@ import type { Action, Side } from '../shared/types';
 import { portraitAssetURL } from '../shared/config';
 import { canMergePostGameField, formatPostGameValue, postGameDecimalMetrics, postGamePercentMetrics, postGameGrades, postGameMetricLabel, postGameTeamMetricLabel, type PostGameGradeField, type PostGameMetric, type PostGamePage, type PostGameReport, type PostGameTeamMetric } from '../shared/postGame';
 import { settlementPages, settlementPageLabel, settlementPageMetrics, type NumericCandidate } from '../shared/gameCapture';
-import { mergeSettlementIdentityMapping } from '../shared/settlementIdentity';
+import { mergeSettlementIdentityMapping,defaultSettlementIdentityMapping } from '../shared/settlementIdentity';
 import { frameDifference, frameFingerprint, framePageHint, useGameDataCapture } from './useGameDataCapture';
 import { hasPostGameFieldUpdate } from './postGameUpdates';
 import { ManualNumberInput } from './ManualNumberInput';
@@ -26,20 +26,20 @@ function readMapping(reportId:string){try{const value=JSON.parse(localStorage.ge
 function readLeftSide(reportId:string):Side{try{return localStorage.getItem('hok-settlement-left-side-v1:'+reportId)==='red'?'red':'blue';}catch{return 'blue';}}
 export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:PostGameReport;zh:boolean;token:string;disabled:boolean;send:(action:Action)=>void}){
   const capture=useGameDataCapture(zh),[page,setPage]=useState<PostGamePage|'auto'>('auto'),[results,setResults]=useState<Partial<Record<PostGamePage,SettlementResult>>>({}),[selected,setSelected]=useState<PostGamePage>('overview');
-  const [mapping,setMapping]=useState<Record<string,string>>(()=>readMapping(report.id)),[busy,setBusy]=useState(false),[auto,setAuto]=useState(false),[message,setMessage]=useState('');
+  const [mapping,setMapping]=useState<Record<string,string>>(()=>defaultSettlementIdentityMapping(report.players,readLeftSide(report.id),readMapping(report.id))),[busy,setBusy]=useState(false),[auto,setAuto]=useState(false),[message,setMessage]=useState('');
   const [recapLeft,setRecapLeft]=useState<Side|''>('');
   const [leftSide,setLeftSide]=useState<Side>(()=>readLeftSide(report.id));
   const active=useRef(''),running=useRef(false),epoch=useRef(0);
   const pending=useRef(new CaptureRequest());
   const cancelCapture=useCallback(()=>{epoch.current++;pending.current.cancel();running.current=false;setBusy(false);},[]);
   active.current=JSON.stringify([report.id,page,leftSide,capture.generation.current,disabled,token]);
-  useEffect(()=>{setResults({});setMapping(readMapping(report.id));setLeftSide(readLeftSide(report.id));setRecapLeft('');setAuto(false);cancelCapture();},[report.id,cancelCapture]);
+  useEffect(()=>{setResults({});setMapping(defaultSettlementIdentityMapping(report.players,readLeftSide(report.id),readMapping(report.id)));setLeftSide(readLeftSide(report.id));setRecapLeft('');setAuto(false);cancelCapture();},[report.id,cancelCapture]);
   useEffect(()=>{cancelCapture();},[page,leftSide,capture.sourceVersion,disabled,token,cancelCapture]);
   useEffect(()=>{try{localStorage.setItem('hok-settlement-mapping-v1:'+report.id,JSON.stringify(mapping));}catch{/* Retain in-memory review. */}},[report.id,mapping]);
   useEffect(()=>{try{localStorage.setItem('hok-settlement-left-side-v1:'+report.id,leftSide);}catch{/* Retain in-memory direction. */}},[report.id,leftSide]);
   function changeLeftSide(next:Side){
     if(next===leftSide)return;
-    cancelCapture();setLeftSide(next);setMapping({});setAuto(false);
+    cancelCapture();setLeftSide(next);setMapping(defaultSettlementIdentityMapping(report.players,next));setAuto(false);
     setResults(old=>{
       const drafts={...old};
       for(const key of settlementPages){const draft=drafts[key];if(draft&&draft.page!=='recap')drafts[key]={...draft,leftSide:next,rows:draft.rows.map(row=>({...row,rowId:null,suggestedRowId:null}))};}
@@ -91,7 +91,7 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
   const gradeUpdates=result?.grades?.filter(c=>c.value!==null&&c.confidence>=.85).map(c=>({rowId:mappings[c.screenRow],field:{value:c.value!,confidence:c.confidence,manual:false,sourcePage:'summary' as const,evidence:result.evidence,capturedAt:result.capturedAt}}))??[];
   return <details className="panel" open><summary>{zh?'结算整页采集 · 实机模板':'Full-page settlement capture · game template'}</summary>
     <p>{zh?'① 在游戏中打开结算页 → ② 点击「采集整页」→ ③ 核对十人数据并应用。默认使用 BP 窗口，不需要逐项框选。':'Open a settlement page → Capture full page → Review ten players and apply. Uses the BP window by default; no individual boxes needed.'}</p>
-    <p className="muted">{zh?'首次确认选手顺序后，各页复用。可逐页上传截图，已采集页面会保留。低置信度数字留在草稿，不会自动入库。':'Confirm player order once. Upload pages one by one; previous drafts are retained. Uncertain reads remain drafts.'}</p>
+    <p className="muted">{zh?'默认蓝方 P1–P5 对应系统蓝方 P1–P5、红方同理；仅在实际换位时手动修正。各页复用。可逐页上传截图，已采集页面会保留。低置信度数字留在草稿，不会自动入库。':'Each side defaults to Control P1–P5 in the same order; adjust only if the actual settlement order differs. Upload pages one by one; previous drafts are retained. Uncertain reads remain drafts.'}</p>
     {capture.controls}
     <div className="toolbar"><label>{zh?'十人页面左侧队伍':'Player pages: left team'}<select aria-label="Settlement left team" value={leftSide} disabled={disabled} onChange={e=>changeLeftSide(e.target.value as Side)}>{(['blue','red'] as const).map(side=><option value={side} key={side}>{report.players.find(p=>p.side===side)?.teamName} ({side})</option>)}</select></label>
       <label>{zh?'页面类型':'Page type'}<select aria-label="Settlement page type" value={page} onChange={e=>{cancelCapture();setPage(e.target.value as PostGamePage|'auto');}}><option value="auto">{zh?'自动判页':'Detect automatically'}</option>{settlementPages.map(p=><option key={p} value={p}>{settlementPageLabel(p,zh)}</option>)}</select></label>
@@ -104,7 +104,7 @@ export function SettlementCapturePanel({report,zh,token,disabled,send}:{report:P
     {(selected==='overview'||selected==='economy')&&<p className="muted">{zh?'经济占比读取总经济下方的百分比。7.6k 是四舍五入的总经济，7589 是总览中的精确值，优先保留精确值。':'Gold share is the percentage below total gold. Prefer exact summary totals (7589) over rounded displays (7.6k).'}</p>}
     {selected==='summary'&&<p className="muted">{zh?'截图显示字母评级，没有数字游戏评分；7589 等四位数是经济，不是评分。评级单独保存，不换算成分数。':'This page shows letter grades, not numeric ratings. Four-digit totals are gold. Grades are stored separately without inventing scores.'}</p>}
     {!result&&<p className="muted">{zh?'此页尚未采集。在游戏中打开对应页面，或上传该页截图，然后点击「采集整页」。':'Open this page in game or upload its screenshot, then Capture full page.'}</p>}
-    {result&&<><p className="muted">{zh?'本局统一选手顺序：首次核对后，各页复用。表格上方是本次识别值，下方输入框是已保存值；留空表示尚未保存，可直接输入修正。':'Review player order once for all pages. Each cell shows this read above and its saved value below; empty inputs are unsaved. Type a correction directly if needed.'}</p><p>{Math.round(result.elapsedMs)} ms · <a href={portraitAssetURL(result.evidence)} target="_blank" rel="noreferrer">{zh?'整页原图证据':'Page evidence'}</a></p>
+    {result&&<><p className="muted">{zh?'本局默认同队 P1→P1、P2→P2、P3→P3、P4→P4、P5→P5；有换位时才需调整，各页复用。表格上方是本次识别值，下方输入框是已保存值；留空表示尚未保存，可直接输入修正。':'Player rows default to matching Control P1–P5 on each side; change only if the screen order differs. Each cell shows this read above and its saved value below; empty inputs are unsaved. Type a correction directly if needed.'}</p><p>{Math.round(result.elapsedMs)} ms · <a href={portraitAssetURL(result.evidence)} target="_blank" rel="noreferrer">{zh?'整页原图证据':'Page evidence'}</a></p>
       {result.gradeWarning&&<p role="note">{zh?'字母评级暂未读出，KDA 和经济仍可核对保存；可重新采集本页或直接选择评级。':'Letter grades could not be read. Review and save KDA and gold, then retry this page or choose grades manually.'} {result.gradeWarning}</p>}
       {result.page==='recap'&&<><label>{zh?'对局页左侧「我方」对应':'Recap left / friendly side maps to'}<select aria-label="Recap left side" value={recapLeft} onChange={e=>setRecapLeft(e.target.value as Side|'')}><option value="">{zh?'请确认队伍':'Confirm team'}</option>{(['blue','red'] as const).map(side=><option value={side} key={side}>{report.players.find(p=>p.side===side)?.teamName} ({side})</option>)}</select></label>
         <div className="post-game-table">{result.teamCandidates?.map(c=>{
