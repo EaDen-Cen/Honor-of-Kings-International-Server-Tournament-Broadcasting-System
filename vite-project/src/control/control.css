@@ -1709,3 +1709,10 @@
   .obs-cue-row label{grid-column:1/-1}
   .obs-cue-row select{min-width:0}
 }
+
+.obs-layout-audit{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(130,155,180,.2)}
+.obs-layout-audit>div[role=status]{display:grid;gap:5px}
+.obs-layout-audit>div[role=status]>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:8px;border-radius:6px;background:rgba(15,30,48,.35);font-size:12px}
+.obs-layout-audit>div[role=status]>div strong{overflow-wrap:anywhere}
+.obs-layout-audit>div[role=status]>div small{grid-column:1/-1;opacity:.75}
+@media(max-width:520px){.obs-layout-audit>div[role=status]>div{grid-template-columns:minmax(0,1fr)}}
