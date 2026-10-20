@@ -31,6 +31,10 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## OBS 赛事导播工作区与布局核查（2026-10-19）
+
+Control 的「OBS 导播工作区（本地）」新增响应式状态看板、赛事阶段快捷场景、手动切镜、Browser Source 布局核查与独立音频控制。根据权威 MatchState 的 BP 进度、正式开局与赛后报告自动**推荐** Waiting / BP / Game / Postgame；Pause / MVP / Safe 始终可手动选择。每个阶段绑定到 OBS 中真实存在的场景，精确名称匹配，映射仅保存在当前浏览器本地存储；导播点击「切换」后才向 OBS 发出命令并读回确认。**不会根据 OCR 自动切镜，也不会创建/移动 OBS 来源。** 可手动检查所选 OBS 场景的 Browser Source 名称、启用状态与设计尺寸（建议 1920×1080），API 不返回来源 URL、访问 token 或 OBS 密码。详见 [OBS 设置指南](docs/guides/obs-director-setup.md)。
+
 ## OBS 本地音频控制与连接诊断（2026-10-19）
 
 在 **OBS 导播联动（本地）** 面板中可刷新连接状态，查看当前场景/录制状态；新增 OBS 音频源列表与 0/1/3/5 秒手动淡入淡出，可独立调整目标音量（0%–200%）或淡出至 0%。只修改选定 OBS 音频源的音量，不更改静音开关，不影响 OBS 录制和推流状态；后端只接受本机 Control 授权，密码仍只存于 Node 环境。连接失败提示与 [OBS 本地设置指南](docs/guides/obs-director-setup.md) 已同步完善。**真实 OBS 音频设备仍需实机测试；磁盘告警、自动 Ducking 和自动切镜未实现。**
