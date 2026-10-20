@@ -61,7 +61,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
-    if (url.pathname === '/api/v1/obs/status' || url.pathname === '/api/v1/obs/scene' || url.pathname === '/api/v1/obs/audio') {
+    if (url.pathname === '/api/v1/obs/status' || url.pathname === '/api/v1/obs/scene' || url.pathname === '/api/v1/obs/audio' || url.pathname === '/api/v1/obs/layout') {
       // This integration never accepts a remotely proxied Control session:
       // the OBS WebSocket is deliberately bound to the local operator machine.
       if(roleFor(req.headers.authorization?.replace(/^Bearer /,''))!=='control'||!localCaptureRequest(req)){
@@ -70,6 +70,14 @@ const server = createServer(async (req, res) => {
       if(url.pathname.endsWith('/status')){
         if(req.method!=='GET'){json(405,{error:'GET required'});return;}
         json(200,await obsBridge.status());return;
+      }
+      if(url.pathname.endsWith('/layout')){
+        if(req.method!=='GET'){json(405,{error:'GET required'});return;}
+        const scene=url.searchParams.get('scene')||'';
+        if(!scene.trim()||scene.length>128){json(400,{error:'Invalid OBS scene'});return;}
+        try{json(200,{scene,sources:await obsBridge.browserSourceLayout(scene)});}
+        catch(error){json(409,{error:error instanceof Error?error.message:'OBS layout unavailable'});}
+        return;
       }
       if(url.pathname.endsWith('/audio')){
         if(req.method==='GET'){
