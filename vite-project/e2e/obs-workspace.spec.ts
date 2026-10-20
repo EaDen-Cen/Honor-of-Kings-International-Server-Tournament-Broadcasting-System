@@ -2,6 +2,7 @@ import {test,expect} from './fixtures';
 import {harness} from './harness';
 import {phases} from '../src/shared/types';
 import {heroesForPool} from '../src/shared/heroPool';
+import {banRestriction,pickRestriction} from '../src/shared/draftRules';
 
 test('OBS workspace suggests BP from Control state but switches only after operator clicks Take',async({page,baseURL})=>{
   const match=await harness(baseURL);
@@ -28,7 +29,10 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await expect(panel.getByTestId('obs-cue-waiting')).toHaveClass(/is-recommended/);
     const state=match.state();
     const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[0];
-    const hero=heroesForPool(state.heroPool)[0];
+    const hero=heroesForPool(state.heroPool).find(h=>phase.action==='ban'
+      ?!banRestriction(state,phase.team,h.id)
+      :!pickRestriction(state,phase.team,state[`${phase.team}Picks`].length,h.id));
+    if(!hero)throw new Error('No legal hero for first draft action');
     await match.send({type:'draft_action',team:phase.team,action:phase.action,heroId:hero.id});
     await expect(panel.getByTestId('obs-cue-draft')).toHaveClass(/is-recommended/);
     expect(changes).toEqual([]); // Never auto-switch on OCR or draft changes.
