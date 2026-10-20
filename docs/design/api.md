@@ -15,7 +15,7 @@
 | `/api/v1/recognition/players` | GET / POST | 查询本地 Player OCR 状态；或提交双方 10 个 ID 裁剪与 roster/gameNumber，返回映射建议 |
 | `/api/v1/recognition/postgame` | POST | 提交十行数字裁剪 images、reportId 与必填 metric，返回 OCR 草稿、置信度与证据；支持字段适用的 K/万/% 单位，不合法数字返回 null |
 | `/api/v1/recognition/settlement` | POST | Control 提交 `{image, reportId, page, region?}`；page 为 auto/overview/damage/survival/economy/record/team/recap，返回整页数字候选、身份匹配与原图证据 |
-| `/api/v1/recognition/live-hud` | POST | Control 提交 `{image, context, region?}`，返回七项顶栏候选、置信度与服务器采集时间；context 由当前局、队伍、已提交局 ID 和 Picks 组成，变化返回 409 |
+| `/api/v1/recognition/live-hud` | POST | Control 提交 `{image, context, regions?}` 或 `{images, context, regions?}`，返回七项顶栏候选、置信度与服务器采集时间；context 由当前局、队伍、已提交局 ID 和 Picks 组成，变化返回 409 |
 | `/ws` | WebSocket | 身份认证、修订号动作、ACK 和状态广播 |
 
 识别请求：`{revision, image, allowedHeroIds?, shape?}`。`image` 为 PNG/JPEG/WebP 的 base64 data URL；`shape` 为 square / circle。限制为 4 MiB 请求、3 MiB 解码文件及 400 万像素。显式空英雄池不会回退到全部英雄。响应包含 `preview`、`fingerprint`、`lockFingerprint`、`meanLuma`、`candidates: [{heroId, confidence}]`。confidence 是相似度，不是准确率。陈旧修订号返回 409。
@@ -72,7 +72,9 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 ## PR #69：真实 SPA 路由 + HUD 自定义 ROI 请求
 后端 HTML Shell 由 `server/uiRoutes.ts` 统一维护。路由新增 `/overlay/postgame-compare`（`role` 为查询参数，选对位：clash/jungle/mid/farm/roam）和 `/overlay/game-progress`，二者均映射 `dist/index.html`，不增加多页面 Vite 入口；未知 HTML 路径不得使用任意 overlay shell 兜底。
 
-`POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`，`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回 `profile` 为规范化 ROI 字符串，随后 `live_game_ocr` 若 `previous.profile !== sample.profile` 必须拒绝跨配置两帧合并；时钟必须实际增长。运营端保存 `localStorage['hok-ghud-calibration-v1']`，不是云端共享预设，不应暗示自动同步到另一台设备。
+`POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`（旧整帧兼容）或 `{images,context,regions?}`（七张无损 PNG），`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回 `profile` 为规范化 ROI 字符串，随后 `live_game_ocr` 若 `previous.profile !== sample.profile` 必须拒绝跨配置两帧合并；时钟必须实际增长。运营端保存 `localStorage['hok-ghud-calibration-v1']`，不是云端共享预设，不应暗示自动同步到另一台设备。
+
+2026-10-20 裁图传输：`images` 必须按 `liveCaptureKeys` 顺序提供七个 PNG data URL，单项不超过 180,000 字符、100,000 像素；各图尺寸必须等于对应校准矩形在 1920×1080 中的 `pixelRect` 尺寸。全空白、错误数量/格式/尺寸返回 HTTP 400，不调用数字 OCR。新旧输入共享 Control 鉴权、前后游戏上下文检查、颜色处理与候选解析，`profile` 和后续两帧发布规则一致。若同时传入两种字段，优先使用 `images`，不会回退掩盖裁图错误。比赛 API 保持 `Cache-Control: no-store`；公共静态原画支持 ETag/304，带内容摘要的内置原画和构建文件可长期缓存。
 
 ### PR #70：数字字段 OCR 部分选手模式
 `POST /api/v1/recognition/postgame` 支持 `{reportId,metric,images:[PNG data URL ...],rowIds:[report rowId ...]}`，其中 image/rowId 一一对应，允许 1–10 项，`rowIds` 必须属于对应已建立的 `PostGameReport.players` 且不能重复。旧客户端若省略 rowIds，只接受与报告人数一致的完整十行数组，不允许一张图暗中写入 P1。请求中完全空白/纯色图将跳过，若全部空白返回 422；有有效图才调用数值 OCR，并按原始 rowId 返回 `{candidates:[{rowId,value,confidence,text,evidence}],elapsedMs}`。每个 candidate 必须由 Control 人工点击应用，保护手工值与已有可信冲突。截图通过前端会话分享；服务器存储的 evidence 仅为实际参与 OCR 的裁图。
