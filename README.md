@@ -31,6 +31,10 @@ HOK 游戏画面 / BP Simulator
 
 > **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
 
+## 2026-10-19 · HUD 65% 预设、OBS 场景按钮与赛后 P1 对应
+
+GHUD 新对局默认宽度 **65% = 1248px**（仍使用 1920×1080 透明 OBS 浏览器画布），简约顶栏源尺寸从 99px 增至 132px；在 65% 比例下实际显示约 86px 高。保留已保存的自定义宽度；控制台「恢复推荐宽度 65%」可一键调整旧场次。OBS 导播工作区的场景列表现在有直接切换的按钮网格，可在「自定义顺序」中上下调整，顺序保存在本地浏览器；原始下拉框折叠在高级操作中。赛后十人统计默认左侧蓝 P1–P5→系统蓝 P1–P5、右侧红同理（如果结算左右队伍反转则按所选方向对应）；已有人工修正保留，OCR 不会静默覆盖对应关系。详见 [OBS 指南](docs/guides/obs-director-setup.md) 和 [比赛操作指南](docs/guides/operator-guide.md)。
+
 ## OBS 赛事导播工作区与布局核查（2026-10-19）
 
 Control 的「OBS 导播工作区（本地）」新增响应式状态看板、赛事阶段快捷场景、手动切镜、Browser Source 布局核查与独立音频控制。根据权威 MatchState 的 BP 进度、正式开局与赛后报告自动**推荐** Waiting / BP / Game / Postgame；Pause / MVP / Safe 始终可手动选择。每个阶段绑定到 OBS 中真实存在的场景，精确名称匹配，映射仅保存在当前浏览器本地存储；导播点击「切换」后才向 OBS 发出命令并读回确认。**不会根据 OCR 自动切镜，也不会创建/移动 OBS 来源。** 可手动检查所选 OBS 场景的 Browser Source 名称、启用状态与设计尺寸（建议 1920×1080），API 不返回来源 URL、访问 token 或 OBS 密码。详见 [OBS 设置指南](docs/guides/obs-director-setup.md)。
