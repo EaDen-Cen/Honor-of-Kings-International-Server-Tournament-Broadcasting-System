@@ -4,6 +4,10 @@
 
 2026-10-18 本地与 GitHub 整合：以云端 PR #71–#75 为基线，保留连接恢复、设置草稿冲突保护、隔离浏览器测试及 Windows 进程管理；接入本地八页结算采集、精确经济/字母评级、共享 BP 框选、MVP 位置/照片/统计和完整时间刻度的经济优势曲线。选择依据与本次验证见 [验证记录](docs/validation/history.md#2026-10-18本地与-github-逐功能整合)。
 
+## 2026-10-19 · M24.2 OBS 赛事工作区与安全联动（候选）
+
+重构 OBS Director 为响应式 4 状态卡 + 阶段映射与一键人工切镜 + 手动场景与 OBS Browser Source 布局核查 + 独立音频控制。依据权威 MatchState 的 BP 进度、开局和赛后报告只做场景**建议**；无自动切镜、无基于未核实 OCR 的操作。场景映射支持精确匹配常见名称及本地浏览器持久化，目标场景不存在则禁用；切镜仍由 OBS 回读确认。新增 loopback + Control token 保护的只读 /api/v1/obs/layout：列出真实 OBS 场景 Browser Source 名称、启用状态和尺寸，不暴露 URL/token/密码。单测与 Playwright 覆盖阶段建议、映射持久化、用户点击前绝不切镜及尺寸检查。**待 CI 与 OBS Windows 实机验收。**
+
 ## 2026-10-19 · M24.1 OBS 音频淡入淡出与连接排障
 
 OBS Bridge 增加只读音频源发现（仅保留支持 GetInputVolume 的源）、显式音量渐变（SetInputVolume 每步 OBS 确认、0–200% 音量、0–5 秒渐变、同源互斥、防断线后继续渐变）。Control 增加音频源选择、目标音量滑块、淡出/淡入按钮、刷新音源和本地连接排障提示；HTTP API 与既有场景接口同样仅允许 loopback + Control token。Mock OBS WebSocket 增加音源发现与音量渐变测试。**待 CI 与真实 OBS 音频混音器验收；磁盘容量、自动转场和自动 Ducking 仍未实现。**
