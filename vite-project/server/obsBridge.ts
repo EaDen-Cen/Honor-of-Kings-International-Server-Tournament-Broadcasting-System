@@ -143,6 +143,29 @@ export class ObsBridge {
     if(next.programScene!==name)throw new Error('OBS did not confirm scene change');
     return next;
   }
+  /** Read-only Browser Source geometry audit. Never return source URLs or OBS credentials. */
+  async browserSourceLayout(sceneName:string):Promise<Array<{name:string;enabled:boolean;index:number;width:number|null;height:number|null}>> {
+    if(typeof sceneName!=='string'||!sceneName.trim()||sceneName.length>128)throw new Error('Invalid OBS scene');
+    const status=await this.status();
+    if(!status.connected)throw new Error(status.error||'OBS disconnected');
+    if(!status.scenes.includes(sceneName))throw new Error('Scene is not present in OBS');
+    const result=await this.request('GetSceneItemList',{sceneName});
+    const items=Array.isArray(result.sceneItems)?result.sceneItems.slice(0,64):[];
+    const sources=await Promise.all(items.map(async item=>{
+      const source=record(item),name=source.sourceName;
+      if(typeof name!=='string'||!name)return null;
+      try{
+        const input=await this.request('GetInputSettings',{inputName:name});
+        if(input.inputKind!=='browser_source')return null;
+        const settings=record(input.inputSettings);
+        const width=settings.width,height=settings.height;
+        return {name,enabled:source.sceneItemEnabled===true,index:typeof source.sceneItemIndex==='number'?source.sceneItemIndex:-1,
+          width:typeof width==='number'&&Number.isFinite(width)?width:null,
+          height:typeof height==='number'&&Number.isFinite(height)?height:null};
+      }catch{return null;}
+    }));
+    return sources.filter((source):source is {name:string;enabled:boolean;index:number;width:number|null;height:number|null}=>source!==null);
+  }
   /** Only audio-capable OBS inputs respond to GetInputVolume. Never expose credentials. */
   async audioInputs():Promise<Array<{name:string;volume:number}>> {
     const data=await this.request('GetInputList');
