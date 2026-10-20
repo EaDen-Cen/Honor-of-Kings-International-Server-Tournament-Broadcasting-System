@@ -35,6 +35,13 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
         if(packet.d.requestType==='GetSceneList')responseData={scenes:[{sceneName:'BP'},{sceneName:'Game'}],currentProgramSceneName:scene};
         else if(packet.d.requestType==='GetRecordStatus')responseData={outputActive:true};
         else if(packet.d.requestType==='GetInputList')responseData={inputs:[{inputName:'Music'},{inputName:'Video'}]};
+        else if(packet.d.requestType==='GetSceneItemList')responseData={sceneItems:[
+          {sourceName:'Draft Overlay',sceneItemIndex:0,sceneItemEnabled:true},
+          {sourceName:'Game Capture',sceneItemIndex:1,sceneItemEnabled:true},
+        ]};
+        else if(packet.d.requestType==='GetInputSettings')responseData=packet.d.requestData?.inputName==='Draft Overlay'
+          ?{inputKind:'browser_source',inputSettings:{url:'http://localhost/private#token=never-expose',width:1920,height:1080}}
+          :{inputKind:'game_capture',inputSettings:{}};
         else if(packet.d.requestType==='GetInputVolume'){
           if(packet.d.requestData?.inputName!=='Music'){
             socket.send(JSON.stringify({op:7,d:{requestId:packet.d.requestId,requestStatus:{result:false,code:600,comment:'Not an audio input'}}}));return;
@@ -65,6 +72,10 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
     assert.equal(changed.programScene,'Game');
     assert.equal(changed.recording,true);
     assert.deepEqual(await bridge.audioInputs(),[{name:'Music',volume:0.65}]);
+    const layout=await bridge.browserSourceLayout('BP');
+    assert.deepEqual(layout,[{name:'Draft Overlay',enabled:true,index:0,width:1920,height:1080}]);
+    assert.equal(JSON.stringify(layout).includes('never-expose'),false);
+    await assert.rejects(()=>bridge.browserSourceLayout('Unknown'),/not present/);
     await assert.rejects(()=>bridge.fadeInput('Music',-1,1000),/0 and 200/);
     await assert.rejects(()=>bridge.fadeInput('Music',0,6000),/0–5000/);
     assert.equal(await bridge.fadeInput('Music',0,400),0);
