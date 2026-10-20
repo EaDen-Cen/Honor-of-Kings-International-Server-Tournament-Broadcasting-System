@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiURL } from '../shared/config';
 import type { MatchState } from '../shared/types';
-import { obsCueKeys,obsCueLabels,parseObsCueMap,recommendedObsCue,resolveObsCue,type ObsCue,type ObsCueMap } from './obsCues';
+import { obsCueKeys,obsCueLabels,parseObsCueMap,recommendedObsCue,resolveObsCue,type ObsCueMap } from './obsCues';
 
 interface ObsStatus {
   configured:boolean;
