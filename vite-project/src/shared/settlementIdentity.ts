@@ -28,13 +28,19 @@ export function defaultSettlementIdentityMapping(
       if(player)next[String(group*5+slot)]=player.rowId;
     }
   }
-  // Keep only valid saved corrections on the corresponding side; reject
-  // duplicates so a stale mapping cannot silently bind two OCR rows together.
+  // A saved operator mapping is authoritative. If it conflicts with a
+  // default, leave that displaced row unmapped for explicit correction.
+  const used=new Set<string>();
   for(const [key,rowId] of Object.entries(saved)){
     const index=Number(key);
     if(!Number.isInteger(index)||index<0||index>=10)continue;
     const side=sides[index<5?0:1];
-    if(players.some(p=>p.rowId===rowId&&p.side===side))next[key]=rowId;
+    if(players.some(p=>p.rowId===rowId&&p.side===side)&&!used.has(rowId)){
+      next[key]=rowId;used.add(rowId);
+    }
+  }
+  for(const [key,rowId] of Object.entries(next)){
+    if(used.has(rowId)&&saved[key]!==rowId)delete next[key];
   }
   return next;
 }
