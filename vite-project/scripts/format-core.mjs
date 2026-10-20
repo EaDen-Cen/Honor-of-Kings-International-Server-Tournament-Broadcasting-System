@@ -22,6 +22,7 @@ const core = [
   'src/control/LiveHudCapturePanel.tsx',
   'src/control/SettlementCapturePanel.tsx',
   'src/control/hudCapture.ts',
+  'src/control/useGameDataCapture.tsx',
   'src/control/ObsDirectorPanel.tsx',
   'src/control/OperatorGuide.tsx',
   'src/overlay/DraftOverlay.tsx',

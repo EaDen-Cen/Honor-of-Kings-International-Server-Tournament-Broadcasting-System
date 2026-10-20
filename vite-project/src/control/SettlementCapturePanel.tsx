@@ -176,7 +176,9 @@ export function SettlementCapturePanel({
     if (next === leftSide) return;
     cancelCapture();
     setLeftSide(next);
-    setMapping(defaultSettlementIdentityMapping(report.players, next));
+    // Existing numbers describe the old screen direction. Keep the draft for
+    // review, but never approve its identities automatically for the new side.
+    setMapping({});
     setAuto(false);
     setResults((old) => {
       const drafts = { ...old };
