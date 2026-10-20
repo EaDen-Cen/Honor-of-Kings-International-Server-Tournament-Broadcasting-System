@@ -8,7 +8,7 @@ export function mergeSettlementIdentityMapping(existing:Record<string,string>,ro
   for(const row of rows){
     if(!Number.isInteger(row.screenRow)||row.screenRow<0||row.screenRow>=10)continue;
     const key=String(row.screenRow);
-    if(!next[key]&&row.rowId)next[key]=row.rowId;
+    if(!next[key]&&row.rowId&&!Object.values(next).includes(row.rowId))next[key]=row.rowId;
   }
   return next;
 }
