@@ -36,6 +36,8 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await match.send({type:'draft_action',team:phase.team,action:phase.action,heroId:hero.id});
     await expect(panel.getByTestId('obs-cue-draft')).toHaveClass(/is-recommended/);
     expect(changes).toEqual([]); // Never auto-switch on OCR or draft changes.
+    const buttons=panel.getByTestId('obs-scene-buttons');
+    await expect(buttons.getByRole('button',{name:'OBS quick scene BP'})).toBeVisible();
     await panel.getByTestId('obs-cue-draft').getByRole('button',{name:'切换'}).click();
     await expect.poll(()=>changes).toEqual(['BP']);
     await expect(panel.getByTestId('obs-cue-draft').getByRole('button')).toHaveText('播出中');
@@ -46,6 +48,12 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await page.reload();
     await panel.locator('summary').click();
     await expect(panel.getByRole('combobox',{name:'OBS cue map game'})).toHaveValue('MVP');
+    await panel.getByRole('button',{name:'自定义顺序'}).click();
+    await buttons.getByRole('button',{name:'Move MVP up'}).click();
+    await expect(buttons.locator('.obs-scene-button-item').nth(2)).toContainText('MVP');
+    await page.reload();
+    await panel.locator('summary').click();
+    await expect(panel.getByTestId('obs-scene-buttons').locator('.obs-scene-button-item').nth(2)).toContainText('MVP');
     expect(changes).toEqual(['BP']);
   }finally{match.close();}
 });
