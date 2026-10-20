@@ -318,7 +318,7 @@ export default function BroadcastApp() {
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
         <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
-        <ObsDirectorPanel token={token} zh={lang==='zh'} />
+        <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />
         <ControlDraftWorkspace monitor={<>
           <Board state={state} lang={lang} compact />
           <section className="operator-bar panel">
