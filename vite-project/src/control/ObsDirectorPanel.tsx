@@ -13,6 +13,7 @@ interface ObsStatus {
 }
 
 interface ObsAudioInput { name:string;volume:number }
+interface ObsBrowserSource {name:string;enabled:boolean;index:number;width:number|null;height:number|null}
 
 /** Control-only, local OBS bridge. Never exposes the OBS WebSocket password. */
 export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state:MatchState}) {
@@ -29,6 +30,9 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
   const [audioName,setAudioName]=useState('');
   const [targetVolume,setTargetVolume]=useState(100);
   const [fadeMs,setFadeMs]=useState(3000);
+  const [layout,setLayout]=useState<{scene:string;sources:ObsBrowserSource[]}|null>(null);
+  const [layoutError,setLayoutError]=useState('');
+  const [layoutBusy,setLayoutBusy]=useState(false);
   const [audioBusy,setAudioBusy]=useState(false);
   const [audioError,setAudioError]=useState('');
   const polling=useRef(false);
@@ -69,6 +73,19 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
     return()=>{controller.abort();clearInterval(timer);};
   },[refresh]);
   useEffect(()=>{if(status?.connected)void refreshAudio();else{setAudioInputs([]);audioInitialized.current=false;}},[status?.connected,refreshAudio]);
+  const inspectLayout=async()=>{
+    if(!selected||!status?.connected||layoutBusy)return;
+    setLayoutBusy(true);setLayoutError('');setLayout(null);
+    try{
+      const res=await fetch(`${apiURL}/api/v1/obs/layout?scene=${encodeURIComponent(selected)}`,{
+        headers:{Authorization:`Bearer ${token}`},cache:'no-store',
+      });
+      const result=await res.json() as {scene?:string;sources?:ObsBrowserSource[];error?:string};
+      if(!res.ok)throw new Error(result.error||'OBS layout inspection failed');
+      setLayout({scene:result.scene??selected,sources:result.sources??[]});
+    }catch(error){setLayoutError(error instanceof Error?error.message:'OBS layout unavailable');}
+    finally{setLayoutBusy(false);}
+  };
   const fadeAudio=async(target:number)=>{
     if(audioBusy||!audioName||!status?.connected)return;
     setAudioBusy(true);setAudioError('');
@@ -160,6 +177,20 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
             <div><code>/overlay/mvp</code><span>{zh?'赛后 MVP':'MVP overlay'}</span></div>
             <div><code>/overlay/game-progress</code><span>{zh?'经济时间线':'Game progress'}</span></div>
             <p className="muted">{zh?'画面联动只切换已映射的 OBS 场景；不会自动添加、删除或修改 OBS 来源。':'Scene cues do not create, delete or modify OBS sources.'}</p>
+            <div className="obs-layout-audit" data-testid="obs-layout-audit">
+              <button type="button" disabled={!status?.connected||!selected||layoutBusy} onClick={()=>void inspectLayout()}>
+                {layoutBusy?(zh?'检查中…':'Inspecting…'):(zh?'检查所选场景的浏览器源布局':'Inspect selected scene layout')}
+              </button>
+              {layoutError&&<p role="alert">{layoutError}</p>}
+              {layout?.scene===selected&&<div role="status">
+                {layout.sources.length===0?<p>{zh?'此场景未发现可检查的 OBS 浏览器源。':'No inspectable Browser Sources found in this scene.'}</p>:
+                  layout.sources.map((source,i)=><div key={`${source.name}:${i}`}>
+                    <strong>{source.name}</strong>
+                    <span>{source.width??'?'} × {source.height??'?'} · {source.enabled?(zh?'已启用':'Enabled'):(zh?'已隐藏':'Hidden')}</span>
+                    {(source.width!==1920||source.height!==1080)&&<small>{zh?'请核对设计分辨率（建议 1920×1080）':'Check source canvas size (recommended 1920×1080)'}</small>}
+                  </div>)}
+              </div>}
+            </div>
           </div>
         </section>
       </div>
