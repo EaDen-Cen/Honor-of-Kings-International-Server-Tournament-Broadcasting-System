@@ -87,7 +87,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     await expect(sample).toBeEnabled();await sample.click();
     await expect(capture.getByRole('status')).toContainText('Samples compared;');
     await expect(capture.getByRole('button',{name:'Apply verified fields',exact:true})).toBeDisabled();
-    await expect(capture.getByRole('checkbox',{name:'Sample every 5 seconds',exact:true})).toBeDisabled();
+    await expect(capture.getByRole('checkbox',{name:'Try every second (skip if prior read is busy)',exact:true})).toBeDisabled();
     await expect(capture.getByRole('checkbox',{name:'Publish fields verified by two reads',exact:true})).toBeDisabled();
     expect(h.state().liveGameStats.blueGold).toBeUndefined();
     await page.getByLabel('blueGold',{exact:true}).fill('1500');await page.getByLabel('blueGold',{exact:true}).press('Tab');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1500);
@@ -196,7 +196,7 @@ test('automatic HUD output remains enabled after its own state confirmations',as
     await panel.getByRole('button',{name:'Preview captured frame',exact:true}).click();
     await panel.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
     await page.clock.install();
-    const auto=panel.getByRole('checkbox',{name:'Sample every 5 seconds',exact:true});
+    const auto=panel.getByRole('checkbox',{name:'Try every second (skip if prior read is busy)',exact:true});
     const publish=panel.getByRole('checkbox',{name:'Publish fields verified by two reads',exact:true});
     await auto.check();
     await expect(panel.getByText('First read is a candidate; sample again to verify.',{exact:true})).toBeVisible();
