@@ -20,6 +20,7 @@ const core = [
   'server/recognitionPerformance.test.ts',
   'src/control/LineupAssignments.tsx',
   'src/control/LiveHudCapturePanel.tsx',
+  'src/control/LiveGamePanel.tsx',
   'src/control/SettlementCapturePanel.tsx',
   'src/control/hudCapture.ts',
   'src/control/useGameDataCapture.tsx',
@@ -27,10 +28,12 @@ const core = [
   'src/control/OperatorGuide.tsx',
   'src/overlay/DraftOverlay.tsx',
   'src/overlay/HeroReveal.tsx',
+  'src/overlay/GameHud.tsx',
   'src/overlay/MvpOverlay.tsx',
   'src/overlay/PostGameBroadcast.tsx',
   'src/overlay/prepareArtwork.ts',
   'src/shared/broadcastArtwork.ts',
+  'src/shared/liveGame.ts',
   'e2e/recognition-performance.spec.ts',
 ];
 const files = process.argv.slice(2).filter((value) => !value.startsWith('--'));

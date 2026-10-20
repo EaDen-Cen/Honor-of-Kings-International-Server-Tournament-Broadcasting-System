@@ -142,7 +142,7 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeDisabled();
     expect(calls).toBe(callsBeforeEnding);expect(h.state().liveGameStats.blueGold).toBe(1800);expect(h.state().liveGameStats.gameTimeSeconds).toBe(16);
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,density:'full'}});
-    await page.goto('/overlay/game-hud#token=e2e-overlay');await expect(page.locator('.game-hud')).toBeVisible();await page.clock.install();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-capture')).toContainText('STALE');
+    await page.clock.install();await page.goto('/overlay/game-hud#token=e2e-overlay');await expect(page.locator('.game-hud')).toBeVisible();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-capture')).toContainText('STALE');
   }finally{h.close();}
 });
 
