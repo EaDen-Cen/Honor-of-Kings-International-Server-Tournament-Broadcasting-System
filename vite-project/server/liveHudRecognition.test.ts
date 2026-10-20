@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from './store.js';
-import { liveGameContext, trustedLiveUpdates, type LiveHudSample } from '../src/shared/liveGame.js';
+import { liveGameContext, trustedLiveUpdates, displayedGameSeconds, totalNeutralObjectives, initialLiveGameStats, type LiveHudSample } from '../src/shared/liveGame.js';
 import { liveCaptureKeys, liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, parseLiveNumber } from '../src/shared/gameCapture.js';
 import type { Action } from '../src/shared/types.js';
 
@@ -99,4 +99,32 @@ test('unchanged OCR game clock cannot verify a frozen replay frame',()=>{
   const stats=new Store().data.state.liveGameStats;
   const a=sample(100000,30);const b=sample(105000,30);
   assert.equal(Object.keys(trustedLiveUpdates(stats,a,b)).length,0);
+});
+
+test('GHUD seconds follow recent OCR clock at 1-second resolution, not stale or manual data',()=>{
+  const stats=initialLiveGameStats();
+  stats.gameTimeSeconds=371;
+  stats.sources={gameTimeSeconds:{source:'ocr',capturedAt:100000,confidence:.97}};
+  assert.equal(displayedGameSeconds(stats,100000),371);
+  assert.equal(displayedGameSeconds(stats,101200),372);
+  assert.equal(displayedGameSeconds(stats,102100),373);
+  assert.equal(displayedGameSeconds(stats,116000),371,'stale OCR must not extrapolate indefinitely');
+  stats.sources.gameTimeSeconds={source:'manual',capturedAt:100000,confidence:1};
+  assert.equal(displayedGameSeconds(stats,102100),371,'manual clock cannot pretend to be synchronized');
+  stats.gameTimeSeconds=undefined;
+  assert.equal(displayedGameSeconds(stats,102100),undefined);
+});
+test('HUD custom height and neutral boss presence persist, reset between games and reject invalid status',()=>{
+  const s=new Store();
+  const stats={...s.data.state.liveGameStats,heightPx:184,neutralObjectives:[
+    {id:'tyrant',name:'Tyrant',icon:'',blue:2,red:1,status:'alive' as const},
+    {id:'overlord',name:'Overlord',icon:'',blue:0,red:1,status:'down' as const},
+  ]};
+  apply(s,{type:'live_game_stats',stats});
+  assert.equal(s.data.state.liveGameStats.heightPx,184);
+  assert.equal(totalNeutralObjectives(s.data.state.liveGameStats,'blue'),2);
+  assert.equal(totalNeutralObjectives(s.data.state.liveGameStats,'red'),2);
+  assert.equal(s.data.state.liveGameStats.neutralObjectives[0].status,'alive');
+  assert.throws(()=>apply(s,{type:'live_game_stats',stats:{...stats,heightPx:250}}),/64/);
+  assert.throws(()=>apply(s,{type:'live_game_stats',stats:{...stats,neutralObjectives:[{...stats.neutralObjectives[0],status:'invalid' as 'alive'}]}}),/Invalid objective status/);
 });

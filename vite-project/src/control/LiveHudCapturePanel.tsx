@@ -54,18 +54,18 @@ export function LiveHudCapturePanel({state,zh,token,disabled,send}:{state:MatchS
   },[capture.sourceVersion,cancelCapture]);
   useEffect(()=>{
     if(!auto||!calibrated||disabled||!capture.ready||capture.isStill)return;
-    const timer=window.setInterval(()=>void sampleRef.current(),5000);
+    const timer=window.setInterval(()=>void sampleRef.current(),1000);
     void sampleRef.current();return()=>window.clearInterval(timer);
   },[auto,calibrated,disabled,capture.ready,capture.isStill]);
   const updates=result&&previous?trustedLiveUpdates(state.liveGameStats,previous,result):{};
   return <details className="panel"><summary>{zh?'GHUD 顶栏识别 · Experimental':'GHUD top bar recognition · Experimental'}</summary>
-    <p className="muted">{zh?'读取游戏时间、双方人头、经济与推塔。先采样两次核验，再应用或开启自动播出。人工改值会冻结对应字段。断流时保留最后可信值；截图仅用于审核。':'Reads time, kills, gold and towers. Verify two reads before applying or enabling automatic output. Manual edits freeze fields. Lost capture retains trusted values; screenshots are for review.'}</p>
+    <p className="muted">{zh?'每秒尝试读取游戏时间、双方人头、经济与推塔（识别未完成时跳过，不重叠请求）。先采样两次核验，再应用或开启自动播出。人工改值会冻结对应字段。断流时保留最后可信值；截图仅用于审核。':'Attempts to read time, kills, gold and towers once per second (skipping overlapping requests). Verify two reads before applying or enabling automatic output. Manual edits freeze fields. Lost capture retains trusted values; screenshots are for review.'}</p>
     {capture.controls}
     <LiveHudCalibration zh={zh} regions={regions} onRegionsChange={editRegions} selected={calibrationField} onSelectedChange={setCalibrationField} preview={preview} onPreview={()=>{
       try{setPreview(capture.frame().toDataURL('image/jpeg',.88));setMessage('');}catch(e){setMessage(e instanceof Error?e.message:'Capture not ready');}
     }} ready={capture.ready} onConfirm={confirmRegions} calibrated={calibrated}/>
     <div className="toolbar"><button disabled={disabled||busy||!capture.ready||!calibrated} onClick={()=>void sample()}>{busy?(zh?'采样中…':'Sampling…'):(zh?'采样 GHUD':'Sample GHUD')}</button>
-      <label><input type="checkbox" checked={auto} disabled={disabled||!calibrated||capture.isStill} onChange={e=>{cancelCapture();setAuto(e.target.checked);if(!e.target.checked)setPublish(false);}}/>{zh?'每 5 秒自动采样':'Sample every 5 seconds'}</label>
+      <label><input type="checkbox" checked={auto} disabled={disabled||!calibrated||capture.isStill} onChange={e=>{cancelCapture();setAuto(e.target.checked);if(!e.target.checked)setPublish(false);}}/>{zh?'每秒尝试采样（上一帧未完成则跳过）':'Try every second (skip if prior read is busy)'}</label>
       <label><input type="checkbox" checked={publish} disabled={disabled||!calibrated||!auto||capture.isStill} onChange={e=>{cancelCapture();setPublish(e.target.checked);}}/>{zh?'自动播出两帧核验字段':'Publish fields verified by two reads'}</label>
       <button disabled={disabled||!calibrated||capture.isStill||!Object.keys(updates).length} onClick={()=>{if(previous&&result)send({type:'live_game_ocr',context,previous,sample:result});}}>{zh?'应用已核验字段':'Apply verified fields'}</button>
     </div>

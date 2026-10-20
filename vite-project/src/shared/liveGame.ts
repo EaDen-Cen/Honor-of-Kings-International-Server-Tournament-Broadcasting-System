@@ -1,9 +1,9 @@
-export interface NeutralObjective { id:string; name:string; icon:string; blue:number; red:number }
+export interface NeutralObjective { id:string; name:string; icon:string; blue:number; red:number; status?:'alive'|'down'|'unknown' }
 import type { MatchState } from './types.js';
 import { consistentLiveValue, liveCaptureKeys, parseLiveNumber, type LiveCandidate, type LiveCaptureKey } from './gameCapture.js';
 export interface LiveFieldSource { source:'manual'|'ocr'; capturedAt:number; confidence:number }
 export interface LiveHudSample { capturedAt:number; candidates:LiveCandidate[]; profile?:string }
-export interface LiveGameStats { blueKills:number; redKills:number; blueTowers:number; redTowers:number; blueGold?:number; redGold?:number; gameTimeSeconds?:number; sources?:Partial<Record<LiveCaptureKey,LiveFieldSource>>; neutralObjectives:NeutralObjective[]; density:'compact'|'full'; widthPercent?:number }
+export interface LiveGameStats { blueKills:number; redKills:number; blueTowers:number; redTowers:number; blueGold?:number; redGold?:number; gameTimeSeconds?:number; sources?:Partial<Record<LiveCaptureKey,LiveFieldSource>>; neutralObjectives:NeutralObjective[]; density:'compact'|'full'; widthPercent?:number; heightPx?:number }
 export const liveGameContext=(state:MatchState)=>JSON.stringify([state.draftGameNumber??state.gameNumber,state.blueTeam.id,state.redTeam.id,state.committedGameId,state.bluePicks,state.redPicks]);
 export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sample:LiveHudSample){
   const updates:Partial<Record<LiveCaptureKey,number>>={};
@@ -31,5 +31,19 @@ export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sa
   }
   return updates;
 }
-export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[],density:'compact',widthPercent:65});
-export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,widthPercent:previous.widthPercent??65,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0}))};}
+export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[{id:'tyrant',name:'暴君 / Tyrant',icon:'',blue:0,red:0,status:'unknown'},{id:'overlord',name:'主宰 / Overlord',icon:'',blue:0,red:0,status:'unknown'}],density:'compact',widthPercent:65,heightPx:132});
+export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,widthPercent:previous.widthPercent??65,heightPx:previous.heightPx??132,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0,status:'unknown'}))};}
+
+/** Never invent elapsed game time: advance only a recently verified OCR
+ * clock anchor. Manual values remain static until edited by the operator. */
+export function displayedGameSeconds(stats:LiveGameStats,now:number):number|undefined{
+  const base=stats.gameTimeSeconds;
+  if(base===undefined)return undefined;
+  const source=stats.sources?.gameTimeSeconds;
+  if(source?.source!=='ocr'||!Number.isFinite(source.capturedAt))return base;
+  const age=now-source.capturedAt;
+  if(age<0||age>15000)return base;
+  return Math.min(7200,base+Math.floor(age/1000));
+}
+export const totalNeutralObjectives=(stats:LiveGameStats,side:'blue'|'red')=>
+  stats.neutralObjectives.reduce((sum,item)=>sum+item[side],0);
