@@ -20,6 +20,10 @@ test('settlement page review requires unique identities and protects trusted fie
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'data.png',mimeType:'image/png',buffer:Buffer.from(fixture.tabs[0],'base64')});
     await capture.getByRole('button',{name:'Capture full page',exact:true}).click();
     const apply=capture.getByRole('button',{name:'Apply reviewed high-confidence fields',exact:true});
+    await expect(apply).toBeEnabled();
+    expect(h.state().postGameReports[0].players[0].fields.totalDamage).toBeUndefined();
+    // Slot defaults are allowed, but duplicate manual bindings never are.
+    await capture.getByLabel('Settlement identity 1',{exact:true}).selectOption(report.players[0].rowId);
     await expect(apply).toBeDisabled();
     for(let i=0;i<10;i++)await capture.getByLabel(`Settlement identity ${i}`,{exact:true}).selectOption(report.players[i].rowId);
     await expect(apply).toBeEnabled();await apply.click();
@@ -92,7 +96,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     expect(h.state().liveGameStats.blueGold).toBeUndefined();
     await page.getByLabel('blueGold',{exact:true}).fill('1500');await page.getByLabel('blueGold',{exact:true}).press('Tab');await expect.poll(()=>h.state().liveGameStats.blueGold).toBe(1500);
     expect(h.state().liveGameStats.sources?.blueGold?.source).toBe('manual');
-    await page.goto('/overlay/game-hud');await expect(page.locator('.game-hud-metric.accent')).toContainText('1.5k');
+    await page.goto('/overlay/game-hud');await expect(page.getByTestId('game-hud-blue-gold')).toContainText('1.5k');
     await page.setViewportSize({width:1920,height:1080});await page.screenshot({path:'artifacts/game-data/game-hud.png',omitBackground:true});
   }finally{h.close();}
 });
@@ -137,6 +141,7 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
     await expect(sample).toBeDisabled();await expect(apply).toBeDisabled();
     await expect(capture.getByRole('button',{name:'Preview captured frame',exact:true})).toBeDisabled();
     expect(calls).toBe(callsBeforeEnding);expect(h.state().liveGameStats.blueGold).toBe(1800);expect(h.state().liveGameStats.gameTimeSeconds).toBe(16);
+    await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,density:'full'}});
     await page.goto('/overlay/game-hud#token=e2e-overlay');await expect(page.locator('.game-hud')).toBeVisible();await page.clock.install();await page.clock.fastForward(16000);await expect(page.locator('.game-hud-capture')).toContainText('STALE');
   }finally{h.close();}
 });
