@@ -12,6 +12,17 @@ interface ObsStatus {
   error?:string;
 }
 
+function readSceneOrder():string[]{
+  try{const data:unknown=JSON.parse(localStorage.getItem('hok-obs-scene-order-v1')||'[]');
+    return Array.isArray(data)?data.filter((name):name is string=>typeof name==='string'&&name.length>0&&name.length<=128).slice(0,100).filter((name,index,all)=>all.indexOf(name)===index):[];
+  }catch{return [];}
+}
+function orderedScenes(scenes:string[],saved:string[]):string[]{
+  return [...scenes].sort((a,b)=>{
+    const ai=saved.indexOf(a),bi=saved.indexOf(b);
+    return (ai<0?Number.MAX_SAFE_INTEGER:ai)-(bi<0?Number.MAX_SAFE_INTEGER:bi);
+  });
+}
 interface ObsAudioInput { name:string;volume:number }
 interface ObsBrowserSource {name:string;enabled:boolean;index:number;width:number|null;height:number|null}
 
@@ -24,6 +35,16 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
   useEffect(()=>{try{localStorage.setItem('hok-obs-scene-cues-v1',JSON.stringify(cueMap));}catch{/* Storage disabled: session-only mapping. */}},[cueMap]);
   const [status,setStatus]=useState<ObsStatus>();
   const [selected,setSelected]=useState('');
+  const [sceneOrder,setSceneOrder]=useState<string[]>(readSceneOrder);
+  const [editingSceneOrder,setEditingSceneOrder]=useState(false);
+  const scenes=orderedScenes(status?.scenes??[],sceneOrder);
+  useEffect(()=>{try{localStorage.setItem('hok-obs-scene-order-v1',JSON.stringify(sceneOrder));}catch{/* In-memory order still works. */}},[sceneOrder]);
+  const moveScene=(name:string,delta:number)=>{
+    const next=[...scenes],index=next.indexOf(name),destination=index+delta;
+    if(index<0||destination<0||destination>=next.length)return;
+    [next[index],next[destination]]=[next[destination],next[index]];
+    setSceneOrder(next);
+  };
   const [message,setMessage]=useState('');
   const [busy,setBusy]=useState(false);
   const [audioInputs,setAudioInputs]=useState<ObsAudioInput[]>([]);
@@ -163,13 +184,35 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
         </section>
         <section className="obs-workspace-card" aria-label={zh?'手动场景与音源':'Manual scene and audio'}>
           <div className="obs-workspace-heading"><h4>{zh?'手动场景控制':'Manual scene control'}</h4></div>
-          <div className="obs-director-toolbar">
-            <label>{zh?'目标 OBS 场景':'OBS scene'} <select aria-label="OBS scene" value={selected} disabled={!status?.connected||busy} onChange={e=>setSelected(e.target.value)}>
-              {(status?.scenes??[]).map(scene=><option key={scene} value={scene}>{scene}</option>)}
-            </select></label>
-            <button type="button" disabled={busy||!status?.connected||!selected||selected===status.programScene}
-              onClick={()=>void switchScene()}>{busy?(zh?'切换中…':'Switching…'):(zh?'确认切换 OBS 场景':'Switch OBS scene')}</button>
+          <div className="obs-workspace-heading">
+            <span className="muted">{zh?'点击按钮切换实际 OBS 场景；正在播出的场景不可重复切换。':'Click a scene button to take it on air.'}</span>
+            <button type="button" aria-pressed={editingSceneOrder} onClick={()=>setEditingSceneOrder(value=>!value)}>{editingSceneOrder?(zh?'完成排序':'Done'):(zh?'自定义顺序':'Reorder')}</button>
           </div>
+          <div className="obs-scene-button-grid" data-testid="obs-scene-buttons">
+            {scenes.map((scene,index)=><div className="obs-scene-button-item" key={scene}>
+              <button type="button" className={scene===status?.programScene?'is-on-air':''}
+                aria-label={`OBS quick scene ${scene}`} aria-pressed={scene===status?.programScene}
+                disabled={!status?.connected||busy||scene===status.programScene}
+                onClick={()=>void switchScene(scene)}>
+                {scene===status?.programScene?'● ':''}{scene}
+              </button>
+              {editingSceneOrder&&<span className="obs-scene-order-actions">
+                <button type="button" aria-label={`Move ${scene} up`} disabled={index===0} onClick={()=>moveScene(scene,-1)}>↑</button>
+                <button type="button" aria-label={`Move ${scene} down`} disabled={index===scenes.length-1} onClick={()=>moveScene(scene,1)}>↓</button>
+              </span>}
+            </div>)}
+            {!scenes.length&&<p className="muted">{zh?'连接 OBS 后自动加载场景快捷按钮。':'Connect OBS to load scene buttons.'}</p>}
+          </div>
+          <details className="obs-scene-advanced">
+            <summary>{zh?'高级：按名称选择场景与布局检查':'Advanced: select scene for layout inspection'}</summary>
+            <div className="obs-director-toolbar">
+              <label>{zh?'检查场景':'Inspect scene'} <select aria-label="OBS scene" value={selected} disabled={!status?.connected||busy} onChange={e=>setSelected(e.target.value)}>
+                {scenes.map(scene=><option key={scene} value={scene}>{scene}</option>)}
+              </select></label>
+              <button type="button" disabled={busy||!status?.connected||!selected||selected===status.programScene}
+                onClick={()=>void switchScene()}>{zh?'确认切换':'Take selected scene'}</button>
+            </div>
+          </details>
           {message&&<p role="status">{message}</p>}
           <div className="obs-source-guide">
             <h4>{zh?'OBS 浏览器源布局':'OBS Browser Source layout'}</h4>

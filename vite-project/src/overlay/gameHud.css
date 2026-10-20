@@ -4,7 +4,7 @@
 .game-hud{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;color:#f4f7fd;background:transparent;font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;--hud-blue:#55c4f5;--hud-red:#ff7782;--hud-bg:#0c1626}
 .game-hud *{box-sizing:border-box}
 .game-hud-scoreboard{position:absolute;z-index:5;left:50%;right:auto;top:0;width:1920px;transform:translateX(-50%) scale(var(--hud-scale,1));transform-origin:top center;background:linear-gradient(90deg,#101d31 0%,#0a1220 47%,#101b2c 100%);border-bottom:1px solid #a8c5d34d;box-shadow:0 4px 14px #0007}
-.game-hud-main{height:65px;display:grid;grid-template-columns:minmax(0,1fr) 350px minmax(0,1fr);align-items:center;padding:0 28px;border-bottom:1px solid #ffffff1a}
+.game-hud-main{height:88px;display:grid;grid-template-columns:minmax(0,1fr) 350px minmax(0,1fr);align-items:center;padding:0 28px;border-bottom:1px solid #ffffff1a}
 .game-hud-team{min-width:0;display:flex;align-items:center;gap:12px;height:100%;--side:var(--hud-blue)}
 .game-hud-team.red{--side:var(--hud-red)}
 .game-hud-team.display-right{flex-direction:row-reverse}
@@ -20,7 +20,7 @@
 .game-hud-kills b{font-size:34px;line-height:1;font-weight:850;min-width:52px}
 .game-hud-kills b.blue{color:var(--hud-blue)}.game-hud-kills b.red{color:var(--hud-red)}
 .game-hud-clock{min-width:88px;font-size:22px;font-weight:650;color:#f4e5c4;letter-spacing:1px}
-.game-hud-details{height:34px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:14px;padding:0 28px;background:#080f1bcf}
+.game-hud-details{height:44px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:14px;padding:0 28px;background:#080f1bcf}
 .game-hud-stage{font-size:12px;font-weight:600;letter-spacing:.5px;color:#9db2c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px}
 .game-hud-metrics{display:flex;align-items:center;justify-content:center;gap:26px}
 .game-hud-metric{display:flex;align-items:center;gap:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -35,7 +35,7 @@
 .game-hud-capture{display:flex;justify-content:flex-end;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:1px;color:#90a3b9}
 .game-hud-indicator{display:block;width:6px;height:6px;border-radius:50%;background:#a6b1c3}
 .game-hud-indicator.verified{background:#54d5b0}.game-hud-indicator.stale{background:#ffba5c}
-.game-hud-rosters{height:32px;display:grid;grid-template-columns:minmax(0,1fr) 94px minmax(0,1fr);align-items:center;gap:10px;padding:0 28px;background:#0d192be8;border-top:1px solid #ffffff14}
+.game-hud-rosters{height:34px;display:grid;grid-template-columns:minmax(0,1fr) 94px minmax(0,1fr);align-items:center;gap:10px;padding:0 28px;background:#0d192be8;border-top:1px solid #ffffff14}
 .game-hud-roster-side{display:flex;align-items:center;min-width:0;gap:10px}
 .game-hud-roster-side.display-right{flex-direction:row-reverse}
 .game-hud-player{display:flex;align-items:center;gap:5px;min-width:0;max-width:160px;flex:1}

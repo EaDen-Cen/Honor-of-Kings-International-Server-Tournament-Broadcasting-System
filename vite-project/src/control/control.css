@@ -1716,3 +1716,15 @@
 .obs-layout-audit>div[role=status]>div strong{overflow-wrap:anywhere}
 .obs-layout-audit>div[role=status]>div small{grid-column:1/-1;opacity:.75}
 @media(max-width:520px){.obs-layout-audit>div[role=status]>div{grid-template-columns:minmax(0,1fr)}}
+
+/* OBS scene selection: direct, reorderable, accessible controls for live operation. */
+.obs-scene-button-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin:12px 0}
+.obs-scene-button-item{display:flex;align-items:stretch;min-width:0;gap:3px}
+.obs-scene-button-item>button{flex:1;min-width:0;min-height:42px;text-align:center;overflow-wrap:anywhere}
+.obs-scene-button-item>button.is-on-air{border-color:#57c7ab;background:rgba(70,180,150,.13);font-weight:750}
+.obs-scene-order-actions{display:flex;flex-direction:column;gap:2px}
+.obs-scene-order-actions button{min-width:29px;min-height:19px;padding:0 4px;font-size:12px}
+.obs-scene-advanced{margin-top:10px}
+.obs-scene-advanced>summary{cursor:pointer;font-size:12px;opacity:.8}
+.obs-scene-advanced>.obs-director-toolbar{margin-top:10px}
+@media(max-width:520px){.obs-scene-button-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

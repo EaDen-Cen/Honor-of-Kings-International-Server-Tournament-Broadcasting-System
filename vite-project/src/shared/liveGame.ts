@@ -31,5 +31,5 @@ export function trustedLiveUpdates(stats:LiveGameStats,previous:LiveHudSample,sa
   }
   return updates;
 }
-export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[],density:'compact',widthPercent:100});
-export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,widthPercent:previous.widthPercent??100,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0}))};}
+export const initialLiveGameStats=():LiveGameStats=>({blueKills:0,redKills:0,blueTowers:0,redTowers:0,neutralObjectives:[],density:'compact',widthPercent:65});
+export function nextLiveGameStats(previous:LiveGameStats):LiveGameStats {return {...initialLiveGameStats(),density:previous.density,widthPercent:previous.widthPercent??65,neutralObjectives:previous.neutralObjectives.map(item=>({...item,blue:0,red:0}))};}

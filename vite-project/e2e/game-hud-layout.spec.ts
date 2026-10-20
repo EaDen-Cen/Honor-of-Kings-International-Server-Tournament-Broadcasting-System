@@ -16,6 +16,7 @@ test('GHUD is a transparent KPL-inspired top ribbon and never masks the minimap 
     await page.goto('/overlay/game-hud');
     const hud=page.getByTestId('game-hud');
     await expect(hud).toBeVisible();
+    await expect.poll(async()=>Math.round((await page.getByTestId('game-hud-ribbon').boundingBox())?.width??0)).toBe(1248);
     await expect(hud.locator('.game-hud-kills')).toContainText('7');
     await expect(hud.locator('.game-hud-kills')).toContainText('5');
     await expect(hud.locator('.game-hud-clock')).toHaveText('10:52');
@@ -67,8 +68,8 @@ test('director can scale the GHUD width while OBS stays 1920×1080 and setting p
     await slider.focus();
     await slider.press('Home');
     await expect.poll(()=>h.state().liveGameStats.widthPercent).toBe(50);
-    await page.getByRole('button',{name:'Reset width'}).click();
-    await expect.poll(()=>h.state().liveGameStats.widthPercent).toBe(100);
+    await page.getByRole('button',{name:'Reset to 65%'}).click();
+    await expect.poll(()=>h.state().liveGameStats.widthPercent).toBe(65);
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,widthPercent:75}});
     await h.send({type:'reset_match'});
     expect(h.state().liveGameStats.widthPercent).toBe(75);
