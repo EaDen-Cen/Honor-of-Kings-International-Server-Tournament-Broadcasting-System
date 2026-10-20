@@ -1,4 +1,4 @@
-import type { MatchState } from '../shared/types';
+import type { MatchState } from '../shared/types.js';
 
 export const obsCueKeys=['waiting','draft','game','pause','postgame','mvp','safe'] as const;
 export type ObsCue=typeof obsCueKeys[number];
