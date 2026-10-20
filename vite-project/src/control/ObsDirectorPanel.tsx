@@ -126,6 +126,8 @@ export function ObsDirectorPanel({token,zh,state}:{token:string;zh:boolean;state
         <div className="obs-status-tile"><span>{zh?'录制状态':'Recording'}</span><strong>{status?.recording===true?'● REC':status?.recording===false?(zh?'未录制':'Stopped'):'—'}</strong></div>
         <div className="obs-status-tile"><span>{zh?'比赛阶段建议':'Suggested stage'}</span><strong>{zh?obsCueLabels[suggested].zh:obsCueLabels[suggested].eng}</strong></div>
       </div>
+      {status?.connected&&status.recording===false&&suggested==='game'&&
+        <p role="status" className="obs-recording-warning">{zh?'当前比赛已进入局内阶段，但 OBS 显示未录制。若需要本地回放，请先在 OBS 确认录制已启动。':'Game stage is active, but OBS reports recording stopped. Start recording in OBS if a local replay is required.'}</p>}
       <div className="obs-director-toolbar">
         <button type="button" onClick={()=>void refresh()}>{zh?'刷新 OBS 状态':'Refresh OBS status'}</button>
         <span className="muted">{zh?'只读比赛状态；不会因 OCR 或比赛进度自动切镜。':'Match state is read-only here; OCR and match progress never switch scenes automatically.'}</span>
