@@ -9,7 +9,9 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
   const zh=state.language==='zh',stats=state.liveGameStats;
   const [name,setName]=useState(''),[icon,setIcon]=useState('');
   const [draftWidth,setDraftWidth]=useState(stats.widthPercent??65);
+  const [draftHeight,setDraftHeight]=useState(stats.heightPx??132);
   useEffect(()=>setDraftWidth(stats.widthPercent??65),[stats.widthPercent]);
+  useEffect(()=>setDraftHeight(stats.heightPx??132),[stats.heightPx]);
   const pendingObjective=useRef<{id:string;name:string;icon:string}>();
   const gameKey=`${state.draftGameNumber??state.gameNumber}:${state.committedGameId??''}`;
   useEffect(()=>{
@@ -22,6 +24,7 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
   const saveWidth=()=>{
     if(!disabled&&draftWidth!==(stats.widthPercent??65))update({...stats,widthPercent:draftWidth});
   };
+  const saveHeight=()=>{if(!disabled&&draftHeight!==(stats.heightPx??132))update({...stats,heightPx:draftHeight});};
   const counter=(key:'blueKills'|'redKills'|'blueTowers'|'redTowers',label:string)=><div className="toolbar" key={key}><span>{label}</span>
     <button disabled={disabled||stats[key]===0} aria-label={`${key} minus`} onClick={()=>update({...stats,[key]:stats[key]-1})}>−</button>
     <ManualNumberInput key={`${gameKey}:${key}`} label={key} zh={zh} min={0} max={999} value={stats[key]} disabled={disabled} onCommit={value=>update({...stats,[key]:value!})}/>
@@ -33,7 +36,18 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
     <div className="lineup-team-grid">{(['blue','red'] as const).map(side=><div key={side}><b>{state[`${side}Team`].name}</b>{counter(`${side}Kills`,zh?'人头':'Kills')}{counter(`${side}Towers`,zh?'推塔':'Towers')}</div>)}</div>
     <div className="toolbar">{(['blueGold','redGold','gameTimeSeconds'] as const).map(key=><label key={key}>{liveCaptureLabel(key,zh)}<ManualNumberInput key={`${gameKey}:${key}`} label={key} zh={zh} min={0} max={key==='gameTimeSeconds'?7200:1000000} value={stats[key]} disabled={disabled} allowEmpty onCommit={value=>update({...stats,[key]:value})}/></label>)}</div>
     <div className="toolbar">{liveCaptureKeys.map(key=><label key={key}><input type="checkbox" checked={stats.sources?.[key]?.source==='manual'} disabled={disabled} onChange={e=>send({type:'live_game_freeze',key,frozen:e.target.checked})}/>{liveCaptureLabel(key,zh)} · {zh?'冻结（取消恢复自动）':'Freeze (uncheck to resume automatic)'}</label>)}</div>
-    <label>{zh?'密度':'Density'} <select value={stats.density} disabled={disabled} onChange={e=>update({...stats,density:e.target.value as 'compact'|'full'})}><option value="compact">{zh?'简约 · 顶栏 132px':'Compact · 132px top'}</option><option value="full">{zh?'完整 · 顶栏 166px':'Full · 166px top'}</option></select></label>
+    <div className="toolbar"><span>{zh?'顶栏模式':'HUD mode'}</span>
+      <button type="button" aria-pressed={stats.density==='compact'} disabled={disabled} onClick={()=>update({...stats,density:'compact'})}>{zh?'单行':'Single row'}</button>
+      <button type="button" aria-pressed={stats.density==='full'} disabled={disabled} onClick={()=>update({...stats,density:'full'})}>{zh?'单行 + 资源状态':'Row + objective status'}</button>
+    </div>
+    <div className="toolbar">
+      <label htmlFor="game-hud-height">{zh?'HUD 主行高度':'HUD main row height'} · {draftHeight}px ({Math.round(draftHeight*(stats.widthPercent??65)/100)}px {zh?'实际显示':'on screen'})</label>
+      <input id="game-hud-height" aria-label="HUD height" type="range" min={64} max={200} step={4}
+        value={draftHeight} disabled={disabled} onChange={event=>setDraftHeight(Number(event.target.value))}
+        onPointerUp={saveHeight} onKeyUp={saveHeight} onBlur={saveHeight}/>
+      <button type="button" disabled={disabled||((stats.heightPx??132)===132&&draftHeight===132)}
+        onClick={()=>{setDraftHeight(132);update({...stats,heightPx:132});}}>{zh?'恢复默认高度 132px':'Reset height to 132px'}</button>
+    </div>
     <div className="toolbar">
       <label htmlFor="game-hud-width">{zh?'HUD 宽度':'HUD width'} · {draftWidth}% ({Math.round(1920*draftWidth/100)}px)</label>
       <input id="game-hud-width" aria-label="HUD width" type="range" min={50} max={100} step={5}
@@ -43,11 +57,22 @@ export function LiveGamePanel({state,token,disabled,send}:{state:MatchState;toke
         onClick={()=>{setDraftWidth(65);update({...stats,widthPercent:65});}}>{zh?'恢复推荐宽度 65%':'Reset to 65%'}</button>
       <small className="muted">{zh?'整体按比例缩放并顶部居中，OBS 浏览器源仍设为 1920×1080。':'Scales the whole ribbon from top center; keep the OBS Browser Source at 1920×1080.'}</small>
     </div>
-    {stats.neutralObjectives.map(item=><div className="toolbar" key={item.id}><b>{item.name}</b>{(['blue','red'] as const).map(side=><label key={side}>{state[`${side}Team`].name}<ManualNumberInput key={`${gameKey}:${item.id}:${side}`} label={`${item.name} ${side}`} zh={zh} min={0} max={999} value={item[side]} disabled={disabled} onCommit={value=>update({...stats,neutralObjectives:stats.neutralObjectives.map(v=>v.id===item.id?{...v,[side]:value!}:v)})}/></label>)}<button disabled={disabled} onClick={()=>update({...stats,neutralObjectives:stats.neutralObjectives.filter(v=>v.id!==item.id)})}>{zh?'移除':'Remove'}</button></div>)}
+    {!stats.neutralObjectives.length&&<button type="button" disabled={disabled} onClick={()=>update({...stats,neutralObjectives:[
+      {id:'tyrant',name:'暴君 / Tyrant',icon:'',blue:0,red:0,status:'unknown'},
+      {id:'overlord',name:'主宰 / Overlord',icon:'',blue:0,red:0,status:'unknown'},
+    ]})}>{zh?'添加默认暴君 / 主宰':'Add default Tyrant / Overlord'}</button>}
+    <p className="muted">{zh?'完整模式第二行显示资源是否存活。当前状态需人工设置；尚未连接资源刷新/击杀的实时识别，不会凭空推断。':'Full mode shows boss presence on the second row. Presence is manually controlled; boss spawn/death is not currently auto-recognized.'}</p>
+    {stats.neutralObjectives.map(item=><div className="toolbar" key={item.id}>
+      <span>{zh?'当前状态':'Presence'}</span>
+      {(['unknown','alive','down'] as const).map(status=><button type="button" key={status}
+        aria-label={`${item.name} ${status}`} aria-pressed={(item.status??'unknown')===status} disabled={disabled}
+        onClick={()=>update({...stats,neutralObjectives:stats.neutralObjectives.map(v=>v.id===item.id?{...v,status}:v)})}>
+        {status==='unknown'?(zh?'未知':'Unknown'):status==='alive'?(zh?'存活':'Alive'):(zh?'已击败':'Down')}
+      </button>)}<b>{item.name}</b>{(['blue','red'] as const).map(side=><label key={side}>{state[`${side}Team`].name}<ManualNumberInput key={`${gameKey}:${item.id}:${side}`} label={`${item.name} ${side}`} zh={zh} min={0} max={999} value={item[side]} disabled={disabled} onCommit={value=>update({...stats,neutralObjectives:stats.neutralObjectives.map(v=>v.id===item.id?{...v,[side]:value!}:v)})}/></label>)}<button disabled={disabled} onClick={()=>update({...stats,neutralObjectives:stats.neutralObjectives.filter(v=>v.id!==item.id)})}>{zh?'移除':'Remove'}</button></div>)}
     <form className="toolbar" onSubmit={event=>{
       event.preventDefault();if(disabled||!name.trim()||stats.neutralObjectives.length>=6)return;
       const id=createClientUUID();pendingObjective.current={id,name,icon};
-      update({...stats,neutralObjectives:[...stats.neutralObjectives,{id,name:name.trim(),icon:icon.trim(),blue:0,red:0}]});
+      update({...stats,neutralObjectives:[...stats.neutralObjectives,{id,name:name.trim(),icon:icon.trim(),blue:0,red:0,status:'unknown'}]});
     }}><input aria-label="Objective name" placeholder={zh?'资源名称':'Objective name'} maxLength={24} value={name} disabled={disabled} onChange={e=>setName(e.target.value)}/><input aria-label="Objective icon" placeholder={zh?'图标 HTTPS/本地路径（可选）':'Icon HTTPS/local path (optional)'} maxLength={1000} value={icon} disabled={disabled} onChange={e=>setIcon(e.target.value)}/><button type="submit" disabled={disabled||!name.trim()||stats.neutralObjectives.length>=6}>{zh?'添加资源':'Add objective'}</button></form>
   </details>;
 }
