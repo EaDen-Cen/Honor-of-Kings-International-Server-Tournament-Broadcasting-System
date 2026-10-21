@@ -1,10 +1,10 @@
 # PR #91 验证记录（2026-10-21）
 
-基线：c0afa2e8ad5b5e8e888fbc1cfb2838841f8136c2；继续原草稿分支，不合并 main。
+初始验证基线：`c0afa2e8ad5b5e8e888fbc1cfb2838841f8136c2`。**状态更新（2026-10-21）**：PR #91 已合并 `main`，合并提交 [`00dedd05a224`](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/commit/00dedd05a224d77efd5d3dbf4f1c2bf2fb7b18c0)。本文保留草稿阶段测试与失败的时间顺序，不把早期失败写成最终状态。
 
 ## 已执行
 
-- 审查全部 19 个 PR 提交与 8 个原差异文件。两条 GitHub CI 均因 `TTL_MS` 未使用在 Lint 失败；Windows 原生检查通过，主流程后续 E2E 跳过。
+- 审查全部 19 个 PR 提交与 8 个原差异文件。草稿阶段的两条 GitHub CI 曾因 `TTL_MS` 未使用在 Lint 失败；Windows 原生检查通过，主流程后续 E2E 当时跳过。此故障随后已修复，最终 PR 分支 CI 通过。
 - 本机 Windows、Node 24.14.1、Chrome。完整单元/服务测试 306 项：304 通过、2 项按环境跳过、0 失败。其后新增 HUD 并发帧隔离用例，与全部 AI 用例合计 16/16 通过。
 - AI 14 项模拟传输测试通过：密钥目标隔离、配置代次、取消、并发、超时/冷却结构、跨场景缓存隔离、三协议、非法候选、HUD/ID/赛后解析。
 - 停靠/保存/切换预设/DOM 与输入状态保留、旧识别性能场景共 6 项浏览器测试通过。模拟双读换英雄到服务器确认一次测得 692ms，不能代表真实视频 P99。
@@ -13,7 +13,7 @@
 - `hero:art-cache` 校验成功：112/112 已知高清立绘。无来源的英雄保留头像。
 - PowerShell 同步模拟测试通过：URL 公告识别、伪造 URL 拒绝、健康前置、Bearer PUT、不重定向、401/403/404/405/429/500 分类。未发送真实同步 token。
 
-GitHub 代码提交 `baf0b0c` 的 Windows 原生/启动器检查与 Hero data sync 已通过；Linux 构建、Lint、格式、单元和启动器模拟已通过。远程完整浏览器与最新提交状态以 [PR #91 Checks](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/91/checks) 实时结果为准。
+最终 PR #91 分支提交 `277639bc2baade0c7da749482c9e523a44a789df` 对应的 **Broadcast system checks 与 Hero data sync 均成功**；合并后 `main` 的状态以 [GitHub Actions](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions) 为准（合并时再次触发 CI，不预先宣称结果）。本机 91/91 浏览器回归、Windows 原生检查及截图回放结果分别保留在上文；均不能替代真实赛事采集至 OBS 的端到端验证。
 
 ## 截图回放基准
 
