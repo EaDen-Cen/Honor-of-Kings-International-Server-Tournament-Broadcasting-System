@@ -1,3 +1,4 @@
+import { aiPublicConfig, setAiConfig, recognizeAiWithFallback } from './aiRecognition.js';
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
@@ -248,6 +249,25 @@ const server = createServer(async (req, res) => {
       } catch (error) {
         json(409, { error: error instanceof Error ? error.message : 'OBS scene change failed' });
       }
+      return;
+    }
+    if (url.pathname === '/api/v1/ai-recognition/config') {
+      // Keys and AI settings are local operator-only; no CORS-proxied sessions.
+      if (roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' || !localCaptureRequest(req)) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      if (req.method === 'GET') { json(200, aiPublicConfig()); return; }
+      if (req.method !== 'PUT') { json(405, { error: 'GET or PUT required' }); return; }
+      try {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 4096) { json(413, { error: 'Configuration too large' }); return; }
+        }
+        json(200, setAiConfig(JSON.parse(body)));
+      } catch { json(400, { error: 'Invalid AI settings or endpoint' }); }
       return;
     }
     if (url.pathname === '/api/access') {
@@ -719,7 +739,7 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Stale capture' });
           return;
         }
-        const result = await recognitionProvider.recognize(input);
+        const result = await recognizeAiWithFallback(input.image, input.allowedHeroIds, () => recognitionProvider.recognize(input));
         if (input.revision !== store.data.revision) {
           json(409, { error: 'State changed during capture' });
           return;
