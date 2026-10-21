@@ -1,12 +1,14 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
+> **当前主分支（2026-10-21）**：PR #67–#91 的相关功能更新已合并至 `main`（最新核对到 PR #91，提交 `00dedd05a224`）。已有 GitHub 预发布版本 `v1.0.0-rc.1` 是 2026-10-10 的旧快照，**不包含**此后的主分支改动；不能把两者当作同一版本。核心 BP / Control / Caster / OBS 图形支持彩排；Game HUD、AI 辅助识别和赛后自动采集仍需真实赛事连续验收。详见 [PR #91 验证记录](docs/validation/pr91-validation.md) 与 [发布说明](docs/releases/v1.0.0.md)。
+
 ## 2026-10-20 · 实机识别管线与 OBS 原画加载
 
 局内 HUD 从同一帧上传七张无损数字裁图，减少整帧编码、传输和重复解码；数字模型/英雄模板启动预热，最终阵容按扫描完成调度可信变化的第二轮确认。全部核验阈值、两帧要求、人工冻结和服务器确认继续有效。OBS 默认 112 项原画改用本地优化 WebP，先解码再揭幕，快速换英雄或撤销不会被旧图片覆盖。操作指引可直接展开 HUD/OBS 面板；关键模块补充注释、统一格式，提供 `npm run format:check` 和 `npm run benchmark:hud`。测量方法、结果和实机复测边界见 [性能与维护指南](docs/guides/recognition-latency-and-obs-assets.md)。
 
 更新源码后在 `vite-project` 执行 `npm ci`、`npm run build`，停止并重启 Node 服务，再刷新 Control 和 OBS 浏览器源，以便前后端与本地图片资源同时生效。
 
-## 2026-10-19 · GHUD 单行赛事信息与秒级时钟（开发分支）
+## 2026-10-19 · GHUD 单行赛事信息与秒级时钟（PR #89 已合并，HUD 仍为 Experimental）
 
 GHUD 主行按 **蓝队名 → 蓝中立资源总数 → 蓝推塔 → 蓝经济 → 蓝人头 → 蓝比分 → 游戏时间 → 红比分 → 红人头 → 红经济 → 红推塔 → 红中立资源总数 → 红队名** 固定排列。默认宽度 65%（1248px/1920）；导播可调整主行高度 **64–200px（源尺寸，实际画面按宽度比例缩放）**。完整模式第二行仅显示暴君、主宰等中立资源的存活/击败/未知状态，不再显示英雄阵容。资源状态目前为**人工标注**，不会假装自动识别游戏刷新。GHUD OCR 自动采集从每 5 秒调整为**每秒尝试一次**，上一帧未完成会跳过；游戏时间以最近 15 秒内经过两帧核验的 OCR 秒数为锚点每秒更新，采集中断后停止推算。详见 [比赛操作指南](docs/guides/operator-guide.md)。
 
@@ -41,7 +43,7 @@ HOK 游戏画面 / BP Simulator
           延迟数据 Overlay   / Recovery
 ```
 
-> **发布状态（2026-10-10）**：当前目标为 **v1.0.0**。核心比赛状态、Auto BP、Player ID、换英雄、Caster、Draft Overlay、备份恢复已经进入 Release Candidate。Simulator 中 BP 极限测试在约 **1.5–2 秒**选角窗口下可稳定出结果，Player ID 完整核查最佳实测约 **1.8 秒**；这些是既有 Simulator 测试环境成绩，不等于真实赛事机 SLA。**局内 Game HUD 仍属于 Experimental / 测试功能**，不应作为唯一官方比分来源。
+> **当前发布边界（2026-10-21）**：`v1.0.0-rc.1` 已作为预发布 tag 存在；其后 PR #67–#91 已陆续合并进 `main`，但未因此自动成为新的 Release。既有 Simulator 的 BP 1.5–2 秒选角窗口和 Player ID 最佳 1.8 秒属于测试环境观察，不能视为真实赛事机 SLA。**Game HUD 仍为 Experimental**，不得作为唯一官方比分来源。
 
 ## 2026-10-19 · HUD 65% 预设、OBS 场景按钮与赛后 P1 对应
 
@@ -57,36 +59,36 @@ Control 的「OBS 导播工作区（本地）」新增响应式状态看板、�
 
 ## GHUD 可调宽度（2026-10-19）
 
-导播端 **局内 HUD / 人头、推塔与资源 → HUD 宽度** 新增 50%–100%（每档 5%）滑块与恢复默认按钮。默认 100% 兼容旧比赛；建议先试 80%（顶部 1536px）。整体比分条按比例缩放，顶部居中，不会更改 OBS Browser Source 的 **1920×1080** 画布，也不会添加不透明的背景遮罩。宽度由服务器保存并同步到所有浏览器源，下一局及重置整场比赛后仍保留；原有 Compact / Full 高度档位独立设置。
+导播端 **局内 HUD / 人头、推塔与资源 → HUD 宽度** 新增 50%–100%（每档 5%）滑块与恢复默认按钮。PR #85 最初以 100% 兼容旧比赛；PR #88 后新对局推荐宽度为 65%（1248px），原有自定义宽度保留。整体比分条按比例缩放，顶部居中，不会更改 OBS Browser Source 的 **1920×1080** 画布，也不会添加不透明的背景遮罩。宽度由服务器保存并同步到所有浏览器源，下一局及重置整场比赛后仍保留；原有 Compact / Full 高度档位独立设置。
 
 ## 2026-10-19 · GHUD 侧边交换与 CI 回归完善
 
-新版 99px / 131px 透明顶部 HUD 保持不变；修复换边后推塔、经济和中立资源数值仍使用固定蓝左红右颜色，以及 Full 模式十人条按红方而非右侧位置反转的问题。PR #82 后遗留的四处 Playwright 断言仍指向旧版全屏 HUD 类名，已迁移到新版 `game-hud-kills`、`game-hud-metric`、`game-hud-capture`、`game-hud-team` 等实际结构，并强化换边与人工 P1–P5 核对端到端覆盖。所有变更须经最新 CI 验证；真实 OBS 彩排仍需单独执行。
+PR #82 / #84 当时的 99px / 131px 透明顶栏仅保留作历史说明；当前 PR #89 已改为 13 格单行与资源状态第二行；修复换边后推塔、经济和中立资源数值仍使用固定蓝左红右颜色，以及旧版 Full 十人条按红方而非右侧位置反转的问题；当前 PR #89 已取消十人条。PR #82 后遗留的四处 Playwright 断言仍指向旧版全屏 HUD 类名，已迁移到新版 `game-hud-kills`、`game-hud-metric`、`game-hud-capture`、`game-hud-team` 等实际结构，并强化换边与人工 P1–P5 核对端到端覆盖。所有变更须经最新 CI 验证；真实 OBS 彩排仍需单独执行。
 
 ## P1–P5 开播核对回归修复（2026-10-19）
 
 修复 PR #77 引入的核对状态随 BP 历史条数变化而失效的问题。现在 Control 顶部直接显示服务器当前蓝红 P1–P5 选手顺序，并可跳转自动识别 / 手动调整面板；人工核对在同一局 Ban/Pick 过程中保持有效，但名单或权威顺序变更、进入下一局后必须重新确认。OCR 状态区分采集未连接、视频未就绪、识别中和暂停。**核对勾选仅是当前浏览器的人工确认记录，不代表 OCR 成功。** 见 [比赛操作指南](docs/guides/operator-guide.md)。
 
-## 两场实战复盘与对位 OBS 场景（待合并改动）
+## 两场实战复盘与对位 OBS 场景（PR #77 / #81 已合并，待实机验收）
 
 [2026-10-18 真实双局现场复盘](docs/validation/live-two-match-retrospective-2026-10-18.md) 记录单人导播操作负担、元流之子形态误识别、P1–P5 排序遗漏、录制磁盘耗尽、赛后整理效率、帮抢和 GHUD/经济对位等问题。除已有稳定功能外，不将这些问题写作“已修复”。
 
-此开发分支新增五个 **独立、固定角色** 的浏览器源：
-`/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 本机增加逐局 Player ID 顺序核对提醒，**仅是操作清单而非服务端身份认证**。上述改动需合并 PR 并实机验收后才是正式可用版本。
+当前 `main` 已包含五个 **独立、固定角色** 的浏览器源：
+`/overlay/postgame-clash`、`/overlay/postgame-jungle`、`/overlay/postgame-mid`、`/overlay/postgame-farm`、`/overlay/postgame-roam`；每页左蓝右红展示选手，中间为核验后的雷达与数值。保留旧 `/overlay/postgame-compare?role=...` 作为兼容入口。自动 BP 识别中可随时中断扫描并人工审阅已有候选。Control 本机增加逐局 Player ID 顺序核对提醒，**仅是操作清单而非服务端身份认证**。上述代码已合并主分支，但真实 OBS Browser Source、角色映射与连续赛事流程仍需现场验收。
 
-## 最终阵容自动应用可靠性（开发分支，尚待实机确认）
+## 最终阵容自动应用可靠性（PR #79 已合并，尚待实机确认）
 
-根据双场实战反馈，修复单方英雄互换因另一方识别不可靠而无法自动同步的问题；新增服务器回执与权威阵容核对，区分“发现变更”“发送成功”“真正应用”，失败允许人工接管且会提示错误。此为 P0 候选修复，尚未完成 CI/实机验收。参见 [操作指南](docs/guides/operator-guide.md) 与 [里程碑](MILESTONES.md)。
+根据双场实战反馈，修复单方英雄互换因另一方识别不可靠而无法自动同步的问题；新增服务器回执与权威阵容核对，区分“发现变更”“发送成功”“真正应用”，失败允许人工接管且会提示错误。PR #79 已合并并有软件回归覆盖，但真实帮抢、角色交换及服务器确认链路仍须实机复测。参见 [操作指南](docs/guides/operator-guide.md) 与 [里程碑](MILESTONES.md)。
 
-## M24.0 · OBS 本地桥接（开发候选，尚未实机验收）
+## M24.0 · OBS 本地桥接（PR #80 已合并，尚未实机验收）
 
 新增可选的 OBS WebSocket v5 Node 连接器及 Control 内的可折叠 OBS Director 面板。支持在本地读取当前场景、OBS 场景列表、录制状态，并人工切换经 OBS 确认的 Program Scene。使用服务端 `OBS_WS_URL` / `OBS_WS_PASSWORD` 变量，不把 OBS 密码送入前端。仅本地 Control 有权调用；默认不配置则完全禁用。参见 [OBS Director 本地设置](docs/guides/obs-director-setup.md)。
 
-请注意：**手动音频淡入淡出已提交候选，但录制容量预警、自动场景联动和云端远控尚未实现**。已有单向 Browser Source 仍然独立运行。本候选尚须通过 CI 和 Windows OBS 真实设备测试。
+请注意：**手动音频淡入淡出已由 PR #86 合并，但录制容量预警、自动场景联动和云端远控尚未实现**。已有单向 Browser Source 仍然独立运行；软件回归不能替代 Windows 上的真实 OBS 音频与场景测试。
 
-## OBS 双向集成及单人导播路线（计划中）
+## OBS 双向集成及单人导播路线（基础功能已合并，高级自动化规划中）
 
-OBS Browser Source 单向显示已经具备；HOK 控制 OBS 的本地场景切换、状态读取与**手动单音源音量淡入淡出**已提交候选代码，仍待 CI/真机验收。自动混音 Ducking、自动导播与录制容量保护仍未开发。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。**最终阵容归属识别到变化但未成功应用**是 P0 前置可靠性缺陷，必须先实现服务器确认与正确玩家/英雄匹配，不能基于未应用的英雄信息自动切场景。
+OBS Browser Source 单向显示已经具备；HOK 控制 OBS 的本地场景切换、状态读取与**手动单音源音量淡入淡出**已合并主分支，但仍待真机验收。自动混音 Ducking、自动导播与录制容量保护仍未开发。2026-10-19 新增 [OBS WebSocket 双向集成路线图](docs/design/obs-websocket-integration-roadmap.md)：规划本地 Node + OBS 5.x 接入、人工一键转场、BGM 淡入淡出、录制目录容量与中断告警、后续可信自动切镜与受控远程桥接。PR #79 已加入服务器应用确认与单方可信同步；但真实帮抢或归属失配仍待复测，**绝不可依据未经核实的英雄归属自动切镜**。
 
 ## 系统组成
 
@@ -307,16 +309,16 @@ vite-project/       应用与 npm 命令执行目录
 本项目基于 qiqi47 的原项目继续开发，保留原英雄数据及 [MIT 许可](LICENSE.txt)。[原中英文 README](docs/archive/legacy/upstream-readme.md) 已完整归档，旧站点与旧安装说明仅作历史参考。
 
 
-## 回放赛后图形（开发 PR #67）
+## 回放赛后图形（PR #67 已合并）
 
 不必凑齐十位玩家才能测试结算流程：使用游戏回放中的 PNG/JPEG 截图，第一次核对十人身份行序后，六种玩家统计页共用这一映射；如后续 OCR 与已保存顺序冲突则显示提醒，不会自动覆盖。此映射存在当前浏览器 localStorage，换电脑/浏览器需重核。
 
-OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgame-compare?role=mid`（clash/jungle/mid/farm/roam 五位置对位雷达）及 `/overlay/game-progress` 经济 x 时间。评分可核实后人工补录或自行校准原有单字段 OCR；不会凭字母评级猜数字。经济线只连接输入的 **2–240 个真实时间/双方经济观测点**，不从最终经济反推。上述均为开发分支能力，**未通过真实十人+OBS 长时验收，也不包含在此前发布的 RC.1 中**。详细使用方式见 [操作指南](docs/guides/operator-guide.md#回放优先的赛后彩排pr-67)。
+OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgame-compare?role=mid`（clash/jungle/mid/farm/roam 五位置对位雷达）及 `/overlay/game-progress` 经济 x 时间。评分可核实后人工补录或自行校准原有单字段 OCR；不会凭字母评级猜数字。经济线只连接输入的 **2–240 个真实时间/双方经济观测点**，不从最终经济反推。上述能力已合并 `main`，**但尚未通过真实十人 + OBS 长时间验收，也不追溯包含在此前发布的 rc.1 中**。详细使用方式见 [操作指南](docs/guides/operator-guide.md#回放优先的赛后彩排pr-67)。
 
 所有代码改动须在同一个 PR 中同步核对、更新相关文档，规则见 [文档索引与维护约定](docs/README.md#命名和维护规则)。
 
 
-## 国服 / 国际服双英雄池与自定义 0–5 Ban（开发 PR #68）
+## 国服 / 国际服双英雄池与自定义 0–5 Ban（PR #68 已合并）
 
 比赛设置新增互不依赖的英雄池 `global / cn` 与每队 `0–5` Ban。Match 模式按先 2 Ban、三选、再禁剩余 Ban、两选的结构运行（5 Ban 为 KPL 风格 2+3，国际赛事 4 Ban 为 2+2）；Normal 将 Ban 全部放在选人前。修改后服务器校验、比赛历史、Control、OBS、Simulator 与捕获槽位都使用相同的设置。旧 Match 默认 4 Ban，旧 Normal 默认 2 Ban。特殊巅峰对决/Ultimate Battle 的盲选不是普通 0 Ban，目前尚不支持。
 
@@ -326,7 +328,7 @@ OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgam
 
 - **Node 生产路由修复**：`/overlay/postgame-compare?role=clash|jungle|mid|farm|roam`、`/overlay/game-progress` 与 MVP/Draft/GHUD 一样返回现有 Vite SPA 的 `dist/index.html`；路径中的 `?role` 属于查询参数，不是独立 HTML 页面。不要重复创建不存在的 `postgame-econ/radar/lane` 路由；雷达包含在对位页面内。需要服务器重新启动到此 commit（并完成前端 build），不能只刷新旧服务器。
 - **MVP 改图**：人像素材使用裁剪焦点，完整英雄立绘优先 `object-fit:contain` + 模糊背景，避免 `cover` 截掉头部或手；支持素材自带 `artPosition`，未核实的游戏评分不再显示一个只有「—」的评分卡。评分来源仍须真实 OCR 或人工输入，不通过自造评分填坑。
-- **GHUD 1920×1080 赛事顶栏（2026-10-19 新版）**：根据双场实战反馈废弃四周大面积遮罩与假地图，采用参考 KPL 信息层级的原创紧凑顶部条。Compact 仅占顶端 99px，Full 加十人英雄/ID 小条后占 131px，其余区域完全透明，保留真实小地图、游戏画面、两侧信息与底部技能/回放内容。仍须根据观战源实际布局处理**原生顶部 UI 重影**，不能假设官方客户端有统一坐标。旧版全遮挡方案只留历史记录。
+- **GHUD 1920×1080 赛事顶栏（2026-10-19 新版）**：根据双场实战反馈废弃四周大面积遮罩与假地图，采用参考 KPL 信息层级的原创紧凑顶部条。PR #82 当时 Compact 仅占顶端 99px，Full 曾带十人英雄/ID 小条至 131px；当前 PR #89 改为 13 格主行及不含英雄阵容的资源状态第二行，其他区域继续透明，保留真实小地图、游戏画面、两侧信息与底部技能/回放内容。仍须根据观战源实际布局处理**原生顶部 UI 重影**，不能假设官方客户端有统一坐标。旧版全遮挡方案只留历史记录。
 - **GHUD OCR 重新校准**：导播必须选择采集窗口 → 预览当前 16:9 游戏帧 → 七项逐字段拖动数字框或按像素调整 `x/y/width/height` → 保存确认 → 手动采两次 → 检查候选 → 再决定是否开启自动采样和自动播出。位置保存在**当前浏览器** `localStorage['hok-ghud-calibration-v1']`；修改采集源/顶部偏移或切换窗口后禁止自动播出，必须重新预览确认。以零偏移为初始值，禁止把窗口多出来的底部回放区猜成顶部标题栏。服务器校验七个 ROI 的范围、尺寸、重叠和两次采样的裁切 profile；游戏时钟停滞、低置信度、采样不一致、异常数据或人工冻结会拒绝自动合并。蓝队青色背景只在裁切图中确实存在时才作自适应抑制；其他 UI 保留原像素，经实际回归避免把 1.5K 误读为 15.0K。
 - **保留限制**：实测截屏的 ROI/自动识别准确率、UI 客户端/分辨率切换、OBS 长时并发、屏幕安全区和完整官方视觉包装均需要本机实测；CI 构建/单元测试不能证明官方完整 HUD 已适配。没有可靠经济时间序列仍只提示 Control 导入真实点，不从结算总经济推导趋势。
 
@@ -341,6 +343,6 @@ OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgam
 
 Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以及多家国内服务商的视觉模型 API。辅助低置信度英雄、玩家 ID、HUD 与赛后数字识别，经过字段校验和现有采用规则；云端异常不阻塞本地识别。API Key 只存于本地服务端内存，重启后需重新配置。使用说明与限制：[AI 识别指南](docs/guides/ai-recognition.md)。
 
-### PR #91：实时识别、工作区与启动准备
+### PR #91（已合并）：后台 AI 辅助、可停靠工作区与启动准备
 
-AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。仍为实验性开发分支，不代表真实直播已验收。
+AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。相关 AI / HUD 能力仍属于实验性功能；**代码已经合并 `main`，但不代表真实直播已验收**。Sites 网站端 API 不在此 PR 内，自动同步完成配对前可继续手动填写地址。
