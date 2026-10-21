@@ -1,4 +1,4 @@
-import { aiPublicConfig, setAiConfig, recognizeAiWithFallback } from './aiRecognition.js';
+import { aiPublicConfig, setAiConfig, recognizeAiWithFallback, aiAdvisory } from './aiRecognition.js';
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
@@ -425,7 +425,7 @@ const server = createServer(async (req, res) => {
             json(409, { error: 'Game changed; capture again' });
             return;
           }
-          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions) });
+          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions), ai: await aiAdvisory(input.images?.[0], 'hud', context) });
           return;
         }
         const frame = await decodeGameFrame(input.image, input.region);
@@ -447,7 +447,7 @@ const server = createServer(async (req, res) => {
             json(409, { error: 'Game changed; capture again' });
             return;
           }
-          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions) });
+          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions), ai: await aiAdvisory(input.image, 'hud', context) });
         } else {
           const report = store.data.state.postGameReports.find((r) => r.id === input.reportId);
           if (!report) {
@@ -485,6 +485,7 @@ const server = createServer(async (req, res) => {
             reportId: report.id,
             capturedAt,
             evidence: `/uploads/player-portraits/${name}`,
+            ai: await aiAdvisory(input.image, 'settlement', input.page),
           });
         }
       } catch (error) {
@@ -585,7 +586,7 @@ const server = createServer(async (req, res) => {
             };
           }),
         );
-        json(200, { candidates, elapsedMs: result.elapsedMs });
+        json(200, { candidates, elapsedMs: result.elapsedMs, ai: await aiAdvisory(input.images?.[visible[0]], 'postgame', input.metric) });
       } catch {
         json(400, { error: 'Post-game capture failed; check regions or retry after player OCR' });
       }
@@ -701,6 +702,7 @@ const server = createServer(async (req, res) => {
           ...result,
           blue: solvePlayerSlotCandidates(result.candidates.slice(0, 5), state.blueTeam.players),
           red: solvePlayerSlotCandidates(result.candidates.slice(5), state.redTeam.players),
+          ai: await aiAdvisory(input.images?.[0], 'players', [...state.blueTeam.players, ...state.redTeam.players].join(', ')),
         });
       } catch (error) {
         json(400, { error: error instanceof Error ? error.message : 'Player recognition failed' });
