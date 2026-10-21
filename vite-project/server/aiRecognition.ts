@@ -1,3 +1,4 @@
+import { allPoolHeroes } from '../src/shared/heroPool.js';
 /**
  * Optional cloud vision recognition. The API key is intentionally process-memory only:
  * it is never written to match.json, shipped to overlays, or sent to the browser in GET.
@@ -22,6 +23,7 @@ const defaults: Record<AiVendor,string> = {
   custom:'',
 };
 const vendors = Object.keys(defaults) as AiVendor[];
+const heroNames = new Map(allPoolHeroes.map(hero => [hero.id, `${hero.chineseName} / ${hero.englishName}`]));
 let settings:AiSettings={enabled:false,vendor:'openai',model:'',endpoint:'',apiKey:''};
 let active=false;
 export const aiPublicConfig=():AiPublicConfig=>({enabled:settings.enabled,vendor:settings.vendor,model:settings.model,endpoint:settings.endpoint,configured:Boolean(settings.apiKey)});
@@ -62,7 +64,8 @@ export async function recognizeAiHero(image:string,allowedHeroIds:number[]):Prom
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),4500);
   try{
-    const prompt='Identify the Honor of Kings hero depicted in this cropped game image. Allowed numeric hero IDs: '+allowedHeroIds.join(',')+'. Return ONLY JSON {"heroId":number,"confidence":number}. If unsure use {"heroId":0,"confidence":0}. Do not guess from text outside the image.';
+    const options=allowedHeroIds.map(id=>id+': '+(heroNames.get(id)??'Unknown')).join('; ');
+    const prompt='Identify the Honor of Kings hero in this cropped game image. Match visual identity against this exact ID-to-name catalog: '+options+'. Return ONLY JSON {"heroId":number,"confidence":number}. If uncertain return {"heroId":0,"confidence":0}. Only use a supplied ID.';
     let target=current.endpoint, headers:Record<string,string>={'Content-Type':'application/json'},body:unknown;
     if(current.vendor==='gemini'){
       target=target.replace(/\/$/,'')+'/models/'+encodeURIComponent(current.model)+':generateContent';
