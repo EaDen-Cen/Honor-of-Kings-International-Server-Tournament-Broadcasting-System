@@ -65,6 +65,9 @@ jobs:
       - name: Validate launcher process ownership and locking
         run: pwsh -NoProfile -File scripts/managed-process.test.ps1 2>&1 | tee artifacts/ci/launchers.log
 
+      - name: Validate tunnel sync contract without real credentials
+        run: pwsh -NoProfile -File scripts/tunnel-sync.test.ps1
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium 2>&1 | tee artifacts/ci/browser-install.log
 
@@ -116,6 +119,11 @@ jobs:
 
       - name: Exercise real Windows launcher lifecycle
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/launcher-smoke.test.ps1
+
+      - name: Verify abrupt launcher cleanup and tunnel sync
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/launcher-session.test.ps1
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel-sync.test.ps1
 
       - name: Verify Windows native image recognition
         run: node --import tsx --test server/capture-native.test.ts

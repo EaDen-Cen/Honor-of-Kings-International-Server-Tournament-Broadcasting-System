@@ -21,10 +21,9 @@ test('empty history, inline settings and BO win boxes follow authoritative side 
     expect((await page.locator('.ban.hero-slot').first().boundingBox())!.width).toBeGreaterThanOrEqual(72);
     const control=await context.newPage();await control.goto('/control#token=e2e-control');
     await control.getByRole('button',{name:'Match settings',exact:true}).click();
-    await expect(control.locator('.control-monitor .settings-inline')).toBeVisible();
+    await expect(control.locator('.settings-inline')).toBeVisible();
     await expect(control.locator('dialog[open]')).toHaveCount(0);
-    const below=await control.locator('.settings-inline').evaluate(e=>!!(e.previousElementSibling?.classList.contains('lifecycle')));
-    expect(below).toBe(true);
+    await expect(control.getByRole('button',{name:'Apply AI settings',exact:true})).toBeVisible();
     await h.fill();
     await expect(page.locator('.hero-art')).toHaveCount(10);
     await expect(page.locator('.hero-reveal:not([class="hero-reveal"])')).toHaveCount(0);

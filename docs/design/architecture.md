@@ -97,3 +97,11 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 
 ### PR #70：在单浏览器会话复用截图，解耦十人固定 ROI
 `sharedGameStill.ts` 发布已 decode 的截图对象，让 `useGameDataCapture` 各实例（整页采集、单字段、GHUD）读到同一静态图；`sharedWindowCapture` 继续维护共享视频源。单字段工具在 `PostGamePanel` 冻结一张 1920×1080 画面供 `PostGameRegionPicker` 显示并框选；前端直接按像素裁出非空白 OCR 图，服务端 `postGameCaptureRows.ts` 验证候选绑定完整 report rowId，拒绝 P1 下标错配，`server.ts` 跳过无视觉信息的纯色图并保留现场证据。旧十图 POST 仍然兼容。所有数据仍经既有 PostGameField merge/Manual 保护。
+
+## PR #91 隔离边界
+
+`AiRecognitionService` 是有界后台调度器，`aiTransport` 在实际 DNS socket 查验公共地址并限制响应大小；`aiFusion` 复用英雄池/玩家名单/数字解析与既有比赛规则。配置或权威修改递增代次并取消旧请求。HUD 区域缓存按 worker/game/profile 保存短期相同图像读数，仍需时钟推进和双样本发布校验；AI 双缓存读数不能冒充独立样本。没有把云端请求加入 HUD 关键等待链。
+
+工作区采用 React 18 兼容的 FlexLayout 0.8.17。布局模型只存节点/尺寸/标签；稳定 portal 宿主拥有真实组件，停靠槽位只负责移动 DOM。关闭标签不卸载识别组件，切换布局不修改服务器状态。小屏幕改纵向宿主排列，退出 Control 正常执行组件清理。
+
+Windows Job 将一次 BAT 启动产生的进程树绑定到启动窗口生命周期。隧道监督器只负责隧道/同步，不拥有后台重启权限。站点请求只发往交接指定接口，密钥从进程环境或忽略的本地 JSON 读取。默认资源准备发生在后台启动前，避免比赛中批量下载。

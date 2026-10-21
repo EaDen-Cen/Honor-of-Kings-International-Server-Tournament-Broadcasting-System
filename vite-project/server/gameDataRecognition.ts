@@ -1,3 +1,5 @@
+import { recognizeHudNumbers } from './hudOcrCache.js';
+import { fusePostGame, fusePlayers, fuseHud } from './aiFusion.js';
 import sharp from 'sharp';
 import {
   fullGameRect,
@@ -120,6 +122,7 @@ export async function recognizeSettlement(
   provider: Pick<PlayerRecognitionProvider, 'recognizePlayerIds' | 'recognizeNumbers'> &
     Partial<Pick<PlayerRecognitionProvider, 'recognizeGrades'>>,
   leftSide: Side = 'blue',
+  aiContext?: string,
 ) {
   const detection = await classifySettlementPage(frame),
     selected = page === 'auto' ? detection.page : page;
@@ -198,25 +201,43 @@ export async function recognizeSettlement(
   );
   if (roster.some((players) => players.length !== 5))
     throw new Error('Ten-player identity snapshot required');
+  const idImages = await Promise.all(
+    Array.from({ length: 10 }, (_, row) => crop(frame, settlementNameRect(row, selected))),
+  );
   const ids = await provider.recognizePlayerIds(
-    await Promise.all(
-      Array.from({ length: 10 }, (_, row) => crop(frame, settlementNameRect(row, selected))),
-    ),
+    idImages,
     roster.map((players) => players.map((p) => p.playerId)) as [string[], string[]],
   );
+  const idCandidates = aiContext
+    ? fusePlayers(
+        idImages,
+        ids.candidates,
+        roster.map((players) => players.map((p) => p.playerId)) as [string[], string[]],
+        aiContext + ':settlement:' + selected,
+      )
+    : ids.candidates;
   const identity = roster.map((players, index) =>
     solvePlayerSlotCandidates(
-      ids.candidates.slice(index * 5, index * 5 + 5),
+      idCandidates.slice(index * 5, index * 5 + 5),
       players.map((p) => p.playerId),
     ),
   );
   const jobs = Array.from({ length: 10 }, (_, screenRow) =>
     settlementColumns(selected, screenRow).map((column) => ({ ...column, screenRow })),
   ).flat();
-  const numeric = await provider.recognizeNumbers(
-    await Promise.all(jobs.map((job) => crop(frame, job.region))),
-    true,
-  );
+  const numberImages = await Promise.all(jobs.map((job) => crop(frame, job.region)));
+  const numeric = await provider.recognizeNumbers(numberImages, true);
+  if (aiContext)
+    jobs.forEach((job, index) => {
+      const fused = fusePostGame(
+        numberImages[index],
+        job.metric,
+        `${aiContext}:${selected}:${job.screenRow}:${job.metric}`,
+        { text: numeric.texts[index], confidence: numeric.confidences[index] },
+      );
+      numeric.texts[index] = fused.text;
+      numeric.confidences[index] = fused.confidence;
+    });
   let gradeWarning: string | undefined;
   // The optional letter-grade worker shares the numeric worker with HUD OCR.
   // If it becomes busy between batches, preserve the completed page fields.
@@ -308,6 +329,7 @@ export async function recognizeLiveHud(
   frame: Buffer,
   provider: PlayerRecognitionProvider,
   regions: Record<LiveCaptureKey, CaptureRect> = liveCaptureRects,
+  aiContext?: string,
 ) {
   const images = await Promise.all(
     liveCaptureKeys.map(async (key) => {
@@ -319,13 +341,14 @@ export async function recognizeLiveHud(
     }),
   );
   const result = await provider.recognizeNumbers(images);
+  const candidates = liveCaptureKeys.map((key, index) => ({
+    key,
+    value: parseLiveNumber(result.texts[index], key),
+    confidence: result.confidences[index],
+    text: result.texts[index],
+  }));
   return {
-    candidates: liveCaptureKeys.map((key, index) => ({
-      key,
-      value: parseLiveNumber(result.texts[index], key),
-      confidence: result.confidences[index],
-      text: result.texts[index],
-    })),
+    candidates: aiContext ? fuseHud(images, candidates, aiContext) : candidates,
     elapsedMs: result.elapsedMs,
   };
 }
@@ -336,6 +359,7 @@ export async function recognizeLiveHudCrops(
   images: unknown,
   provider: Pick<PlayerRecognitionProvider, 'recognizeNumbers'>,
   regions: Record<LiveCaptureKey, CaptureRect>,
+  cacheContext?: string,
 ) {
   const start = performance.now();
   if (!Array.isArray(images) || images.length !== liveCaptureKeys.length)
@@ -374,7 +398,7 @@ export async function recognizeLiveHudCrops(
   const prepared = await Promise.all(
     inputs.map((crop, index) => prepareLiveHudCrop(crop.input, liveCaptureKeys[index])),
   );
-  const result = await provider.recognizeNumbers(prepared);
+  const result = await recognizeHudNumbers(prepared, provider, cacheContext);
   return {
     candidates: liveCaptureKeys.map((key, index) => ({
       key,

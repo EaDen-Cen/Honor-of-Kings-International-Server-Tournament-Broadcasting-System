@@ -27,6 +27,13 @@ if ($PrepareOnly) {
             if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed. Check the npm error above and network access.' }
             Set-Content -LiteralPath $stamp -Value $hash
         }
+        # Fetch all catalog HD artwork before building the manifest into Control
+        # and OBS. Reuse validated local images; an offline failure is nonfatal.
+        if ($env:HOK_SKIP_ART_CACHE -ne '1') {
+            Write-Host 'Preparing local HD hero artwork (first launch may take several minutes)...'
+            & npm.cmd run hero:art-cache
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'Some HD artwork could not be downloaded. Cached art and local portraits remain available; retry preparation when online.' }
+        }
         Write-Host 'Building the Control and Overlay pages...'
         & npm.cmd run build
         if ($LASTEXITCODE -ne 0) { throw 'Build failed. Check the error above.' }

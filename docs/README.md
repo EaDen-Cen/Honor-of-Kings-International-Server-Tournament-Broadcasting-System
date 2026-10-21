@@ -55,3 +55,8 @@
 **赛后 OCR 可视化框选修复（PR #70）**：选手评分不再只能输入百分比坐标；详情见 [赛后与 GHUD 彩排指南](guides/postgame-ghud-overlay-fixes.md#2026-10-13--pr-70--赛后数字-ocr-恢复截图直接框选) 和 [导播操作指南](guides/operator-guide.md)。
 
 **2026-10-18 整合增量**：各识别模块默认复用 BP 窗口，位置校准统一鼠标框选；结算按页面收集数据，MVP 按选手位置显示去重统计，经济图保留实际读取点与完整时间刻度。云端已有连接、设置草稿及 Windows 启动器保护继续保留。详见 [操作步骤](guides/player-alignment-recovery-hud.md) 与 [整合选择和验证](validation/history.md#2026-10-18本地与-github-逐功能整合)。
+
+- [AI 辅助识别配置 / 多厂商 API](guides/ai-recognition.md)（实验功能）
+
+- [可停靠工作区：拖拽、预设、保存与恢复](guides/dock-workspace.md)
+- [PR #91 验证记录、基准范围与待实机验收项](validation/pr91-validation.md)

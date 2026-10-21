@@ -336,3 +336,11 @@ OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgam
 ### 修复单字段 OCR 黑图与难用的评分框选（PR #70）
 
 赛后「单字段 OCR」改为**上传截图/共享窗口 → 预览冻结游戏画面 → 选择选手 → 直接拖框数字 → 单人或批量识别 → 人工核验后应用**。上传到「结算整页采集」的 PNG/JPEG 可在同页的字段工具直接复用；不再依赖独立隐藏视频流或臆测的十个默认裁图位置。可将校准框按同队 130px 固定行距生成其余四人（须人工核对），黑图/纯色裁图拒绝入库，报告数据仍保留置信度和可信冲突保护。详见 [操作说明](docs/guides/postgame-ghud-overlay-fixes.md#2026-10-13--pr-70--赛后数字-ocr-恢复截图直接框选)。
+
+### AI 辅助识别（实验功能）
+
+Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以及多家国内服务商的视觉模型 API。辅助低置信度英雄、玩家 ID、HUD 与赛后数字识别，经过字段校验和现有采用规则；云端异常不阻塞本地识别。API Key 只存于本地服务端内存，重启后需重新配置。使用说明与限制：[AI 识别指南](docs/guides/ai-recognition.md)。
+
+### PR #91：实时识别、工作区与启动准备
+
+AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。仍为实验性开发分支，不代表真实直播已验收。

@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import {test,expect} from './fixtures';
 import {harness} from './harness';
 import {phases} from '../src/shared/types';
@@ -24,6 +25,7 @@ test('OBS workspace suggests BP from Control state but switches only after opera
   try{
     await match.send({type:'reset_match'});
     await page.goto('/control#token=e2e-control');
+    await openDockPanel(page,'obs');
     const panel=page.getByTestId('obs-director');
     await panel.locator(':scope > summary').click();
     await expect(panel.getByTestId('obs-cue-waiting')).toHaveClass(/is-recommended/);

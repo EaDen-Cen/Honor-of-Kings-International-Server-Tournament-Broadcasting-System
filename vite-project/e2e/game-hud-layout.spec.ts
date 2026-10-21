@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test,expect } from './fixtures';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
@@ -64,7 +65,7 @@ test('director can scale the GHUD width while OBS stays 1920×1080 and setting p
     await expect(ribbon.locator('.game-hud-rosters')).toHaveCount(0);
     expect(Math.round((await ribbon.boundingBox())!.width)).toBe(1536);
     await page.goto('/control#token=e2e-control');
-    await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     const slider=page.getByRole('slider',{name:'HUD width'});
     await expect(slider).toHaveValue('80');
     await expect(page.getByText('HUD width · 80% (1536px)')).toBeVisible();

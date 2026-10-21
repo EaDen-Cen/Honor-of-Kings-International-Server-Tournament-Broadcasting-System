@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { harness } from './harness';
@@ -15,7 +16,7 @@ test('settlement page review requires unique identities and protects trusted fie
       expect(route.request().postDataJSON().reportId).toBe(report.id);
       await route.fulfill({json:{reportId:report.id,page:'overview',capturedAt:Date.now(),elapsedMs:100,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:null,suggestedRowId:p.rowId})),candidates:report.players.flatMap((_,screenRow)=>Object.entries({totalDamage:value,damageShare:20,damageTaken:20000,damageTakenShare:20,gold:7500,goldShare:20,participation:70,...(includeHealing?{healing:1000}:{})}).map(([metric,number])=>({screenRow,metric,value:number,confidence:.95,text:String(number)})))}});
     });
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'data.png',mimeType:'image/png',buffer:Buffer.from(fixture.tabs[0],'base64')});
     await capture.getByRole('button',{name:'Capture full page',exact:true}).click();
@@ -48,7 +49,7 @@ test('page-first workflow retains uploaded drafts and stores exact economy and l
       calls++;const summary=calls===2;
       await route.fulfill({json:{reportId:report.id,page:summary?'summary':'economy',capturedAt:Date.now(),elapsedMs:10,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:p.rowId,suggestedRowId:p.rowId})),candidates:report.players.flatMap((_,screenRow)=>[{screenRow,metric:'gold',value:summary?7589:7600,resolution:summary?1:100,confidence:.95,text:summary?'7589':'7.6k'},...(!summary?[{screenRow,metric:'goldShare',value:18,resolution:1,confidence:.95,text:'18%'}]:[])]),grades:summary?report.players.map((_,screenRow)=>({screenRow,value:'B',confidence:.95,text:'B'})):undefined}});
     });
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const advanced=page.getByText('Advanced: field OCR · draw boxes on the actual screenshot',{exact:true}).locator('..');
     expect(await advanced.evaluate(e=>(e as HTMLDetailsElement).open)).toBe(false);
     const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
@@ -79,7 +80,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
       if(response.status()===503)return null;
       expect(response.ok()).toBe(true);return (await response.json()).candidates.map((c:{value:number})=>c.value);
     },{timeout:30000}).toEqual([0,0,1500,1500,0,0,12]);
-    await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'hud.png',mimeType:'image/png',buffer:Buffer.from(fixture.hud,'base64')});
     const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
@@ -118,7 +119,7 @@ test('GHUD live reads publish verified values, manual edits freeze and ended str
       const values={blueKills:0,redKills:0,blueGold:1500,redGold:1500,blueTowers:0,redTowers:0,gameTimeSeconds:calls===1?12:calls===2?14:calls+12};
       await route.fulfill({json:{context,capturedAt:Date.now()-(calls===1?1000:0),elapsedMs:10,candidates:Object.entries(values).map(([key,value])=>({key,value,confidence:.96,text:String(value)}))}});
     });
-    await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();
     const sample=capture.getByRole('button',{name:'Sample GHUD',exact:true});await expect(sample).toBeDisabled();
@@ -162,7 +163,7 @@ test('stable settlement collection detects page changes even when the player tab
     await page.route('**/api/v1/recognition/settlement',async route=>{
       calls++;await route.fulfill({json:{reportId:report.id,page:calls===1?'overview':'damage',capturedAt:Date.now(),elapsedMs:10,evidence:'/uploads/player-portraits/00000000-0000-0000-0000-000000000000.png',rows:report.players.map((p,screenRow)=>({screenRow,text:p.playerId,rowId:null,suggestedRowId:null})),candidates:[]}});
     });
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await capture.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();await capture.getByRole('checkbox',{name:'Collect drafts when frames stabilize',exact:true}).check();
     await expect(capture.getByRole('button',{name:'Data ✓',exact:true})).toBeEnabled();
@@ -193,7 +194,7 @@ test('automatic HUD output remains enabled after its own state confirmations',as
       await route.fulfill({json:{context,capturedAt,profile:'test-profile',elapsedMs:10,candidates:Object.entries(values).map(([key,value])=>({key,value,confidence:.96,text:String(value)}))}});
     });
     await page.goto('/control');
-    await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const panel=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await panel.getByRole('button',{name:'Connect BP window (shared by all modules)',exact:true}).click();

@@ -93,7 +93,7 @@ export function parseLiveNumber(text:string,key:LiveCaptureKey):number|null {
   }
   return /^\d{1,3}$/.test(value)&&Number(value)<=(key.endsWith('Towers')?11:200)?Number(value):null;
 }
-export interface NumericCandidate { value:number|null; confidence:number; text:string }
+export interface NumericCandidate { source?: 'ai'; value:number|null; confidence:number; text:string }
 export interface LiveCandidate extends NumericCandidate { key:LiveCaptureKey }
 /** Two independent reads must agree; animated gold/time may advance within bounds. */
 export function consistentLiveValue(key:LiveCaptureKey,previous:number,next:number,elapsedMs:number):boolean {

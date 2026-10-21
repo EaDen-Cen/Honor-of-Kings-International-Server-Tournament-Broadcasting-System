@@ -1,6 +1,10 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
+if "%~1"=="--managed-session" goto managed_session
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\launcher-session.ps1"
+exit /b %errorlevel%
+:managed_session
 title HOK Broadcast Launcher
 
 echo ==========================================
@@ -60,7 +64,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [3/4] Waiting for public URL...
+echo [3/4] Waiting for public URL and optional Sites auto-sync...
 set /a TUNNEL_TRIES=0
 :wait_tunnel
 set "PUBLIC_URL="
@@ -113,6 +117,8 @@ echo Overlay:
 echo   %PUBLIC_URL%/overlay/draft
 echo.
 echo Saved to artifacts\current-public-url.txt
+echo Keep this launcher open during broadcast. Closing it stops services started by this launch.
+echo Press any key below to stop this launch. Existing reused sessions remain running.
 echo ==========================================
 echo.
 pause

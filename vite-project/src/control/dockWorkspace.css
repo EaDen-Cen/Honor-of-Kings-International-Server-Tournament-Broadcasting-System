@@ -1,0 +1,148 @@
+.dock-workspace {
+  min-width: 0;
+  --color-text: #e4eaf3;
+  --color-background: #111827;
+}
+.dock-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  background: #182236;
+  border: 1px solid #34445f;
+  border-radius: 8px;
+}
+.dock-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dock-toolbar input {
+  max-width: 180px;
+}
+.dock-hint {
+  font-size: 12px;
+  color: #aebbd0;
+  margin: 6px 0;
+}
+.dock-layout {
+  position: relative;
+  height: calc(100vh - 340px);
+  min-height: 620px;
+  border: 1px solid #34445f;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.dock-slot,
+.dock-panel {
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+}
+.dock-panel {
+  padding: 8px;
+  box-sizing: border-box;
+}
+.dock-panel > .panel {
+  margin-top: 0;
+}
+.dock-panel-menu {
+  position: relative;
+}
+.dock-panel-menu > div {
+  position: absolute;
+  right: 0;
+  top: 28px;
+  display: grid;
+  min-width: 220px;
+  padding: 8px;
+  background: #182236;
+  z-index: 100;
+  border: 1px solid #63728b;
+}
+.dock-panel .control-hero-picker {
+  position: static;
+  max-height: none;
+}
+.dock-panel .control-monitor {
+  position: static;
+}
+.dock-panel .team-grid {
+  min-width: 0;
+}
+.dock-panel .compact-board .picks {
+  gap: 3px;
+}
+.dock-workspace .flexlayout__tab_button {
+  font-size: 13px;
+  padding: 9px;
+}
+.dock-workspace .flexlayout__outline_rect {
+  border: 2px solid #6aaaff;
+  background: #3872c344;
+}
+.dock-workspace .flexlayout__splitter:hover {
+  background: #5791d9;
+}
+@media (max-width: 900px) {
+  .dock-mobile .dock-slot,
+  .dock-mobile .dock-panel {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+  .dock-mobile .control-monitor .control-monitor {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .dock-mobile .control-draft-workspace {
+    min-width: 0;
+  }
+  .dock-toolbar {
+    position: static;
+  }
+  .dock-panel-menu > div {
+    left: 0;
+    right: auto;
+  }
+  .dock-mobile .dock-panel .control-hero-picker {
+    position: static;
+  }
+  .dock-mobile .picker-heading {
+    position: sticky;
+  }
+  .dock-mobile .control-monitor {
+    max-height: none;
+  }
+  .dock-workspace {
+    min-width: 0;
+    overflow: visible;
+  }
+}
+
+/* Responsive rules must follow the panel width, not the whole monitor width. */
+.dock-layout .dock-panel {
+  container-type: inline-size;
+}
+@container (max-width:760px) {
+  .obs-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .obs-cue-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .obs-cue-row label {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 900px) {
+  .dock-mobile .dock-slot,
+  .dock-mobile .dock-panel {
+    display: contents;
+  }
+  .dock-mobile .control-monitor .control-monitor {
+    display: contents;
+  }
+}

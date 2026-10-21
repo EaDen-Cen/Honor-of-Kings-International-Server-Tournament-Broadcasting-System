@@ -78,3 +78,11 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 
 ### PR #70：数字字段 OCR 部分选手模式
 `POST /api/v1/recognition/postgame` 支持 `{reportId,metric,images:[PNG data URL ...],rowIds:[report rowId ...]}`，其中 image/rowId 一一对应，允许 1–10 项，`rowIds` 必须属于对应已建立的 `PostGameReport.players` 且不能重复。旧客户端若省略 rowIds，只接受与报告人数一致的完整十行数组，不允许一张图暗中写入 P1。请求中完全空白/纯色图将跳过，若全部空白返回 422；有有效图才调用数值 OCR，并按原始 rowId 返回 `{candidates:[{rowId,value,confidence,text,evidence}],elapsedMs}`。每个 candidate 必须由 Control 人工点击应用，保护手工值与已有可信冲突。截图通过前端会话分享；服务器存储的 evidence 仅为实际参与 OCR 的裁图。
+
+## PR #91 AI 与隧道同步
+
+AI 配置 GET/PUT `/api/v1/ai-recognition/config` 仅本机授权 Control；GET 公开配置不含 key，附无敏感信息的计数 diagnostics。PUT 省略 apiKey 仅同一 vendor+endpoint 沿用，空字符串清除，更换目标必须重配。禁止 URL 查询凭据。
+
+`/api/recognize-frame`、`/api/v1/recognition/frame` 返回经验证的英雄候选；玩家、HUD、赛后候选同样沿用既有响应结构/状态修改入口。HUD 候选新增可选 `source:'ai'` 标记；两个 AI 样本不能单独满足自动发布规则。未经解析的模型原文 sidecar 不再返回。
+
+对 Sites 的客户端契约：PUT 固定 `/gateway/api/tunnel`，独立 Bearer `TUNNEL_SYNC_TOKEN`、JSON `{origin}`。2xx 表示接口接受；401/403 不重试凭据；404/405/501 标记未部署；其余失败有限重试。客户端不能替代网站的配对凭据验证和 D1 保存事务。此 PR 不声称服务端已经部署。

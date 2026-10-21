@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { expect, test } from './fixtures';
 import type { Snapshot } from '../src/shared/types';
 import { harness } from './harness';
@@ -144,7 +145,7 @@ test('actions work on LAN browsers without crypto.randomUUID', async ({ page, ba
     const snapshot: Snapshot = await (await page.request.get('/api/match', { headers: { Authorization: 'Bearer e2e-control' } })).json();
     expect(snapshot.casterDelaySeconds).toBe(121);
     await match.send({ type: 'settings', settings: { ...match.state(), language: 'eng' } });
-    await page.getByText('Live HUD / kills, towers and objectives', { exact: true }).click();
+    await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives', { exact: true }).click();
     await page.getByLabel('Objective name', { exact: true }).fill('LAN Dragon');
     await page.getByRole('button', { name: 'Add objective', exact: true }).click();
     await expect.poll(() => match.state().liveGameStats.neutralObjectives.some(item => item.name === 'LAN Dragon')).toBe(true);
