@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { allPoolHeroes } from '../src/shared/heroPool.js';
 /**
  * Optional cloud vision recognition. The API key is intentionally process-memory only:
@@ -26,6 +27,23 @@ const vendors = Object.keys(defaults) as AiVendor[];
 const heroNames = new Map(allPoolHeroes.map(hero => [hero.id, `${hero.chineseName} / ${hero.englishName}`]));
 let settings:AiSettings={enabled:false,vendor:'openai',model:'',endpoint:'',apiKey:''};
 let active=false;
+const adviceCache=new Map<string,{until:number;value:{source:'ai';task:string;text:string}}>();
+const heroCache=new Map<string,{until:number;heroId:number;confidence:number}>();
+const inFlight=new Set<string>();
+let lastDispatch=0;
+let cooldownUntil=0;
+const TTL_MS=12_000;
+function keyFor(image:string,context:string){return createHash('sha256').update(image).update(context).digest('hex');}
+function remember<T>(cache:Map<string,T>,key:string,value:T){
+  cache.delete(key);cache.set(key,value);
+  if(cache.size>80)cache.delete(cache.keys().next().value!);
+}
+/** Never queue old video frames during cloud congestion. */
+function canDispatch(){
+  const now=Date.now();
+  if(active||now<cooldownUntil||now-lastDispatch<1200)return false;
+  lastDispatch=now;return true;
+}
 export const aiPublicConfig=():AiPublicConfig=>({enabled:settings.enabled,vendor:settings.vendor,model:settings.model,endpoint:settings.endpoint,configured:Boolean(settings.apiKey)});
 export function setAiConfig(input:unknown):AiPublicConfig {
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid AI configuration');
@@ -47,6 +65,7 @@ export function setAiConfig(input:unknown):AiPublicConfig {
      host==='localhost'||host.endsWith('.local')||host.endsWith('.internal')||
      host.includes(':')||privateIp) throw Error('AI endpoint must be public HTTPS');
   if(vendor!=='custom'&&url.origin!==new URL(defaults[vendor]).origin)throw Error('Use Custom for third-party gateways');
+  adviceCache.clear();heroCache.clear();
   settings={enabled:v.enabled,vendor,model:v.model.trim(),endpoint,apiKey:typeof v.apiKey==='string'&&v.apiKey.length?v.apiKey:settings.apiKey};
   return aiPublicConfig();
 }
@@ -81,7 +100,7 @@ export async function askAiVision(image:string,prompt:string):Promise<string|und
   active=true;
   const current={...settings};
   const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),4500);
+  const timeout=setTimeout(()=>controller.abort(),1800);
   try{
     let target=current.endpoint; const headers:Record<string,string>={'Content-Type':'application/json'}; let body:unknown;
     if(current.vendor==='gemini'){
@@ -96,36 +115,51 @@ export async function askAiVision(image:string,prompt:string):Promise<string|und
       body={model:current.model,temperature:0,max_tokens:100,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:image}}]}]};
     }
     const response=await fetch(target,{method:'POST',headers,body:JSON.stringify(body),signal:controller.signal,redirect:'error'});
-    if(!response.ok)throw Error('AI provider HTTP '+response.status);
+    if(!response.ok){if(response.status===429||response.status>=500)cooldownUntil=Date.now()+10_000;throw Error('AI provider HTTP '+response.status);}
     const json=await response.json() as {candidates?:{content?:{parts?:{text?:string}[]}}[];content?:{text?:string}[];choices?:{message?:{content?:string}}[]};
     const reply=current.vendor==='gemini'?json.candidates?.[0]?.content?.parts?.[0]?.text:current.vendor==='anthropic'?json.content?.[0]?.text:json.choices?.[0]?.message?.content;
     return typeof reply==='string'?reply.slice(0,8000):undefined;
   }finally{clearTimeout(timeout);active=false;}
 }
+/** Fast path always returns local recognition without waiting for any network request.
+ * A cached AI guess may be used on a subsequent identical frame only.
+ */
 export async function recognizeAiWithFallback<T extends {candidates:{heroId:number;confidence:number}[]}>(image:string,ids:number[]|undefined,local:()=>Promise<T>):Promise<T>{
   const result=await local();
-  // Existing local recognition remains authoritative unless AI finds a strong candidate.
-  if(!settings.enabled||!ids?.length||result.candidates[0]?.confidence>=0.92)return result;
-  try{
-    const match=await recognizeAiHero(image,ids);
-    if(match&&match.confidence>=0.85)return {...result,candidates:[match,...result.candidates.filter(x=>x.heroId!==match.heroId)]};
-  }catch{/* Network, quota, model errors and timeouts fall back to the tested local matcher. */}
+  if(!settings.enabled||!settings.apiKey||!settings.model||!ids?.length||typeof image!=='string'||result.candidates[0]?.confidence>=0.92)return result;
+  const key=keyFor(image,ids.join(','));
+  const cached=heroCache.get(key);
+  if(cached&&cached.until>Date.now()&&cached.confidence>=0.85&&ids.includes(cached.heroId)){
+    return {...result,candidates:[{heroId:cached.heroId,confidence:cached.confidence},...result.candidates.filter(x=>x.heroId!==cached.heroId)]};
+  }
+  if(!inFlight.has(key)&&canDispatch()){
+    inFlight.add(key);
+    void recognizeAiHero(image,ids).then(match=>{
+      if(match&&match.confidence>=0.85)remember(heroCache,key,{...match,until:Date.now()+12_000});
+    }).catch(()=>{/* Network problems never stop the live pipeline. */}).finally(()=>inFlight.delete(key));
+  }
   return result;
 }
 
 /** Optional AI sidecar; numeric/text outputs are suggestions, never committed to MatchState.
  * Keep latency predictable: skip AI for already trusted local results.
  */
-export async function aiAdvisory(image:unknown,task:'players'|'hud'|'settlement'|'postgame',context:string):Promise<{source:'ai';task:string;text:string}|undefined>{
-  if(typeof image!=='string'||!settings.enabled)return;
+/** Advisory sidecar: return existing hints only; schedule analysis after the live reply. */
+export function aiAdvisory(image:unknown,task:'players'|'hud'|'settlement'|'postgame',context:string):{source:'ai';task:string;text:string}|undefined{
+  if(typeof image!=='string'||!settings.enabled||!settings.apiKey||!settings.model)return;
+  const key=keyFor(image,task+context),cached=adviceCache.get(key);
+  if(cached&&cached.until>Date.now())return cached.value;
+  if(inFlight.has(key)||!canDispatch())return;
   const prompts={
-    players:'Read visible player names/IDs in top-to-bottom order. Preserve punctuation and case. Never invent an unseen name.',
-    hud:'Read only visible match timer, kills, economy, towers and neutral objectives. Report uncertain or obscured fields as null.',
-    settlement:'Read the visible settlement page metrics with their row ordering; do not infer unshown metrics.',
-    postgame:'Read only the numeric value from this selected postgame crop. If unreadable, return null.',
+    players:'Read visible player IDs in top-to-bottom order. Preserve punctuation and case. Do not invent names.',
+    hud:'Read visible timer, kills, economy, towers and objectives. Obscured fields must be null.',
+    settlement:'Read visible settlement metrics and row ordering. Unseen metrics must be null.',
+    postgame:'Read numeric value in this crop, or null if unreadable.',
   };
-  try{
-    const text=await askAiVision(image,prompts[task]+' Context: '+context.slice(0,3000)+'. Return compact JSON with explicit nulls.');
-    return text?{source:'ai',task,text}:undefined;
-  }catch{return;}
+  inFlight.add(key);
+  void askAiVision(image,prompts[task]+' Context: '+context.slice(0,3000)+'. Return JSON with nulls.')
+    .then(text=>{if(text)remember(adviceCache,key,{until:Date.now()+12_000,value:{source:'ai',task,text}});})
+    .catch(()=>{/* Fallback is the existing local OCR result. */})
+    .finally(()=>inFlight.delete(key));
+  return;
 }
