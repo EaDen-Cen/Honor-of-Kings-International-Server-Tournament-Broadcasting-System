@@ -30,3 +30,11 @@ test('all provider selections accept their own default API endpoint',()=>{
     assert.equal(config.configured,true);
   }
 });
+
+test('slow cloud must not delay local recognition, including repeat frames',async()=>{
+  setAiConfig({enabled:true,vendor:'openai',model:'vision',endpoint:'',apiKey:'fake'});
+  const start=performance.now();
+  const result=await recognizeAiWithFallback('data:image/png;base64,aGVsbG8=',[7],local);
+  assert.equal(result.candidates[0].heroId,7);
+  assert.ok(performance.now()-start<500,'local path should not wait for cloud');
+});
