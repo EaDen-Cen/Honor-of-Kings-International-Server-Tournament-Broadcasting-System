@@ -77,7 +77,7 @@ export async function recognizeAiHero(image:string,allowedHeroIds:number[]):Prom
     }
     const response=await fetch(target,{method:'POST',headers,body:JSON.stringify(body),signal:controller.signal,redirect:'error'});
     if(!response.ok)throw Error('AI provider HTTP '+response.status);
-    const json=await response.json() as Record<string,any>;
+    const json=await response.json() as {candidates?:{content?:{parts?:{text?:string}[]}}[];content?:{text?:string}[];choices?:{message?:{content?:string}}[]};
     const reply=current.vendor==='gemini'?json.candidates?.[0]?.content?.parts?.[0]?.text:current.vendor==='anthropic'?json.content?.[0]?.text:json.choices?.[0]?.message?.content;
     return typeof reply==='string'?parseCandidate(reply,allowedHeroIds):undefined;
   }finally{clearTimeout(timeout);active=false;}
