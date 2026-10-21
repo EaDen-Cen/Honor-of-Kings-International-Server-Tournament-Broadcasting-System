@@ -1,3 +1,4 @@
+import { AiRecognitionSettings } from './control/AiRecognitionSettings';
 import { PostGamePanel } from './control/PostGamePanel';
 import { MvpOverlay } from './overlay/MvpOverlay';
 import { PostGameBroadcast } from './overlay/PostGameBroadcast';
@@ -127,7 +128,7 @@ const settingsFromState = (state: MatchState): MatchSettings => ({
   artSourceMode: state.artSourceMode,
 });
 
-function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send: (a: Action) => void; disabled: boolean }) {
+function MatchSettingsPanel({ state, send, disabled, token }: { state: MatchState; send: (a: Action) => void; disabled: boolean; token: string }) {
   const t = translator(state.language);
   const { form, setForm, dirty, conflicts, reset } = useSettingsDraft(settingsFromState(state));
   const firstPickLocked = state.currentPhase > 0;
@@ -143,6 +144,7 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
       gameNumber: state.gameNumber,
     } });
   }}>
+    <AiRecognitionSettings token={token} zh={state.language === 'zh'} />
     <div className="match-settings-grid">
       <section><h3>{t('matchDisplay')}</h3>
         <label>{t('stage')}<input maxLength={80} value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })} /></label>
@@ -342,7 +344,7 @@ export default function BroadcastApp() {
           </section>
 
           <DraftLifecycle state={state} send={send} disabled={disabled} />
-          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} /></SettingsDialog>}
+          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} token={token} /></SettingsDialog>}
           {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
           {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />}
         </>}>
