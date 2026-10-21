@@ -36,7 +36,16 @@ export function setAiConfig(input:unknown):AiPublicConfig {
   const vendor=v.vendor as AiVendor;
   const endpoint=v.endpoint.trim()||defaults[vendor];
   const url=new URL(endpoint);
-  if(url.protocol!=='https:'||url.username||url.password||url.port&&url.port!=='443'||!url.hostname.includes('.')||/^(localhost|.*\\.local|.*\\.internal|127\\.|10\\.|192\\.168\\.|169\\.254\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|0\\.|::1|\\[)/i.test(url.hostname))throw Error('AI endpoint must be public HTTPS');
+  // Reject local/private destinations before forwarding an operator-supplied key.
+  const host=url.hostname.toLowerCase();
+  const ipv4=host.split('.').map(Number);
+  const privateIp=ipv4.length===4&&ipv4.every(Number.isInteger)&&
+    (ipv4[0]===0||ipv4[0]===10||ipv4[0]===127||ipv4[0]===169&&ipv4[1]===254||
+      ipv4[0]===192&&ipv4[1]===168||ipv4[0]===172&&ipv4[1]>=16&&ipv4[1]<=31);
+  if(url.protocol!=='https:'||url.username||url.password||
+     (url.port&&url.port!=='443')||!host.includes('.')||
+     host==='localhost'||host.endsWith('.local')||host.endsWith('.internal')||
+     host.includes(':')||privateIp) throw Error('AI endpoint must be public HTTPS');
   if(vendor!=='custom'&&url.origin!==new URL(defaults[vendor]).origin)throw Error('Use Custom for third-party gateways');
   settings={enabled:v.enabled,vendor,model:v.model.trim(),endpoint,apiKey:typeof v.apiKey==='string'&&v.apiKey.length?v.apiKey:settings.apiKey};
   return aiPublicConfig();
