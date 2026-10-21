@@ -75,7 +75,7 @@ export async function recognizeAiHero(image:string,allowedHeroIds:number[]):Prom
   try{
     const options=allowedHeroIds.map(id=>id+': '+(heroNames.get(id)??'Unknown')).join('; ');
     const prompt='Identify the Honor of Kings hero in this cropped game image. Match visual identity against this exact ID-to-name catalog: '+options+'. Return ONLY JSON {"heroId":number,"confidence":number}. If uncertain return {"heroId":0,"confidence":0}. Only use a supplied ID.';
-    let target=current.endpoint, headers:Record<string,string>={'Content-Type':'application/json'},body:unknown;
+    let target=current.endpoint; const headers:Record<string,string>={'Content-Type':'application/json'}; let body:unknown;
     if(current.vendor==='gemini'){
       target=target.replace(/\/$/,'')+'/models/'+encodeURIComponent(current.model)+':generateContent';
       headers['x-goog-api-key']=current.apiKey;
