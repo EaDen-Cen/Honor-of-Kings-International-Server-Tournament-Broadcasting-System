@@ -1,4 +1,9 @@
-import { aiPublicConfig, setAiConfig, recognizeAiWithFallback, aiAdvisory } from './aiRecognition.js';
+import {
+  aiPublicConfig,
+  setAiConfig,
+  recognizeAiWithFallback,
+  aiAdvisory,
+} from './aiRecognition.js';
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
@@ -253,21 +258,35 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/api/v1/ai-recognition/config') {
       // Keys and AI settings are local operator-only; no CORS-proxied sessions.
-      if (roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' || !localCaptureRequest(req)) {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localCaptureRequest(req)
+      ) {
         json(403, { error: 'Local Control only' });
         req.resume();
         return;
       }
-      if (req.method === 'GET') { json(200, aiPublicConfig()); return; }
-      if (req.method !== 'PUT') { json(405, { error: 'GET or PUT required' }); return; }
+      if (req.method === 'GET') {
+        json(200, aiPublicConfig());
+        return;
+      }
+      if (req.method !== 'PUT') {
+        json(405, { error: 'GET or PUT required' });
+        return;
+      }
       try {
         let body = '';
         for await (const chunk of req) {
           body += chunk;
-          if (body.length > 4096) { json(413, { error: 'Configuration too large' }); return; }
+          if (body.length > 4096) {
+            json(413, { error: 'Configuration too large' });
+            return;
+          }
         }
         json(200, setAiConfig(JSON.parse(body)));
-      } catch { json(400, { error: 'Invalid AI settings or endpoint' }); }
+      } catch {
+        json(400, { error: 'Invalid AI settings or endpoint' });
+      }
       return;
     }
     if (url.pathname === '/api/access') {
@@ -425,7 +444,13 @@ const server = createServer(async (req, res) => {
             json(409, { error: 'Game changed; capture again' });
             return;
           }
-          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions), ai: await aiAdvisory(input.images?.[0], 'hud', context) });
+          json(200, {
+            ...result,
+            capturedAt,
+            context,
+            profile: liveCaptureProfile(regions),
+            ai: await aiAdvisory(input.images?.[0], 'hud', context),
+          });
           return;
         }
         const frame = await decodeGameFrame(input.image, input.region);
@@ -447,7 +472,13 @@ const server = createServer(async (req, res) => {
             json(409, { error: 'Game changed; capture again' });
             return;
           }
-          json(200, { ...result, capturedAt, context, profile: liveCaptureProfile(regions), ai: await aiAdvisory(input.image, 'hud', context) });
+          json(200, {
+            ...result,
+            capturedAt,
+            context,
+            profile: liveCaptureProfile(regions),
+            ai: await aiAdvisory(input.image, 'hud', context),
+          });
         } else {
           const report = store.data.state.postGameReports.find((r) => r.id === input.reportId);
           if (!report) {
@@ -586,7 +617,11 @@ const server = createServer(async (req, res) => {
             };
           }),
         );
-        json(200, { candidates, elapsedMs: result.elapsedMs, ai: await aiAdvisory(input.images?.[visible[0]], 'postgame', input.metric) });
+        json(200, {
+          candidates,
+          elapsedMs: result.elapsedMs,
+          ai: await aiAdvisory(input.images?.[visible[0]], 'postgame', input.metric),
+        });
       } catch {
         json(400, { error: 'Post-game capture failed; check regions or retry after player OCR' });
       }
@@ -702,7 +737,11 @@ const server = createServer(async (req, res) => {
           ...result,
           blue: solvePlayerSlotCandidates(result.candidates.slice(0, 5), state.blueTeam.players),
           red: solvePlayerSlotCandidates(result.candidates.slice(5), state.redTeam.players),
-          ai: await aiAdvisory(input.images?.[0], 'players', [...state.blueTeam.players, ...state.redTeam.players].join(', ')),
+          ai: await aiAdvisory(
+            input.images?.[0],
+            'players',
+            [...state.blueTeam.players, ...state.redTeam.players].join(', '),
+          ),
         });
       } catch (error) {
         json(400, { error: error instanceof Error ? error.message : 'Player recognition failed' });
@@ -741,7 +780,9 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Stale capture' });
           return;
         }
-        const result = await recognizeAiWithFallback(input.image, input.allowedHeroIds, () => recognitionProvider.recognize(input));
+        const result = await recognizeAiWithFallback(input.image, input.allowedHeroIds, () =>
+          recognitionProvider.recognize(input),
+        );
         if (input.revision !== store.data.revision) {
           json(409, { error: 'State changed during capture' });
           return;
