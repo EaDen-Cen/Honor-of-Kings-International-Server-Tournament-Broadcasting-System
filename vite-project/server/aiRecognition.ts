@@ -66,15 +66,23 @@ function parseCandidate(raw:string,allowed:number[]):{heroId:number;confidence:n
 }
 /** One cloud request maximum. No retries on live frames, so a failing API cannot flood. */
 export async function recognizeAiHero(image:string,allowedHeroIds:number[]):Promise<{heroId:number;confidence:number}|undefined>{
-  if(!settings.enabled||!settings.apiKey||!settings.model||active||!allowedHeroIds.length||allowedHeroIds.length>250)return;
+  if(!allowedHeroIds.length||allowedHeroIds.length>250)return;
+  const options=allowedHeroIds.map(id=>id+': '+(heroNames.get(id)??'Unknown')).join('; ');
+  const prompt='Identify the Honor of Kings hero in this cropped game image. Match visual identity against this exact ID-to-name catalog: '+options+'. Return ONLY JSON {"heroId":number,"confidence":number}. If uncertain return {"heroId":0,"confidence":0}. Only use a supplied ID.';
+  const reply=await askAiVision(image,prompt);
+  return reply?parseCandidate(reply,allowedHeroIds):undefined;
+}
+/** Shared bounded vision transport for ID, HUD, settlement and postgame advisory reads.
+ * AI outputs are untrusted; consumers MUST keep manual review/validation gates.
+ */
+export async function askAiVision(image:string,prompt:string):Promise<string|undefined>{
+  if(!settings.enabled||!settings.apiKey||!settings.model||active||prompt.length>16000)return;
   const {mime,data}=imagePayload(image);
   active=true;
   const current={...settings};
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),4500);
   try{
-    const options=allowedHeroIds.map(id=>id+': '+(heroNames.get(id)??'Unknown')).join('; ');
-    const prompt='Identify the Honor of Kings hero in this cropped game image. Match visual identity against this exact ID-to-name catalog: '+options+'. Return ONLY JSON {"heroId":number,"confidence":number}. If uncertain return {"heroId":0,"confidence":0}. Only use a supplied ID.';
     let target=current.endpoint; const headers:Record<string,string>={'Content-Type':'application/json'}; let body:unknown;
     if(current.vendor==='gemini'){
       target=target.replace(/\/$/,'')+'/models/'+encodeURIComponent(current.model)+':generateContent';
@@ -91,7 +99,7 @@ export async function recognizeAiHero(image:string,allowedHeroIds:number[]):Prom
     if(!response.ok)throw Error('AI provider HTTP '+response.status);
     const json=await response.json() as {candidates?:{content?:{parts?:{text?:string}[]}}[];content?:{text?:string}[];choices?:{message?:{content?:string}}[]};
     const reply=current.vendor==='gemini'?json.candidates?.[0]?.content?.parts?.[0]?.text:current.vendor==='anthropic'?json.content?.[0]?.text:json.choices?.[0]?.message?.content;
-    return typeof reply==='string'?parseCandidate(reply,allowedHeroIds):undefined;
+    return typeof reply==='string'?reply.slice(0,8000):undefined;
   }finally{clearTimeout(timeout);active=false;}
 }
 export async function recognizeAiWithFallback<T extends {candidates:{heroId:number;confidence:number}[]}>(image:string,ids:number[]|undefined,local:()=>Promise<T>):Promise<T>{
@@ -103,4 +111,21 @@ export async function recognizeAiWithFallback<T extends {candidates:{heroId:numb
     if(match&&match.confidence>=0.85)return {...result,candidates:[match,...result.candidates.filter(x=>x.heroId!==match.heroId)]};
   }catch{/* Network, quota, model errors and timeouts fall back to the tested local matcher. */}
   return result;
+}
+
+/** Optional AI sidecar; numeric/text outputs are suggestions, never committed to MatchState.
+ * Keep latency predictable: skip AI for already trusted local results.
+ */
+export async function aiAdvisory(image:unknown,task:'players'|'hud'|'settlement'|'postgame',context:string):Promise<{source:'ai';task:string;text:string}|undefined>{
+  if(typeof image!=='string'||!settings.enabled)return;
+  const prompts={
+    players:'Read visible player names/IDs in top-to-bottom order. Preserve punctuation and case. Never invent an unseen name.',
+    hud:'Read only visible match timer, kills, economy, towers and neutral objectives. Report uncertain or obscured fields as null.',
+    settlement:'Read the visible settlement page metrics with their row ordering; do not infer unshown metrics.',
+    postgame:'Read only the numeric value from this selected postgame crop. If unreadable, return null.',
+  };
+  try{
+    const text=await askAiVision(image,prompts[task]+' Context: '+context.slice(0,3000)+'. Return compact JSON with explicit nulls.');
+    return text?{source:'ai',task,text}:undefined;
+  }catch{return;}
 }
