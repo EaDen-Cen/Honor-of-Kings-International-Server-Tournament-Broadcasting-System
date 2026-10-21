@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test,expect } from './fixtures';
 
 test('local OBS director lists audio sources and sends deliberate fade commands',async({page})=>{
@@ -15,6 +16,7 @@ test('local OBS director lists audio sources and sends deliberate fade commands'
     await route.fulfill({json:{inputName:command.inputName,volume:currentVolume}});
   });
   await page.goto('/control#token=e2e-control');
+  await openDockPanel(page,'obs');
   const director=page.getByTestId('obs-director');
   await director.locator(':scope > summary').click();
   await expect(director).toContainText('已连接');

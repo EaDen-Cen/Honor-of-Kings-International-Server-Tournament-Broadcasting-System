@@ -58,6 +58,7 @@ export function trustedLiveUpdates(
   const clock = sample.candidates.find((c) => c.key === 'gameTimeSeconds'),
     oldClock = previous.candidates.find((c) => c.key === 'gameTimeSeconds');
   if (
+    (clock?.source === 'ai' && oldClock?.source === 'ai') ||
     clock?.value == null ||
     oldClock?.value == null ||
     clock.value <= oldClock.value ||
@@ -75,6 +76,8 @@ export function trustedLiveUpdates(
       prior = previous.candidates.find((c) => c.key === key),
       source = stats.sources?.[key];
     if (
+      // Replaying one cached AI answer is not two independent observations.
+      (incoming?.source === 'ai' && prior?.source === 'ai') ||
       incoming?.value == null ||
       prior?.value == null ||
       incoming.confidence < 0.85 ||

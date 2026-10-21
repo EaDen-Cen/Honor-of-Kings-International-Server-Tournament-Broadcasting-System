@@ -1,8 +1,10 @@
+import { invalidateHudCache } from './hudOcrCache.js';
+import { fuseHud, fusePlayers, fusePostGame } from './aiFusion.js';
 import {
   aiPublicConfig,
   setAiConfig,
   recognizeAiWithFallback,
-  aiAdvisory,
+  aiRecognition,
 } from './aiRecognition.js';
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
@@ -267,7 +269,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (req.method === 'GET') {
-        json(200, aiPublicConfig());
+        json(200, { ...aiPublicConfig(), diagnostics: aiRecognition.diagnostics() });
         return;
       }
       if (req.method !== 'PUT') {
@@ -439,7 +441,12 @@ const server = createServer(async (req, res) => {
         }
         if (url.pathname.endsWith('live-hud') && input.images !== undefined) {
           const regions = input.regions ?? liveCaptureRects;
-          const result = await recognizeLiveHudCrops(input.images, playerRecognition, regions);
+          const result = await recognizeLiveHudCrops(
+            input.images,
+            playerRecognition,
+            regions,
+            JSON.stringify([context, liveCaptureProfile(regions)]),
+          );
           if (liveGameContext(store.data.state) !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
@@ -449,7 +456,11 @@ const server = createServer(async (req, res) => {
             capturedAt,
             context,
             profile: liveCaptureProfile(regions),
-            ai: await aiAdvisory(input.images?.[0], 'hud', context),
+            candidates: fuseHud(
+              input.images,
+              result.candidates,
+              JSON.stringify([context, store.data.revision, liveCaptureProfile(regions)]),
+            ),
           });
           return;
         }
@@ -467,7 +478,12 @@ const server = createServer(async (req, res) => {
             return;
           }
           const regions = input.regions ?? liveCaptureRects;
-          const result = await recognizeLiveHud(frame, playerRecognition, regions);
+          const result = await recognizeLiveHud(
+            frame,
+            playerRecognition,
+            regions,
+            JSON.stringify([context, store.data.revision, liveCaptureProfile(regions)]),
+          );
           if (liveGameContext(store.data.state) !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
@@ -477,7 +493,6 @@ const server = createServer(async (req, res) => {
             capturedAt,
             context,
             profile: liveCaptureProfile(regions),
-            ai: await aiAdvisory(input.image, 'hud', context),
           });
         } else {
           const report = store.data.state.postGameReports.find((r) => r.id === input.reportId);
@@ -503,6 +518,7 @@ const server = createServer(async (req, res) => {
             report,
             playerRecognition,
             input.leftSide,
+            JSON.stringify([report.id, store.data.revision]),
           );
           if (!store.data.state.postGameReports.some((r) => r.id === report.id)) {
             json(409, { error: 'Report changed' });
@@ -516,7 +532,6 @@ const server = createServer(async (req, res) => {
             reportId: report.id,
             capturedAt,
             evidence: `/uploads/player-portraits/${name}`,
-            ai: await aiAdvisory(input.image, 'settlement', input.page),
           });
         }
       } catch (error) {
@@ -595,7 +610,19 @@ const server = createServer(async (req, res) => {
         }
         await mkdir(uploadDirectory, { recursive: true });
         const candidates = await Promise.all(
-          result.texts.map(async (text, index) => {
+          result.texts.map(async (localText, index) => {
+            const fused = fusePostGame(
+              input.images[visible[index]],
+              input.metric,
+              JSON.stringify([
+                store.data.revision,
+                report.id,
+                rowIds[visible[index]],
+                input.metric,
+              ]),
+              { text: localText, confidence: result.confidences[index] },
+            );
+            const text = fused.text;
             const sourceIndex = visible[index],
               value = parsePostGameNumber(text, input.metric);
             const name = `${randomUUID()}.png`;
@@ -611,7 +638,7 @@ const server = createServer(async (req, res) => {
               rowId: rowIds[sourceIndex],
               value,
               resolution: postGameNumberResolution(text, input.metric),
-              confidence: value === null ? 0 : result.confidences[index],
+              confidence: value === null ? 0 : fused.confidence,
               text,
               evidence: `/uploads/player-portraits/${name}`,
             };
@@ -620,7 +647,6 @@ const server = createServer(async (req, res) => {
         json(200, {
           candidates,
           elapsedMs: result.elapsedMs,
-          ai: await aiAdvisory(input.images?.[visible[0]], 'postgame', input.metric),
         });
       } catch {
         json(400, { error: 'Post-game capture failed; check regions or retry after player OCR' });
@@ -733,15 +759,17 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Roster or game changed' });
           return;
         }
+        const candidates = fusePlayers(
+          input.images,
+          result.candidates,
+          [state.blueTeam.players, state.redTeam.players],
+          JSON.stringify([context, store.data.revision]),
+        );
         json(200, {
           ...result,
-          blue: solvePlayerSlotCandidates(result.candidates.slice(0, 5), state.blueTeam.players),
-          red: solvePlayerSlotCandidates(result.candidates.slice(5), state.redTeam.players),
-          ai: await aiAdvisory(
-            input.images?.[0],
-            'players',
-            [...state.blueTeam.players, ...state.redTeam.players].join(', '),
-          ),
+          candidates,
+          blue: solvePlayerSlotCandidates(candidates.slice(0, 5), state.blueTeam.players),
+          red: solvePlayerSlotCandidates(candidates.slice(5), state.redTeam.players),
         });
       } catch (error) {
         json(400, { error: error instanceof Error ? error.message : 'Player recognition failed' });
@@ -780,8 +808,11 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Stale capture' });
           return;
         }
-        const result = await recognizeAiWithFallback(input.image, input.allowedHeroIds, () =>
-          recognitionProvider.recognize(input),
+        const result = await recognizeAiWithFallback(
+          input.image,
+          input.allowedHeroIds,
+          () => recognitionProvider.recognize(input),
+          JSON.stringify([store.data.revision, store.data.state.heroPool]),
         );
         if (input.revision !== store.data.revision) {
           json(409, { error: 'State changed during capture' });
@@ -1187,6 +1218,14 @@ wss.on('connection', (ws, req) => {
       if (c.role !== 'control') throw new Error('当前页面仅供查看，无法修改比赛');
       if (message.type !== 'action') throw new Error('不支持此消息类型');
       store.apply(message.id, message.revision, message.action);
+      // Authoritative mutations supersede in-flight cloud interpretations.
+      aiRecognition.invalidate();
+      if (
+        ['reset_match', 'reset_draft', 'next_game', 'settings', 'restore'].includes(
+          message.action.type,
+        )
+      )
+        invalidateHudCache();
       for (const client of clients.keys()) update(client);
       ws.send(JSON.stringify({ type: 'ack', id: message.id }));
     } catch (e) {

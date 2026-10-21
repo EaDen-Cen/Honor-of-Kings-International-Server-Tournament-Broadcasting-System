@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test, expect, type Page } from './fixtures';
 import { harness } from './harness';
 import { initialState, phases } from '../src/shared/types';
@@ -93,7 +94,7 @@ test('duplicate settlement bindings cannot receive manual data, and a grade warn
     }}));
     await page.goto('/control');
     await page.getByRole('button',{name:'Choose game window',exact:true}).click();
-    await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const settlement=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await settlement.getByRole('button',{name:'Capture full page',exact:true}).click();
     await expect(settlement.getByText(/Letter grades could not be read/)).toBeVisible();
@@ -133,7 +134,7 @@ test('red-left settlement pages bind the correct roster, retain numerical drafts
     });
     await page.goto('/control');
     await page.getByRole('button',{name:'Choose game window',exact:true}).click();
-    await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     const settlement=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await settlement.getByRole('button',{name:'Capture full page',exact:true}).click();
     await expect(settlement.getByLabel('Settlement identity 0',{exact:true})).toHaveValue(report.players.find(p=>p.side==='blue')!.rowId);
@@ -151,7 +152,7 @@ test('red-left settlement pages bind the correct roster, retain numerical drafts
     expect(h.state().postGameReports.find(r=>r.id===report.id)!.players.find(p=>p.side==='blue')!.fields.gold?.value).toBe(7005);
     expect(directions).toEqual(['blue','red']);
 
-    await page.reload();await page.getByText('Post-game data and MVP',{exact:true}).click();
+    await page.reload();await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();
     await expect(settlement.getByLabel('Settlement left team',{exact:true})).toHaveValue('red');
     await h.send({type:'reset_match'});await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     await expect(settlement.getByLabel('Settlement left team',{exact:true})).toHaveValue('blue');

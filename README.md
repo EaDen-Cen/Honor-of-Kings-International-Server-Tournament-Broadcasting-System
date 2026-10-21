@@ -339,4 +339,8 @@ OBS 三种 **1920×1080** 页面：`/overlay/mvp` 全屏 MVP、`/overlay/postgam
 
 ### AI 辅助识别（实验功能）
 
-Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以及多家国内服务商的视觉模型 API。仅辅助低置信度英雄识别，失败时回退现有本地识别。API Key 只存于本地服务端内存，重启后需重新配置。使用说明与限制：[AI 识别指南](docs/guides/ai-recognition.md)。
+Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以及多家国内服务商的视觉模型 API。辅助低置信度英雄、玩家 ID、HUD 与赛后数字识别，经过字段校验和现有采用规则；云端异常不阻塞本地识别。API Key 只存于本地服务端内存，重启后需重新配置。使用说明与限制：[AI 识别指南](docs/guides/ai-recognition.md)。
+
+### PR #91：实时识别、工作区与启动准备
+
+AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。仍为实验性开发分支，不代表真实直播已验收。

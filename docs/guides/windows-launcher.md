@@ -80,3 +80,26 @@ This keeps Control isolated from the operator's normal browser profile and avoid
 This is the first desktopization step, not the final distributable EXE. It deliberately reuses the existing server and browser engine while real-device Auto BP / Player ID / OBS validation continues. The planned Electron package can later bundle the same Control UI, server lifecycle, tunnel status and logs without changing match-state APIs.
 
 启动后本机窗口免登录。首次远程使用前在 Control 的“访问与网站设置”保存密码；Quick Tunnel 和其他代理连接需要密码或角色 token。模拟器可独立运行，读取 Control 规则需同时启动 Broadcast 后端。
+
+## PR #91 自动同步 Sites、立绘准备与退出清理
+
+`start-broadcast.bat` → `scripts/launcher-session.ps1`（Windows Job 生命周期）→ 原 BAT 就绪检查 → `run-server.ps1` → `run-cloudflare.ps1`。保持启动器窗口打开；按最后的任意键或关闭窗口会清理本次启动的新子进程，已有复用会话不属于该 Job。手动停止现有会话继续用 `stop-broadcast.bat`；它按项目路径、PID 和创建时间验证归属。
+
+准备阶段默认运行 `npm run hero:art-cache`，复用并校验本地图；仅下载缺失/损坏且具有立绘来源的英雄。当前目录 112 张已知立绘均可本地使用；没有立绘来源的英雄保留头像，不虚构高清资源。最多 3 路下载、单图超时 20 秒/8 MiB，离线失败不阻止构建。紧急启动可以设置 `HOK_SKIP_ART_CACHE=1`；正常使用不建议跳过赛前检查。
+
+Sites 同步独立配置（不要使用 Control token 或管理员密码）：
+
+```powershell
+$env:TUNNEL_SYNC_TOKEN = '<网站端配置的独立同步密钥>'
+.\start-broadcast.bat
+```
+
+或复制 `tunnel-sync.example.json` 为 `tunnel-sync.local.json`，本机填写 token。该文件已忽略，禁止提交、截图或转发。缺少 token 不请求 API，保留手动后台连接。
+
+固定请求：`PUT https://chasingwind-esport.prettyelm1.chatgpt.site/gateway/api/tunnel`，Bearer 同步密钥，JSON `{ "origin": "https://…trycloudflare.com" }`。本地和公网 `/api/health` 均确认 `ok:true` 才请求；HTTPS 不跟随重定向，不打印响应体/密钥。网站端必须独立验证后端归属、访问配置及 SSRF；客户端健康检查不证明所有权。
+
+URL 仅从 cloudflared 的盒状公告行获取；帮助链接、子域后缀、路径及查询参数均拒绝。监督进程增量读取日志，变化 URL 重置同步状态。每个地址最多 12 次健康等待、3 次发送；401/403 提示凭据、404/405/501 表示接口不可用并停止该地址重试。更正配置或部署 API 后仅重启隧道即可重新尝试，不能为此重启 HOK 后端。隧道自身退出最多启动 5 次。
+
+交接时 Sites API 未部署；本 PR 只实现 GitHub 侧调用，不改变网站 D1、所有者登录或手动填写功能。查看启动器消息及 `artifacts/cloudflared.log`；无密钥日志。
+
+测试：`powershell -NoProfile -File scripts/tunnel-sync.test.ps1` 使用模拟网络，不含真实凭据。完整成功配对、Cloudflare 断线重连和 Sites 真实部署仍待双方联合验收。

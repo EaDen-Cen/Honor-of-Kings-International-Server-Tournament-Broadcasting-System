@@ -7,6 +7,7 @@ import { canVerifyPlayerOrder, playerOrderCheckKey } from '../shared/playerOrder
 /** Anchor navigation must reveal collapsed tools before the browser scrolls.
  * Keep every capture component mounted so jumping workspaces never drops it. */
 function openWorkspace(id: string) {
+  document.dispatchEvent(new CustomEvent('hok-open-panel', { detail: id }));
   let element: HTMLElement | null = document.getElementById(id);
   while (element) {
     if (element instanceof HTMLDetailsElement) element.open = true;
@@ -126,7 +127,7 @@ export function OperatorGuide({
                 .join(' · ')}
             </p>
           ))}
-          <a href="#player-slot-alignment">
+          <a href="#player-slot-alignment" onClick={() => openWorkspace('player-slot-alignment')}>
             {zh ? '前往 P1–P5 自动识别 / 手动调整' : 'Go to P1–P5 recognition / manual adjustment'}
           </a>
           <small className="muted">
@@ -143,15 +144,21 @@ export function OperatorGuide({
         <button type="button" onClick={onSettings}>
           {zh ? '检查赛制与显示' : 'Review rules & display'}
         </button>
-        <a href="#draft-workspace">{zh ? '选禁工作区' : 'Draft workspace'}</a>
+        <a href="#draft-workspace" onClick={() => openWorkspace('draft-workspace')}>
+          {zh ? '选禁工作区' : 'Draft workspace'}
+        </a>
         <a href="#live-hud-workspace" onClick={() => openWorkspace('live-hud-workspace')}>
           {zh ? '局内采集与 HUD' : 'Live capture & HUD'}
         </a>
         <a href="#obs-workspace" onClick={() => openWorkspace('obs-workspace')}>
           {zh ? 'OBS 切镜与音源' : 'OBS scenes & audio'}
         </a>
-        <a href="#game-lifecycle">{zh ? '比分与下一局' : 'Score & next game'}</a>
-        <a href="#postgame-tools">{zh ? '赛后与备份' : 'Post-game & backups'}</a>
+        <a href="#game-lifecycle" onClick={() => openWorkspace('game-lifecycle')}>
+          {zh ? '比分与下一局' : 'Score & next game'}
+        </a>
+        <a href="#postgame-tools" onClick={() => openWorkspace('postgame-tools')}>
+          {zh ? '赛后与备份' : 'Post-game & backups'}
+        </a>
       </nav>
     </section>
   );

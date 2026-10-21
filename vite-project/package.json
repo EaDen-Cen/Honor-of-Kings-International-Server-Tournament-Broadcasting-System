@@ -26,11 +26,13 @@
     "hero:art-cache": "tsx scripts/cache-broadcast-art.ts",
     "format": "node scripts/format-core.mjs --write",
     "format:check": "node scripts/format-core.mjs --check",
-    "benchmark:hud": "node --import tsx scripts/benchmark-hud-recognition.ts"
+    "benchmark:hud": "node --import tsx scripts/benchmark-hud-recognition.ts",
+    "benchmark:replay": "node --import tsx scripts/benchmark-replay.ts"
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
+    "flexlayout-react": "0.8.17",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.4",

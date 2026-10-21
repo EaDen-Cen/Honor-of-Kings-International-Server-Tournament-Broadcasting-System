@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { harness } from './harness';
@@ -28,7 +29,7 @@ test('a shared game source survives cancelling a replacement and leaving the BP 
     expect(await page.evaluate(()=>(window as Window&{captureStreams?:MediaStream[]}).captureStreams?.[0].getVideoTracks()[0].readyState)).toBe('live');
     await h.send({type:'settings',settings:{...h.state(),bpInputMode:'manual'}});
     await expect(page.locator('.screen-input')).toHaveCount(0);
-    await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();
@@ -61,7 +62,7 @@ test('loading a screenshot supersedes another panel\'s pending chooser and relea
         };
       })});
     });
-    await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const capture=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');
     await capture.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();

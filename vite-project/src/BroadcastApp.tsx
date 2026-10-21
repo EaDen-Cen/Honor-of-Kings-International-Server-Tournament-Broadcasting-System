@@ -32,7 +32,7 @@ import { currentGame, displaySides, normalizeState, ruleLocked } from './shared/
 import { TeamLibrary } from './control/TeamLibrary';
 import { PortraitField } from './control/PortraitField';
 import { ControlHeroPicker } from './control/ControlHeroPicker';
-import { ControlDraftWorkspace } from './control/ControlDraftWorkspace';
+import { DockWorkspace } from './control/DockWorkspace';
 import { useSettingsDraft } from './control/useSettingsDraft';
 import { SettingsDialog } from './control/SettingsDialog';
 import { TeamSettingsDialog } from './control/TeamSettingsDialog';
@@ -320,8 +320,8 @@ export default function BroadcastApp() {
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
         <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
-        <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />
-        <ControlDraftWorkspace monitor={<>
+        <DockWorkspace zh={lang==='zh'} panels={{
+          monitor: <div className="control-monitor">
           <Board state={state} lang={lang} compact />
           <section className="operator-bar panel">
             <div className="toolbar">
@@ -344,15 +344,12 @@ export default function BroadcastApp() {
           </section>
 
           <DraftLifecycle state={state} send={send} disabled={disabled} />
-          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} token={token} /></SettingsDialog>}
-          {state.bpInputMode!=='screen'&&<PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />}
-          {state.bpInputMode!=='screen'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />}
-        </>}>
+
+        </div>,
+          draft: <div id="draft-workspace">
           {state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
-              <PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} />
-              <LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>
@@ -360,19 +357,22 @@ export default function BroadcastApp() {
               </details>
             </div>
             : <ControlHeroPicker state={state} disabled={disabled} active={!showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
-        </ControlDraftWorkspace>
+        </div>,
+          players: <><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /><LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} /></>,
+          obs: <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />,
+          hud: <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />,
+          postgame: <div id="postgame-tools"><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,
+          recovery: <RecoveryPanel token={token} zh={state.language==='zh'} />,
+          analysis: <><DraftHistory state={state} /><Analysis state={state} lang={lang} /></>,
+        }} />
+          {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} token={token} /></SettingsDialog>}
         {showTeamSettings && <TeamSettingsDialog label={t('teamSettings')} closeLabel={t('closeTeamSettings')} onClose={closeTeamSettings}>
           <TeamSettingsPanel state={state} send={send} disabled={disabled} token={token} />
         </TeamSettingsDialog>}
         {showHeroArtEditor && <Suspense fallback={<p>{t('connectingServer')}</p>}><HeroArtEditorDialog state={state} send={send} disabled={disabled} onClose={() => setShowHeroArtEditor(false)} /></Suspense>}
-        <section id="postgame-tools" className="control-secondary-tools" aria-label={lang==='zh'?'赛后与维护工具':'Post-game and maintenance tools'}>
-          <PostGamePanel state={state} token={token} disabled={disabled} send={send} />
-          <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />
-          <RecoveryPanel token={token} zh={state.language==='zh'} />
-        </section>
+
       </>}
-      <DraftHistory state={state} />
-      <Analysis state={state} lang={lang} />
+      {role === 'caster' && <><DraftHistory state={state} /><Analysis state={state} lang={lang} /></>}
     </> : <section className="panel"><h2>{t('connectingServer')}</h2></section>}
     <footer className="page-footer">{t('communitySystem')} · {t(role === 'caster' ? 'readOnlyFooter' : 'serverFooter')} · {t('rosterUpdated', { date: '2026-09-16' })}</footer>
   </main>;

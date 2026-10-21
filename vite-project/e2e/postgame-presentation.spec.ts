@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import {test,expect} from './fixtures';
 import {readFile} from 'node:fs/promises';
 import sharp from 'sharp';
@@ -65,7 +66,7 @@ test('actual recap curve OCR saves with side reversal and renders a signed sidew
     const fixtures=JSON.parse(await readFile(new URL('../server/fixtures/game-data-screenshots.json',import.meta.url),'utf8')) as {recap:string};
     const image=await sharp(Buffer.from(fixtures.recap,'base64')).composite([{input:await readFile(new URL('../server/fixtures/economy-curve-crossing.png',import.meta.url)),left:160,top:575}]).png().toBuffer();
     await expect.poll(async()=>{const response=await page.request.get('/api/v1/capabilities',{headers:{Authorization:'Bearer e2e-control'}});return (await response.json()).playerRecognition.status;},{timeout:30000}).toBe('ready');
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'recap.png',mimeType:'image/png',buffer:image});await capture.getByLabel('Settlement page type',{exact:true}).selectOption('recap');await capture.getByRole('button',{name:'Capture full page',exact:true}).click();
     await expect(capture.getByText(/Read 16 chart markers/)).toBeVisible({timeout:30000});await expect(capture.locator('svg[data-axis="sideways-t"]')).toBeVisible();
     const apply=capture.getByRole('button',{name:'Apply reviewed team recap',exact:true});await expect(apply).toBeDisabled();await capture.getByLabel('Recap left side',{exact:true}).selectOption('red');await apply.click();
@@ -82,7 +83,7 @@ test('zoomed operator capture preserves readable curve points and shows its curs
     await h.send({type:'reset_match'});const state=initialState();state.language='eng';await h.send({type:'settings',settings:state});await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     const image=await readFile(new URL('../server/fixtures/economy-curve-zoomed.png',import.meta.url));
     await expect.poll(async()=>{const response=await page.request.get('/api/v1/capabilities',{headers:{Authorization:'Bearer e2e-control'}});return (await response.json()).playerRecognition.status;},{timeout:30000}).toBe('ready');
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();const capture=page.getByText('Full-page settlement capture · game template',{exact:true}).locator('..');
     await capture.getByLabel('Game data screenshot').setInputFiles({name:'zoomed-recap.png',mimeType:'image/png',buffer:image});await capture.getByLabel('Settlement page type',{exact:true}).selectOption('recap');await capture.getByRole('button',{name:'Capture full page',exact:true}).click();
     await expect(capture.getByText(/Read 10 chart markers/)).toBeVisible({timeout:30000});await expect(capture.getByRole('note')).toContainText('Final marker obscured');
     await capture.getByLabel('Recap left side',{exact:true}).selectOption('blue');await capture.getByRole('button',{name:'Apply reviewed team recap',exact:true}).click();

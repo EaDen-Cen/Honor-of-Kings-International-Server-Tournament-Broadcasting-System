@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test,expect,type Route } from './fixtures';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
@@ -7,7 +8,7 @@ test('manual HUD drafts save whole numbers, retain edits across live updates and
   const h=await harness(baseURL);
   try{
     await h.send({type:'reset_match'});await h.send({type:'settings',settings:{...initialState(),language:'eng'}});
-    await page.goto('/control');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();
     const gold=page.getByLabel('blueGold',{exact:true});
     await gold.pressSequentially('1500');expect(h.state().liveGameStats.blueGold).toBeUndefined();
     await h.send({type:'live_game_stats',stats:{...h.state().liveGameStats,redKills:7,blueGold:1200}});
@@ -28,7 +29,7 @@ test('post-game rating drafts survive external edits and replay timelines stay i
     await h.send({type:'reset_match'});const initial=initialState();initial.language='eng';initial.blueTeam.players=['Alpha','Bravo','Charlie','Delta','Echo'];initial.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
     await h.send({type:'settings',settings:initial});await h.fill();await h.send({type:'commit_game'});await h.send({type:'post_game_begin'});
     const report=h.state().postGameReports[0],rowId=report.players[0].rowId;
-    await page.goto('/control');await page.getByText('Post-game data and MVP',{exact:true}).click();await page.getByText('Player ratings · manual fallback',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'postgame');await page.getByText('Post-game data and MVP',{exact:true}).click();await page.getByText('Player ratings · manual fallback',{exact:true}).click();
     const rating=page.getByLabel(`Rating ${rowId}`,{exact:true});await rating.fill('12.5');
     await h.send({type:'post_game_fields',reportId:report.id,updates:[{rowId,metric:'rating',field:{value:7,confidence:1,manual:true,sourcePage:'overview'}}]});
     await expect(rating).toHaveValue('12.5');await rating.press('Enter');await expect.poll(()=>h.state().postGameReports[0].players[0].fields.rating?.value).toBe(12.5);
@@ -55,7 +56,7 @@ test('backup controls recover from failures, reject broken exports and time out 
       return route.fulfill(mode==='backup'?{status:201,json:{file:'backup-test.json'}}:{status:500,json:{error:'Storage temporarily unavailable'}});
     });
     await page.route('**/api/match-export',route=>route.fulfill({json:{format:'invalid',entries:[]}}));
-    await page.goto('/control');await page.getByText('Backup and recovery',{exact:true}).click();
+    await page.goto('/control');await openDockPanel(page,'recovery');await page.getByText('Backup and recovery',{exact:true}).click();
     const panel=page.getByText('Backup and recovery',{exact:true}).locator('..');
     await panel.getByRole('button',{name:'Backup status',exact:true}).click();await expect(panel.getByRole('alert')).toHaveText('Storage temporarily unavailable');
     mode='backup';await panel.getByRole('button',{name:'Back up now',exact:true}).evaluate(button=>{(button as HTMLButtonElement).click();(button as HTMLButtonElement).click();});await expect(panel.getByRole('status')).toHaveText('Backup saved.');expect(calls).toBe(2);

@@ -1,38 +1,32 @@
-# AI 辅助识别 / AI-assisted Recognition
+# AI 辅助识别（实验功能）
 
-> Status: experimental, opt-in. AI currently supplements **browser hero crop recognition**. It does not automatically parse every game statistic, determine ban/pick lock states, change match phases, drive OBS scenes or replace established OCR.
+## 配置与安全
 
-## 配置
-1. 在本机打开 Control → 比赛设置 → **AI 识别**。
-2. 选择服务商，填入**具备图片输入能力**的模型 ID 和自己的 API Key。OpenAI、Claude、Gemini 使用各自的消息协议；DeepSeek、通义千问、豆包、GLM、Kimi、百度千帆和 Custom 目前走 OpenAI-compatible Chat Completions 适配器，**并不意味着所选服务商的每个模型都能接收图像**。
-3. 保留默认 URL，或为 Custom 输入公共 HTTPS Chat Completions 完整接口地址。选择“启用”并点击“应用”。
-4. 识别低置信度的英雄裁切图时，先得到本地结果，再尝试请求模型。如果 AI 返回合法 heroId 且可信度 >=0.85，则优先提供该候选；失败、限流、超时或返回不合法信息，保留本地结果。
+在本机 Control → 比赛设置 → AI 识别，选择服务商、视觉模型和独立 API Key。OpenAI-compatible 厂商不代表所有模型都支持视觉。默认关闭；密钥只驻留 Node 内存，重启需重填。GET、比赛存档、Overlay 和日志不返回密钥。
 
-## 安全与运行限制
-- API Key 仅驻留本地 Node 服务内存；配置 GET 响应不返回密钥，状态不写入比赛存档、网页缓存或日志。**重启服务必须重新配置密钥**。请不要把密钥提交到 GitHub。
-- 配置 API 只允许本地、已授权的 Control；不提供给远程 Control、解说或 OBS overlay。
-- 请求 4.5 秒超时；最多一个同时进行的云端请求，实时采集不排队，不自动无限重试。模型调用消耗提供商配额/费用。
-- AI 不接触回放编辑和 MatchState 的自动提交：任何英雄判定仍要遵守已有的锁定、阈值及人工确认规则。
-- 只发送用户允许发送的图片裁切数据到用户选择的第三方服务商。导播有责任确认比赛画面、选手隐私和厂商处理政策。
-- 已接入的路径仅为 `POST /api/v1/capture/browser` 的英雄识别（与现有路径一致）；HUD、赛后、ID OCR 目前仍使用原有本地实现。
-- 没有经过真机、所有服务商账户和模型的验证。尤其国内厂商的视觉功能/端点需要按其最新文档选择正确的模型与接口。
+同一服务商且同一完整接口地址省略 apiKey 可沿用；切换接口/服务商会清除旧密钥，避免误发。API 显式传空字符串可清除密钥。Custom 仅允许无查询参数的公共 HTTPS；实际建连 DNS 查验拒绝内网/保留地址，不跟随重定向，响应上限 64 KiB。
+
+## 识别与采用规则
+
+- 本地结果立即返回，云端只后台补充。全系统一个云端请求，无排队；最短间隔 1200 ms、全流程超时 1800 ms，429/5xx 冷却 10 秒。
+- 相同图像、任务、比赛版本和字段命中才复用云端结果；有效期 4 秒、最多 80 条。配置/权威状态变化取消请求并清缓存。取消与配置代次检查共同阻止迟到结果写回。
+- 英雄仅接受当前英雄池中的整数 ID、有限置信度 0.9–1；采用分数封顶 0.95。强本地结果保持不变；可信冲突（本地 >=0.65）保持本地结果。原有锁定图、稳定帧、Ban/Pick 阶段和自动采用阈值继续生效，AI 不能制造锁定或跳阶段。
+- 玩家逐裁图转录，必须与该侧真实名单完全一致，继续由全队一一映射和原有连续采样校验决定是否更新位置。
+- GHUD 七字段逐项经过原有数字范围/时间/单位解析。人工冻结、两帧一致、时钟推进和异常跳变检查不变。两次 AI 缓存答案不能独立构成两帧证据，至少要本地识别参与核验。
+- 赛后单字段和结算页面数字通过原有 metric 解析；行身份和人工核验/采用流程继续保留。AI 不自动确认 MVP、字母评级、曲线或比赛胜负。
+- 多裁图按可用配额逐项补充，不宣称单次云端调用覆盖整页。变化很快、没有重复出现的画面可能永远拿不到云端结果；保持本地输出。
+- 原先原文 `ai.text` sidecar 已移除，避免把未经校验的模型文字当作结构化比赛状态。
 
 ## API
-- `GET /api/v1/ai-recognition/config`：返回公开配置和 configured 标志，不包含密钥。
-- `PUT /api/v1/ai-recognition/config`：JSON `{enabled,vendor,model,endpoint,apiKey?}`；仅本机带 Control Bearer token。空 apiKey 保留本进程已配置密钥。
 
-## 验证
-运行 `npm test`、`npm run build`、`npm run lint` 和 `npm run test:e2e`。在线模型和 OBS 的实机彩排必须独立完成。验证禁用 AI、无 key、错误模型、429、API 断线、超时、非法 JSON、重复识别和不同英雄池。不要在测试中使用真实付费密钥。
+`GET /api/v1/ai-recognition/config` 返回公开配置及无敏感信息的 diagnostics（调度、命中、跳过、失败、取消、完成、缓存数量、busy）。
 
-## 扩展接入（PR #91 第二阶段）
-- 玩家 ID OCR、局内 HUD（包含裁切输入）、赛后结算页面和赛后数字裁切接口现在会**在原有本地识别结果之外**尝试返回 `ai` 字段：`{source:'ai',task,text}`。
-- 这属于 **AI 审核建议（advisory sidecar）**，并非已完全替换 OCR 的权威数据来源。AI 结果仍是模型原文，前端目前不会自动采用，也不能替代赛事逻辑中的校验、人工确认或 OBS 操作。
-- 每次请求至多附带一个图像的 AI 分析；对于多张玩家/数字裁切，当前只是单张抽检，**不是整页覆盖**。如需整个任务结果融合，必须增加逐字段结构化解析、帧上下文一致性和前端审核 UI 后才能解除实验标记。
-- 不保证所有厂商视觉端点均兼容；需要真实账号的兼容性测试。
+`PUT /api/v1/ai-recognition/config` 接受 `{enabled,vendor,model,endpoint,apiKey?}`。两者均只允许本机、已授权 Control。英雄实际入口为 `/api/recognize-frame` / `/api/v1/recognition/frame`；此前文档的 `/api/v1/capture/browser` 不准确。
 
-## 直播低延迟优化（PR #91）
-- **不再同步等待 AI API**：英雄识别和玩家 ID / GHUD / 赛后接口总是先返回本地结果。后续相同裁切可采用有效期内的 AI 缓存建议；首次帧 AI 不会阻塞直播。
-- 相同图片和场景使用 SHA-256 键去重，AI 提示缓存 12 秒，限制最大 80 条以抑制内存增长。
-- 云端同时仅允许一个请求，新请求最短间隔 1.2 秒；429/5xx 后冷却 10 秒，1800ms 超时，没有积压队列。
-- **权衡：** AI 建议属于最终一致性；图像变化后缓存不会混用，而且未重复出现的单帧通常不会拿到 AI 结果。它不能保证自动 AI 判断在 1 秒内出现。
-- 最新识别速度需要在真实 Windows 导播端测试；以上时间数字是超时/限流策略，不是实测延迟成果。
+HUD 未变化裁图在本地复用最多 4 秒 OCR，变化字段仍合成一个 OCR 批次；独立工作器、比赛上下文、校准和重置隔离缓存。缓存复用不跳过发布校验。
+
+## 验证与边界
+
+`npm test` 含不访问网络的模拟服务商回归；`npm run benchmark:replay -- --iterations 100 --output artifacts/replay.json` 对现有真实截图裁图记录 P50/P95/P99、逐字段准确率和原始耗时。可用 `--fixtures-dir` 指向另一份同格式资料。
+
+截图重复回放有利于缓存，不等于运动视频、采集到 OBS 的端到端延迟。真实付费 API、所有服务商、完整录屏和长时间 OBS 彩排仍须另行验收。详见 [验证记录](../validation/pr91-validation.md)。

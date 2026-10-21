@@ -39,3 +39,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Dedicated Sites secret; example contains no working credential.
+tunnel-sync.local.json

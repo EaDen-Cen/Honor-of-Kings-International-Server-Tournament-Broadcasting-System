@@ -32,11 +32,11 @@ export function AiRecognitionSettings({token,zh}:{token:string;zh:boolean}) {
   }
   return <section className="panel" aria-label="AI recognition settings">
     <h3>{zh?'AI 识别 · 多厂商 API':'AI Recognition · Multi-provider API'}</h3>
-    <p className="muted">{zh?'AI 仅辅助低置信度英雄识别；API 失败时继续使用本地识别。密钥仅保存在服务端内存，重启后须重新输入。':'AI assists low-confidence hero matching. Failures revert to local detection. Credentials stay in server memory and must be re-entered after restart.'}</p>
+    <p className="muted">{zh?'AI 辅助低置信度英雄、选手 ID、HUD 与赛后数字；所有结果经过原有校验，API 失败时继续使用本地识别。密钥仅保存在服务端内存，重启后须重新输入。':'AI assists weak hero, player ID, HUD and post-game reads through existing validation. Failures revert to local detection. Credentials stay in server memory and must be re-entered after restart.'}</p>
     <label className="settings-checkbox"><span>{zh?'启用 AI 辅助识别':'Enable AI-assisted recognition'}</span><input type="checkbox" checked={config.enabled} onChange={e=>setConfig({...config,enabled:e.target.checked})}/></label>
     <label>{zh?'API 服务商':'API provider'}<select value={config.vendor} onChange={e=>setConfig({...config,vendor:e.target.value as Vendor,endpoint:''})}>{(Object.keys(names) as Vendor[]).map(v=><option key={v} value={v}>{names[v]}</option>)}</select></label>
     <label>{zh?'视觉模型 ID':'Vision model ID'}<input value={config.model} maxLength={100} placeholder="e.g. gpt-4o" onChange={e=>setConfig({...config,model:e.target.value})}/></label>
-    <label>{zh?'API Key（留空则沿用本次会话的密钥）':'API key (blank keeps session key)'}<input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={config.configured?'••••••••':'API key'} /></label>
+    <label>{zh?'API Key（同一接口留空可沿用；切换服务商需重新输入）':'API key (blank keeps key only for the same endpoint)'}<input type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={config.configured?'••••••••':'API key'} /></label>
     <label>{zh?'接口 URL（留空使用厂商默认地址）':'Endpoint URL (blank uses provider default)'}<input value={config.endpoint} placeholder={config.vendor==='custom'?'https://provider.example/v1/chat/completions':'Default provider endpoint'} onChange={e=>setConfig({...config,endpoint:e.target.value})}/></label>
     <p className="muted">{zh?'必须选择支持图片输入的模型；仅本机 Control 可修改。国内平台部分模型、地区或账户可能不支持视觉输入。':'Choose a vision-capable model. Local Control only. Some models, regions, or accounts do not support image inputs.'}</p>
     <button type="button" disabled={busy} onClick={save}>{busy?(zh?'保存中…':'Saving…'):(zh?'应用 AI 配置':'Apply AI settings')}</button>

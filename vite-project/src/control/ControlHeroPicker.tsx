@@ -41,7 +41,7 @@ export function ControlHeroPicker({ state, disabled, active, send, acknowledged 
   }, [acknowledged]);
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
-      if (!active || event.isComposing || event.repeat || document.querySelector('dialog[open]')) return;
+      if (!searchInput.current?.getClientRects().length || !active || event.isComposing || event.repeat || document.querySelector('dialog[open]')) return;
       const target = event.target as HTMLElement;
       const editing = target.closest('input, textarea, select, [contenteditable="true"]');
       if (editing && target !== searchInput.current) return;
