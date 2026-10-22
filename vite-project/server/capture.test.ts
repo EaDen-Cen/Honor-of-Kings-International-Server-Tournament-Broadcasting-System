@@ -22,6 +22,26 @@ test('capture rejects remote, tunnel and cross-origin requests even with loopbac
   assert.ok(!localCaptureRequest(request({host:'example.com'})));
   assert.ok(!localCaptureRequest(request({host:'127.0.0.1:3001'},'192.168.1.10')));
 });
+test('Vite dev POST origin is allowed only for authenticated loopback API development',()=>{
+  const request=(headers:IncomingMessage['headers'], remoteAddress='127.0.0.1')=>({headers,socket:{remoteAddress}} as IncomingMessage);
+  const vitePost={host:'127.0.0.1:3001',origin:'http://127.0.0.1:5173'};
+  assert.equal(localCaptureRequest(request(vitePost)),false,'production/default check stays strict');
+  assert.equal(localCaptureRequest(request(vitePost),true),true,'Vite 5173 to API 3001 works in dev');
+  assert.equal(localCaptureRequest(request({host:'localhost:3001',origin:'http://localhost:5173'}),true),true);
+  assert.equal(localCaptureRequest(request({host:'127.0.0.1:3001',origin:'http://127.0.0.1:3001'})),true);
+  assert.equal(localCaptureRequest(request({host:'127.0.0.1:3001'})),true);
+  for(const headers of [
+    {...vitePost,'x-forwarded-for':'198.51.100.1'},
+    {...vitePost,'cf-connecting-ip':'198.51.100.1'},
+    {host:'127.0.0.1:3001',origin:'https://127.0.0.1:5173'},
+    {host:'127.0.0.1:3001',origin:'http://127.0.0.1:5174'},
+    {host:'127.0.0.1:3001',origin:'http://evil.example:5173'},
+    {host:'127.0.0.1:4001',origin:'http://127.0.0.1:5173'},
+    {host:'example.com:3001',origin:'http://127.0.0.1:5173'},
+  ]) assert.equal(localCaptureRequest(request(headers),true),false,JSON.stringify(headers));
+  assert.equal(localCaptureRequest(request(vitePost,'192.168.1.10'),true),false,'remote clients remain blocked');
+});
+
 test('input/presentation settings are live to caster while gameplay remains authoritative and undoable',()=>{
   let now=0;const store=new Store(undefined,()=>now);
   const settings={...store.data.state,scoreDisplay:'boxes',bpInputMode:'screen'} as MatchSettings;
