@@ -262,7 +262,10 @@ export async function recognizeImage(
     .slice(0, 5);
 }
 
-export function localCaptureRequest(req: Pick<IncomingMessage, 'headers' | 'socket'>) {
+export function localCaptureRequest(
+  req: Pick<IncomingMessage, 'headers' | 'socket'>,
+  allowViteDevOrigin = false,
+) {
   const address = req.socket.remoteAddress;
   if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address || '')) return false;
   if (Object.keys(req.headers).some((key) => /^(forwarded|x-forwarded-|cf-)/.test(key)))
@@ -270,7 +273,19 @@ export function localCaptureRequest(req: Pick<IncomingMessage, 'headers' | 'sock
   try {
     const host = new URL(`http://${req.headers.host}`).hostname;
     if (!['localhost', '127.0.0.1', '[::1]'].includes(host)) return false;
-    return !req.headers.origin || new URL(req.headers.origin).host === req.headers.host;
+    if (!req.headers.origin) return true;
+    const origin = new URL(req.headers.origin);
+    if (origin.host === req.headers.host) return true;
+    // Vite forwards browser POST Origin (5173) to the loopback API (3001).
+    // Allow only this exact local development pair; never for production,
+    // remote sockets, forwarded/tunnel requests, or arbitrary cross-origins.
+    return (
+      allowViteDevOrigin &&
+      origin.protocol === 'http:' &&
+      ['localhost', '127.0.0.1'].includes(origin.hostname) &&
+      origin.port === '5173' &&
+      new URL(`http://${req.headers.host}`).port === '3001'
+    );
   } catch {
     return false;
   }

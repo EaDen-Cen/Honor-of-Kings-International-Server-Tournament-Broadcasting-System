@@ -78,6 +78,10 @@ void playerRecognition
     // A numeric warm-up failure is retried on demand; player OCR stays usable.
   });
 const production = process.env.NODE_ENV === 'production';
+// Every privileged local endpoint uses the same guard. The Vite dev origin
+// exception is explicit here, and cannot be enabled by a production request.
+const localOperatorRequest = (req: Parameters<typeof localCaptureRequest>[0]) =>
+  localCaptureRequest(req, !production);
 const project = fileURLToPath(new URL('../', import.meta.url));
 const dataFile = resolve(process.env.DATA_FILE || resolve(project, 'data/match.json'));
 const releaseBackendLock = acquireBackendLock(dirname(dataFile));
@@ -132,7 +136,7 @@ const server = createServer(async (req, res) => {
       // the OBS WebSocket is deliberately bound to the local operator machine.
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
-        !localCaptureRequest(req)
+        !localOperatorRequest(req)
       ) {
         json(403, { error: 'Local Control only' });
         req.resume();
@@ -263,7 +267,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/v1/ai-recognition/evaluate') {
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
-        !localCaptureRequest(req)
+        !localOperatorRequest(req)
       ) {
         json(403, { error: 'Local Control only' });
         req.resume();
@@ -322,7 +326,7 @@ const server = createServer(async (req, res) => {
       // Keys and AI settings are local operator-only; no CORS-proxied sessions.
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
-        !localCaptureRequest(req)
+        !localOperatorRequest(req)
       ) {
         json(403, { error: 'Local Control only' });
         req.resume();
@@ -352,7 +356,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname === '/api/access') {
-      const local = localCaptureRequest(req);
+      const local = localOperatorRequest(req);
       const currentRole = roleFor(req.headers.authorization?.replace(/^Bearer /, ''));
       const requestedRole = url.searchParams.get('role');
       const role: Role =
@@ -891,7 +895,7 @@ const server = createServer(async (req, res) => {
       }
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
-        !localCaptureRequest(req)
+        !localOperatorRequest(req)
       ) {
         json(403, { error: 'Local control only' });
         req.resume();
@@ -939,7 +943,7 @@ const server = createServer(async (req, res) => {
       }
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
-        !localCaptureRequest(req)
+        !localOperatorRequest(req)
       ) {
         json(403, { error: 'Local control only' });
         req.resume();
@@ -1223,7 +1227,7 @@ function update(ws: WebSocket, force = false) {
 }
 wss.on('connection', (ws, req) => {
   const origin = req.headers.origin;
-  if (production && origin && !allowedOrigins.includes(origin) && !localCaptureRequest(req)) {
+  if (production && origin && !allowedOrigins.includes(origin) && !localOperatorRequest(req)) {
     ws.close(1008, '此页面地址无权连接');
     return;
   }
