@@ -17,6 +17,13 @@
 - 多裁图按可用配额逐项补充，不宣称单次云端调用覆盖整页。变化很快、没有重复出现的画面可能永远拿不到云端结果；保持本地输出。
 - 原先原文 `ai.text` sidecar 已移除，避免把未经校验的模型文字当作结构化比赛状态。
 
+## 本机开发代理与 403 排查
+
+- 浏览器在 Vite 开发页 `http://127.0.0.1:5173` 对后端 `127.0.0.1:3001` 发起 POST/PUT 时，代理可能保留 `Origin: http://127.0.0.1:5173` 但采用 API 端口作为 `Host`。旧版只允许 Origin/Host 完全匹配，导致 `AI 效果对比实验室` 返回 403 `Local Control only`，即使本机 GET `/api/access` 报告 `local: true`。
+- 后端仅在非 production 模式，允许本机 socket、loopback Host:3001 与 HTTP loopback Origin:5173 这一组 Vite 代理来源；Vite 启用固定 5173 端口（`strictPort`）。所有具有本机权限要求的路由统一使用这一来源检查。正式生产模式仍要求原有 Origin/Host 匹配。
+- Control Token 权限检查照旧；远程 IP、Cloudflare/Forwarded 标记、公网 Host、其他前端端口及 HTTPS 不匹配来源仍拒绝。**不要删除本地来源检查，也不要将 API 密钥写进仓库。**
+- 回归验证：在本机 Vite 页面调用 `GET /api/access?role=control` 应返回 `local: true`；已授权 Control 对 `POST /api/v1/ai-recognition/evaluate` 发送空 JSON `{}` 应返回 400 `Invalid evaluation sample`，而非 403。空样本不会触发云端 AI。完成这一步后，再用真实裁图测试模型与延迟；403 修复不表示第三方 API 已验证成功。
+
 ## API
 
 `GET /api/v1/ai-recognition/config` 返回公开配置及无敏感信息的 diagnostics（调度、命中、跳过、失败、取消、完成、缓存数量、busy）。
