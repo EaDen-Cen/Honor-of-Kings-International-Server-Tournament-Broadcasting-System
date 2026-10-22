@@ -22,6 +22,7 @@ import {
 } from './bpSimulatorModel';
 import { useBpSimulatorState } from './bpSimulatorState';
 import './bpSimulator.css';
+import { AiEvaluationPanel } from './AiEvaluationPanel';
 
 function heroName(id:number|undefined) {
   const hero=allPoolHeroes.find(item=>item.id===id);
@@ -561,6 +562,8 @@ export function BpSimulatorControl() {
       </div>
       {(integrationMessage||controlError)&&<p className="sim-integration-message" role="status">{integrationMessage||controlError}</p>}
     </section>
+
+    <AiEvaluationPanel token={access.token} heroPool={state.heroPool} />
 
     <section className="sim-control-panel sim-visual-size-panel">
       <div className="sim-visual-size-heading">

@@ -1,4 +1,5 @@
 import { invalidateHudCache } from './hudOcrCache.js';
+import { evaluateHero } from './aiEvaluation.js';
 import { fuseHud, fusePlayers, fusePostGame } from './aiFusion.js';
 import {
   aiPublicConfig,
@@ -62,6 +63,7 @@ const recognitionProvider: HeroRecognitionProvider = {
   recognize: (input) =>
     recognizeClientFrame(input.image, input.allowedHeroIds, input.shape, input.lockImage),
 };
+let evaluationBusy = false;
 void prepareHeroTemplates().catch(() => {
   // Keep manual entry available; the next recognition request retries loading.
 });
@@ -255,6 +257,64 @@ const server = createServer(async (req, res) => {
         json(200, await obsBridge.switchScene(scene));
       } catch (error) {
         json(409, { error: error instanceof Error ? error.message : 'OBS scene change failed' });
+      }
+      return;
+    }
+    if (url.pathname === '/api/v1/ai-recognition/evaluate') {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localCaptureRequest(req)
+      ) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      if (req.method !== 'POST') {
+        json(405, { error: 'POST required' });
+        req.resume();
+        return;
+      }
+      if (evaluationBusy) {
+        json(409, { error: '评测正在进行，请稍后重试' });
+        req.resume();
+        return;
+      }
+      evaluationBusy = true;
+      try {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        req.setTimeout(10000, () => req.destroy());
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 3 * 1024 * 1024) {
+            json(413, { error: 'Image too large' });
+            req.resume();
+            return;
+          }
+          chunks.push(chunk);
+        }
+        const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (
+          !input ||
+          typeof input.image !== 'string' ||
+          !['global', 'cn'].includes(input.heroPool) ||
+          !['square', 'circle'].includes(input.shape)
+        ) {
+          json(400, { error: 'Invalid evaluation sample' });
+          return;
+        }
+        const allowedHeroIds = heroesForPool(input.heroPool).map((hero) => hero.id);
+        json(
+          200,
+          await evaluateHero(
+            { image: input.image, shape: input.shape, allowedHeroIds },
+            recognitionProvider,
+          ),
+        );
+      } catch (error) {
+        json(400, { error: error instanceof Error ? error.message : 'Evaluation failed' });
+      } finally {
+        evaluationBusy = false;
       }
       return;
     }

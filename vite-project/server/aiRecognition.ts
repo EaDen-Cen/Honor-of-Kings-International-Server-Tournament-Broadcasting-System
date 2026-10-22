@@ -210,7 +210,7 @@ export class AiRecognitionService {
   /** Return immediately; a repeated exact image can consume the result later.
    * Scopes include authoritative game/revision, field/row and ROI calibration.
    * An obsolete request for the same stream is aborted, never queued. */
-  suggest(image: unknown, scope: string, prompt: string): string | undefined {
+  suggest(image: unknown, scope: string, prompt: string, dispatch = true): string | undefined {
     if (
       !this.settings.enabled ||
       !this.settings.apiKey ||
@@ -230,6 +230,7 @@ export class AiRecognitionService {
       this.stats.hits++;
       return cached.raw;
     }
+    if (!dispatch) return;
     if (this.active?.scope === scope && this.active.key !== key) this.active.controller.abort();
     if (this.active || now < this.cooldownUntil || now - this.lastDispatch < 1200) {
       this.stats.skipped++;
@@ -261,7 +262,7 @@ export class AiRecognitionService {
       });
     return;
   }
-  hero(image: unknown, ids: number[], scope: string) {
+  hero(image: unknown, ids: number[], scope: string, dispatch = true) {
     if (!ids.length || ids.length > 250 || !ids.every((id) => names.has(id))) return;
     const raw = this.suggest(
       image,
@@ -269,6 +270,7 @@ export class AiRecognitionService {
       'Identify this Honor of Kings hero from catalog ' +
         ids.map((id) => id + ': ' + names.get(id)).join('; ') +
         '. Return ONLY JSON {"heroId":number,"confidence":number}. Unknown: {"heroId":0,"confidence":0}.',
+      dispatch,
     );
     const v = raw ? parseObject(raw) : undefined;
     if (
@@ -317,7 +319,14 @@ export async function recognizeAiWithFallback<
   if (!ids?.length || result.candidates[0]?.confidence >= 0.85) return result;
   const candidate = aiRecognition.hero(image, ids, scope);
   if (!candidate) return result;
+  return fuseHeroCandidate(result, candidate);
+}
+
+export function fuseHeroCandidate<
+  T extends { candidates: { heroId: number; confidence: number }[] },
+>(result: T, candidate: { heroId: number; confidence: number }): T {
   const first = result.candidates[0];
+  if (first?.confidence >= 0.85) return result;
   if (first && first.heroId !== candidate.heroId && first.confidence >= 0.65) return result;
   return {
     ...result,

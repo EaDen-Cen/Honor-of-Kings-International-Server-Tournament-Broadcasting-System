@@ -40,7 +40,8 @@
 - 识别保留多裁剪算法，去掉中间图片编码，缓存完全一致的证据，最多同时计算 4 个浏览器识别请求。
 - 屏幕识别、英雄编辑器和模拟器页面按需加载。
 - `server/access.ts` 保存随机角色 token、密码盐和 scrypt 哈希，数据位于 `data/access.json`；环境变量只用于初始配置。
-- `server/recognitionProvider.ts` 定义英雄图像识别提供者接口；英雄头像仍使用 `local-template-v1`。Player ID 与赛后数字使用常驻本地 Tesseract，不调用远程 AI。
+- `server/recognitionProvider.ts` 定义英雄图像识别 module 的 interface；英雄头像使用 `local-template-v2`。Player ID 与赛后数字使用常驻本地 Tesseract；可选远程视觉 AI 对低置信度英雄、Player ID、HUD 和赛后数字进行补充，经过原有校验再采用。默认关闭，详见 [AI 辅助识别](../guides/ai-recognition.md)。
+- `server/aiEvaluation.ts` 在识别 seam 上复用本地 adapter 与生产 AI 调度器；正式识别和评测共用英雄冲突融合规则，保持 locality。`src/shared/aiEvaluation.ts` 汇总配对结果，模拟器用同一裁图比较 local/assisted，真值不进入模型输入。
 - `/api/v1/capabilities` 返回识别协议能力；`/api/v1/recognition/frame` 与已有 `/api/recognize-frame` 共用权限、修订号和响应结构。
 
 详细协议见 [API 接口](api.md)，性能复测见 `vite-project/scripts/benchmark-recognition.ts`。

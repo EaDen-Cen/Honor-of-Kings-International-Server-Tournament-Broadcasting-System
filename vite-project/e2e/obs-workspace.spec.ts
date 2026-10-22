@@ -46,6 +46,10 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await panel.getByTestId('obs-layout-audit').getByRole('button',{name:'检查所选场景的浏览器源布局'}).click();
     await expect(panel.getByTestId('obs-layout-audit')).toContainText('1920 × 1080');
     await expect(panel.getByTestId('obs-layout-audit')).toContainText('1280 × 720');
+    await panel.getByRole('button',{name:'返回上一场景 · Waiting'}).click();
+    await expect.poll(()=>changes).toEqual(['BP','Waiting']);
+    await panel.getByRole('button',{name:'返回上一场景 · BP'}).click();
+    await expect.poll(()=>changes).toEqual(['BP','Waiting','BP']);
     await panel.getByRole('combobox',{name:'OBS cue map game'}).selectOption('MVP');
     await page.reload();
     await panel.locator(':scope > summary').click();
@@ -56,6 +60,6 @@ test('OBS workspace suggests BP from Control state but switches only after opera
     await page.reload();
     await panel.locator(':scope > summary').click();
     await expect(panel.getByTestId('obs-scene-buttons').locator('.obs-scene-button-item').nth(2)).toContainText('MVP');
-    expect(changes).toEqual(['BP']);
+    expect(changes).toEqual(['BP','Waiting','BP']);
   }finally{match.close();}
 });

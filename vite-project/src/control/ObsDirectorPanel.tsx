@@ -101,6 +101,9 @@ export function ObsDirectorPanel({
   };
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [previousScene, setPreviousScene] = useState('');
+  const sceneCommand = useRef(false);
+  const statusVersion = useRef(0);
   const [audioInputs, setAudioInputs] = useState<ObsAudioInput[]>([]);
   const [audioName, setAudioName] = useState('');
   const [targetVolume, setTargetVolume] = useState(100);
@@ -114,12 +117,15 @@ export function ObsDirectorPanel({
   const audioInitialized = useRef(false);
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
-      if (polling.current) return;
+      if (polling.current || sceneCommand.current) return;
+      const version = statusVersion.current;
       polling.current = true;
       try {
         const res = await fetch(`${apiURL}/api/v1/obs/status`, {
           headers: { Authorization: `Bearer ${token}` },
-          signal,
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(8000)])
+            : AbortSignal.timeout(8000),
           cache: 'no-store',
         });
         if (!res.ok)
@@ -129,12 +135,13 @@ export function ObsDirectorPanel({
               : 'Unable to load OBS status.',
           );
         const next = (await res.json()) as ObsStatus;
+        if (version !== statusVersion.current) return;
         setStatus(next);
         setSelected((current) =>
           next.scenes.includes(current) ? current : next.programScene || next.scenes[0] || '',
         );
       } catch (error) {
-        if (signal?.aborted) return;
+        if (signal?.aborted || version !== statusVersion.current) return;
         setStatus({
           configured: false,
           connected: false,
@@ -152,6 +159,7 @@ export function ObsDirectorPanel({
   const refreshAudio = useCallback(async () => {
     try {
       const res = await fetch(`${apiURL}/api/v1/obs/audio`, {
+        signal: AbortSignal.timeout(8000),
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
@@ -194,6 +202,7 @@ export function ObsDirectorPanel({
     setLayout(null);
     try {
       const res = await fetch(`${apiURL}/api/v1/obs/layout?scene=${encodeURIComponent(selected)}`, {
+        signal: AbortSignal.timeout(8000),
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
@@ -217,6 +226,7 @@ export function ObsDirectorPanel({
     try {
       const res = await fetch(`${apiURL}/api/v1/obs/audio`, {
         method: 'POST',
+        signal: AbortSignal.timeout(fadeMs + 8000),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           inputName: audioName,
@@ -236,17 +246,23 @@ export function ObsDirectorPanel({
   const switchScene = async (target = selected) => {
     if (
       !target ||
-      busy ||
+      sceneCommand.current ||
       !status?.connected ||
       !status.scenes.includes(target) ||
       target === status.programScene
     )
       return;
+    sceneCommand.current = true;
+    statusVersion.current++;
+    const fromScene = status.programScene;
     setBusy(true);
-    setMessage('');
+    setMessage(
+      zh ? `正在切换至「${target}」，等待 OBS 确认…` : `Switching to ${target}; waiting for OBS…`,
+    );
     try {
       const res = await fetch(`${apiURL}/api/v1/obs/scene`, {
         method: 'POST',
+        signal: AbortSignal.timeout(8000),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ scene: target }),
       });
@@ -257,13 +273,18 @@ export function ObsDirectorPanel({
           zh ? 'OBS 未确认切换到目标场景。' : 'OBS did not confirm the requested scene.',
         );
       setStatus(result);
+      setPreviousScene(fromScene ?? '');
       setSelected(target);
       setMessage(
         zh ? `OBS 已确认切换至「${target}」。` : `OBS confirmed program scene: ${target}.`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Scene change failed');
+      // A timed-out command may still have reached OBS. Re-read actual state.
+      sceneCommand.current = false;
+      await refresh();
     } finally {
+      sceneCommand.current = false;
       setBusy(false);
     }
   };
@@ -313,6 +334,20 @@ export function ObsDirectorPanel({
         <div className="obs-director-toolbar">
           <button type="button" onClick={() => void refresh()}>
             {zh ? '刷新 OBS 状态' : 'Refresh OBS status'}
+          </button>
+          <button
+            type="button"
+            disabled={
+              busy ||
+              !status?.connected ||
+              !previousScene ||
+              !status.scenes.includes(previousScene) ||
+              previousScene === status.programScene
+            }
+            onClick={() => void switchScene(previousScene)}
+          >
+            {zh ? '返回上一场景' : 'Return to previous scene'}
+            {previousScene ? ` · ${previousScene}` : ''}
           </button>
           <span className="muted">
             {zh
