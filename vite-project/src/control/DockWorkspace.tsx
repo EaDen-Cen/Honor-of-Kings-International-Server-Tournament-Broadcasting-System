@@ -85,7 +85,7 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
     try {
       const saved = JSON.parse(localStorage.getItem(workspaceKey) || 'null')?.preset;
       return typeof saved === 'string' &&
-        (['default', 'bp', 'live', 'postgame'].includes(saved) ||
+        (['default', 'bp', 'live', 'postgame', 'obs'].includes(saved) ||
           (saved.startsWith('saved:') &&
             Object.prototype.hasOwnProperty.call(presets, saved.slice(6))))
         ? saved
@@ -96,6 +96,7 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
   });
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
+  const [previousLayout, setPreviousLayout] = useState<ReturnType<Model['toJson']>>();
   const [, refresh] = useState(0);
   useLayoutEffect(() => {
     parkingRef.current?.appendChild(parking);
@@ -142,6 +143,7 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
       : presetLayout(value as Preset);
     if (!json) return;
     const next = Model.fromJson(json);
+    setPreviousLayout(model.toJson());
     setModel(next);
     setSelected(value);
     persist(next, value);
@@ -159,12 +161,12 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
             value={selected}
             onChange={(e) => select(e.target.value)}
           >
-            {(['default', 'bp', 'live', 'postgame'] as const).map((id, index) => (
+            {(['default', 'bp', 'live', 'postgame', 'obs'] as const).map((id, index) => (
               <option key={id} value={id}>
                 {
                   (zh
-                    ? ['默认', 'BP 导播', '局内直播', '赛后']
-                    : ['Default', 'BP', 'Live', 'Post-game'])[index]
+                    ? ['默认', 'BP 导播', '局内直播', '赛后分析', 'OBS 导播']
+                    : ['Default', 'BP', 'Live', 'Post-game', 'OBS'])[index]
                 }
               </option>
             ))}
@@ -209,6 +211,20 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
         <button type="button" onClick={() => select('default')}>
           {zh ? '恢复默认' : 'Restore default'}
         </button>
+        <button
+          type="button"
+          disabled={!previousLayout}
+          onClick={() => {
+            if (!previousLayout) return;
+            const old = model.toJson();
+            const next = Model.fromJson(previousLayout);
+            setModel(next);
+            setPreviousLayout(old);
+            persist(next);
+          }}
+        >
+          {zh ? '恢复上一次布局' : 'Restore previous layout'}
+        </button>
         <details className="dock-panel-menu">
           <summary>{zh ? '面板列表' : 'Panels'}</summary>
           <div>
@@ -245,6 +261,10 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
           <Layout
             model={model}
             factory={factory}
+            onAction={(action) => {
+              if (action.type !== 'FlexLayout_SelectTab') setPreviousLayout(model.toJson());
+              return action;
+            }}
             onModelChange={(next) => persist(next)}
             onRenderTab={(node, values) => {
               values.content =

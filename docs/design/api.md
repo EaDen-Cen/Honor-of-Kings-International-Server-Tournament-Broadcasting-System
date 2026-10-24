@@ -86,3 +86,22 @@ AI 配置 GET/PUT `/api/v1/ai-recognition/config` 仅本机授权 Control；GET 
 `/api/recognize-frame`、`/api/v1/recognition/frame` 返回经验证的英雄候选；玩家、HUD、赛后候选同样沿用既有响应结构/状态修改入口。HUD 候选新增可选 `source:'ai'` 标记；两个 AI 样本不能单独满足自动发布规则。未经解析的模型原文 sidecar 不再返回。
 
 对 Sites 的客户端契约：PUT 固定 `/gateway/api/tunnel`，独立 Bearer `TUNNEL_SYNC_TOKEN`、JSON `{origin}`。2xx 表示接口接受；401/403 不重试凭据；404/405/501 标记未部署；其余失败有限重试。客户端不能替代网站的配对凭据验证和 D1 保存事务。此 PR 不声称服务端已经部署。
+
+## 2026-10-23 开发接口
+
+以下修改接口均仅限本机 Control，沿用统一来源检查和 Bearer 权限：
+
+| 接口 | 方法与职责 |
+| --- | --- |
+| `/api/v1/ai-recognition/profiles` | POST 保存并默认选中配置，PUT 选择 activeId / backupId，DELETE 删除 id；省略同网关 Key 沿用，跨网关不携带 |
+| `/api/v1/ai-recognition/test` | POST 实际验证当前默认视觉模型，可能产生费用 |
+| `/api/v1/discord/config` | GET 公开配置与掩码，PUT 加密保存 / 显式空值删除凭证 |
+| `/api/v1/discord/test` | POST 校验 Bot 身份和服务器频道归属 |
+| `/api/v1/discord/start` | POST `{candidates?,minutes?,winner?}` 创建本局投票；未知创建状态不得自动重发 |
+| `/api/v1/discord/end`、`cancel`、`recover`、`retry` | POST 截止、取消、绑定核对过的消息 ID、重新同步最终计票 |
+| `/api/v1/obs/config` | GET 本机地址与已配置标记，PUT 加密保存地址和密码并重建本地桥接 |
+| `/api/v1/obs/crossfade` | POST `{from,to,targetVolume,durationMs}`，两个持久输入独立淡变；0–200%，0–5000 ms |
+| `/api/v1/operator-preferences` | GET/PUT 浏览器设置白名单备份，不接受 token 或任意键 |
+| `/api/v1/recognition/gold-curve` | POST `{image,reportId}`，支持完整经济图或包含刻度的宽幅裁图；返回候选和本机证据，不自动发布 |
+
+`GET /api/v1/audience-vote` 和 `GET /api/v1/postgame-carousel` 需有效角色令牌。前者对 Overlay 隐藏配置要求隐藏的实时票数。轮播 PUT 保存六页配置、POST `{action,page?}` 执行 start/pause/resume/previous/next/show/stop，写操作仍限本机 Control。没有新增秘密到 MatchState、WebSocket 或比赛备份。

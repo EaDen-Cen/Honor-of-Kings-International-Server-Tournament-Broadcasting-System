@@ -1,6 +1,7 @@
 import { recognizeHudNumbers } from './hudOcrCache.js';
 import { fusePostGame, fusePlayers, fuseHud } from './aiFusion.js';
 import sharp from 'sharp';
+import { createHash } from 'node:crypto';
 import {
   fullGameRect,
   liveCaptureKeys,
@@ -30,6 +31,16 @@ import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
 import type { Side } from '../src/shared/types.js';
 import type { PlayerRecognitionProvider } from './playerRecognition.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
+const settlementIds = new WeakMap<
+  object,
+  Map<
+    string,
+    {
+      until: number;
+      result: Promise<Awaited<ReturnType<PlayerRecognitionProvider['recognizePlayerIds']>>>;
+    }
+  >
+>();
 
 /** Stop nearly blank frames before producing false OCR evidence. */
 export async function frameHasVisualContent(frame: Buffer): Promise<boolean> {
@@ -201,13 +212,56 @@ export async function recognizeSettlement(
   );
   if (roster.some((players) => players.length !== 5))
     throw new Error('Ten-player identity snapshot required');
-  const idImages = await Promise.all(
-    Array.from({ length: 10 }, (_, row) => crop(frame, settlementNameRect(row, selected))),
-  );
-  const ids = await provider.recognizePlayerIds(
-    idImages,
-    roster.map((players) => players.map((p) => p.playerId)) as [string[], string[]],
-  );
+  const jobs = Array.from({ length: 10 }, (_, screenRow) =>
+    settlementColumns(selected, screenRow).map((column) => ({ ...column, screenRow })),
+  ).flat();
+  const [idImages, numberImages] = await Promise.all([
+    Promise.all(
+      Array.from({ length: 10 }, (_, row) => crop(frame, settlementNameRect(row, selected))),
+    ),
+    Promise.all(jobs.map((job) => crop(frame, job.region))),
+  ]);
+  let cache = settlementIds.get(provider);
+  if (!cache) {
+    cache = new Map();
+    settlementIds.set(provider, cache);
+  }
+  const idKey = createHash('sha256')
+    .update(
+      JSON.stringify([
+        report.id,
+        leftSide,
+        roster.map((players) => players.map((p) => [p.rowId, p.playerId])),
+        idImages,
+      ]),
+    )
+    .digest('hex');
+  const previous = cache.get(idKey);
+  const canCache = typeof report.id === 'string' && report.id.length > 0;
+  const identityCacheHit = canCache && !!previous && previous.until > Date.now();
+  const idJob = identityCacheHit
+    ? previous!.result
+    : provider.recognizePlayerIds(
+        idImages,
+        roster.map((players) => players.map((p) => p.playerId)) as [string[], string[]],
+      );
+  if (canCache && !identityCacheHit) {
+    cache.set(idKey, { until: Date.now() + 60000, result: idJob });
+    if (cache.size > 24) cache.delete(cache.keys().next().value!);
+    void idJob.catch(() => {
+      if (cache.get(idKey)?.result === idJob) cache.delete(idKey);
+    });
+  }
+  // Only settlement ID crops are cached; live player-order stability stays independent.
+  // These use separate resident workers; wait for both even when one fails.
+  const [idRead, numericRead] = await Promise.allSettled([
+    idJob,
+    provider.recognizeNumbers(numberImages, true),
+  ]);
+  if (idRead.status === 'rejected') throw idRead.reason;
+  if (numericRead.status === 'rejected') throw numericRead.reason;
+  const ids = idRead.value,
+    numeric = numericRead.value;
   const idCandidates = aiContext
     ? fusePlayers(
         idImages,
@@ -222,11 +276,6 @@ export async function recognizeSettlement(
       players.map((p) => p.playerId),
     ),
   );
-  const jobs = Array.from({ length: 10 }, (_, screenRow) =>
-    settlementColumns(selected, screenRow).map((column) => ({ ...column, screenRow })),
-  ).flat();
-  const numberImages = await Promise.all(jobs.map((job) => crop(frame, job.region)));
-  const numeric = await provider.recognizeNumbers(numberImages, true);
   if (aiContext)
     jobs.forEach((job, index) => {
       const fused = fusePostGame(
@@ -281,6 +330,12 @@ export async function recognizeSettlement(
     }),
     grades,
     gradeWarning,
+    timings: {
+      identityCacheHit,
+      identityMs: identityCacheHit ? 0 : ids.elapsedMs,
+      numericMs: numeric.elapsedMs,
+      elapsedMs: performance.now() - start,
+    },
     candidates: jobs.map((job, index) => ({
       screenRow: job.screenRow,
       metric: job.metric,

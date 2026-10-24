@@ -2,6 +2,8 @@
 
 [返回项目首页](../README.md)
 
+2026-10-23 开发升级入口：[Discord / MVP 投票](guides/discord-mvp-voting.md)、[配置与 AI](guides/ai-recognition.md)、[OBS 与赛后轮播](guides/obs-director-setup.md)、[隔离验收及待验证清单](validation/2026-10-23-console-upgrade.md)。这些开发改动不追溯计入已发布的 RC。
+
 > **主分支状态（2026-10-21）**：PR #67–#91 的相关改动已合并 `main`，包含单行 GHUD、OBS Director、云端 AI 非权威辅助、停靠工作区、Windows 隧道同步客户端与离线素材准备。GitHub 发布的 `v1.0.0-rc.1` 是 10 月 10 日的旧预发布快照，不包含后续功能。GHUD / 云端 AI / 赛后自动采集仍需真实赛事与 OBS 连续验收，正式比分保留官方/人工兜底。
 
 | 类别 | 入口 | 用途 |

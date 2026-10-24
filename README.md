@@ -1,5 +1,13 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
+## 2026-10-23 综合升级（开发分支，真实服务联调待配置）
+
+新增 Discord 观众 MVP 原生投票、2–5 分钟截止与恢复、独立观众 MVP Overlay；设置中心使用 Windows DPAPI 加密保存 AI 多服务商 / 备用服务商、Discord 和 OBS 凭证。BP 完成即建议游戏画面，提交本局只进入赛后建议；可选本次会话自动切镜。赛后新增六类数据轮播、跨场景 BGM 交叉淡化与渐变替换。工作区增加 OBS 预设、上一次布局恢复及本地设置备份，保持原有比赛状态与评分规则。
+
+提供的 11:15 / ±9.2k 经济曲线已加入真实图片回归；完整截图与独立经济裁图使用不同的输入适配。选手 ID 与数字 OCR 使用不同常驻工作器并行，重复的赛后选手裁图可复用，但仍需人工核验。**性能目标和真实 Discord / OBS 验收尚不能仅凭隔离测试认定达成。**
+
+使用入口：Control →「设置中心」；面板列表 →「MVP 投票」；「赛后数据」→ 六类轮播。新增浏览器源 `/overlay/audience-mvp`、`/overlay/postgame-carousel` 均为 1920×1080。详见 [Discord 配置与投票](docs/guides/discord-mvp-voting.md)、[OBS 操作](docs/guides/obs-director-setup.md) 与 [本轮验证记录](docs/validation/2026-10-23-console-upgrade.md)。
+
 > **当前主分支（2026-10-21）**：PR #67–#91 的相关功能更新已合并至 `main`（最新核对到 PR #91，提交 `00dedd05a224`）。已有 GitHub 预发布版本 `v1.0.0-rc.1` 是 2026-10-10 的旧快照，**不包含**此后的主分支改动；不能把两者当作同一版本。核心 BP / Control / Caster / OBS 图形支持彩排；Game HUD、AI 辅助识别和赛后自动采集仍需真实赛事连续验收。详见 [PR #91 验证记录](docs/validation/pr91-validation.md) 与 [发布说明](docs/releases/v1.0.0.md)。
 
 ## 2026-10-20 · 实机识别管线与 OBS 原画加载

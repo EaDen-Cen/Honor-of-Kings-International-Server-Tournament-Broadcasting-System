@@ -8,9 +8,11 @@ export const panelNames = {
   postgame: ['赛后数据', 'Post-game'],
   recovery: ['备份与恢复', 'Backup & recovery'],
   analysis: ['英雄与历史', 'Heroes & history'],
+  voting: ['MVP 投票', 'MVP voting'],
+  settings: ['设置中心', 'Settings'],
 } as const;
 export type PanelId = keyof typeof panelNames;
-export type Preset = 'default' | 'bp' | 'live' | 'postgame';
+export type Preset = 'default' | 'bp' | 'live' | 'postgame' | 'obs';
 export const workspaceKey = 'hok-dock-workspace-v1';
 export const tab = (id: PanelId) => ({ type: 'tab', id, component: id, name: panelNames[id][0] });
 export function presetLayout(preset: Preset): IJsonModel {
@@ -20,7 +22,15 @@ export function presetLayout(preset: Preset): IJsonModel {
     weight,
     children: panels.map(tab),
   });
-  const secondary: PanelId[] = ['hud', 'obs', 'postgame', 'recovery', 'analysis'];
+  const secondary: PanelId[] = [
+    'hud',
+    'obs',
+    'postgame',
+    'voting',
+    'settings',
+    'recovery',
+    'analysis',
+  ];
   return {
     global: {
       tabEnableRename: false,
@@ -35,36 +45,50 @@ export function presetLayout(preset: Preset): IJsonModel {
     layout: {
       type: 'row',
       children:
-        preset === 'live'
+        preset === 'obs'
           ? [
-              group('main', ['hud', 'postgame'], 60),
+              group('main', ['obs'], 65),
               {
                 type: 'row',
                 children: [
-                  group('right', ['obs', 'recovery']),
-                  group('lower', ['monitor', 'draft', 'players', 'analysis']),
+                  group('right', ['monitor', 'draft', 'players', 'hud']),
+                  group('lower', ['voting', 'postgame', 'settings', 'recovery', 'analysis']),
                 ],
               },
             ]
-          : preset === 'postgame'
+          : preset === 'live'
             ? [
-                group('main', ['postgame', 'hud'], 65),
+                group('main', ['hud', 'postgame'], 60),
                 {
                   type: 'row',
                   children: [
-                    group('right', ['obs', 'recovery']),
-                    group('lower', ['analysis', 'monitor', 'draft', 'players']),
+                    group('right', ['obs', 'voting', 'settings', 'recovery']),
+                    group('lower', ['monitor', 'draft', 'players', 'analysis']),
                   ],
                 },
               ]
-            : [
-                {
-                  type: 'row',
-                  weight: preset === 'bp' ? 30 : 40,
-                  children: [group('main', ['monitor']), group('lower', ['players', ...secondary])],
-                },
-                group('right', ['draft'], preset === 'bp' ? 70 : 60),
-              ],
+            : preset === 'postgame'
+              ? [
+                  group('main', ['postgame', 'hud'], 65),
+                  {
+                    type: 'row',
+                    children: [
+                      group('right', ['voting', 'obs', 'settings', 'recovery']),
+                      group('lower', ['analysis', 'monitor', 'draft', 'players']),
+                    ],
+                  },
+                ]
+              : [
+                  {
+                    type: 'row',
+                    weight: preset === 'bp' ? 30 : 40,
+                    children: [
+                      group('main', ['monitor']),
+                      group('lower', ['players', ...secondary]),
+                    ],
+                  },
+                  group('right', ['draft'], preset === 'bp' ? 70 : 60),
+                ],
     },
   };
 }

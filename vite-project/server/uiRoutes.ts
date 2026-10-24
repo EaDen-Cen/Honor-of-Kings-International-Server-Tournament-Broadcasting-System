@@ -8,6 +8,7 @@ const htmlRoutes=new Set([
   '/overlay/postgame-compare','/overlay/game-progress',
   '/overlay/postgame-clash','/overlay/postgame-jungle','/overlay/postgame-mid',
   '/overlay/postgame-farm','/overlay/postgame-roam',
+  '/overlay/audience-mvp','/overlay/postgame-carousel',
   '/tools/bp-simulator','/tools/bp-simulator-control',
 ]);
 export const isBroadcastPageRoute=(path:string)=>htmlRoutes.has(path);
