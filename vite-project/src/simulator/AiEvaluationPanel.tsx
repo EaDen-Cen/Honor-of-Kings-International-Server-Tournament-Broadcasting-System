@@ -145,7 +145,7 @@ export function AiEvaluationPanel({ token, heroPool }: { token: string; heroPool
     <section className="sim-control-panel sim-ai-evaluation" aria-label="AI 效果对比实验室">
       <h2>AI 效果对比实验室 · 英雄裁图</h2>
       <p className="sim-control-note">
-        先在 Control → 比赛设置配置视觉 AI。截图保留单个 Ban/Pick
+        先在 Control → 设置中心配置视觉 AI。截图保留单个 Ban/Pick
         头像，上传后标注正确英雄；同一裁图分别比较本地结果和现有 AI 融合结果。测试不会修改比赛或切换
         OBS。
       </p>

@@ -2,7 +2,11 @@
 
 ## 配置与安全
 
-在本机 Control → 比赛设置 → AI 识别，选择服务商、视觉模型和独立 API Key。OpenAI-compatible 厂商不代表所有模型都支持视觉。默认关闭；密钥只驻留 Node 内存，重启需重填。GET、比赛存档、Overlay 和日志不返回密钥。
+在本机 Control → 设置中心 → AI 识别，选择服务商、视觉模型和独立 API Key。OpenAI-compatible 厂商不代表所有模型都支持视觉。默认关闭；配置现在加密保存在 `data/secure-settings.json`，Windows 使用当前用户 DPAPI，重启自动加载。GET、比赛存档、Overlay 和日志不返回密钥。
+
+支持最多 10 个配置；保存时设为默认，并可选择另一份作为备用。非敏感参数更新省略 Key 会沿用同一完整网关的已存密钥，更换网关不会携带旧 Key。默认请求失败时在原有总截止时间内尝试备用，不延长实时识别时限；主请求耗尽时限时仍回退本地。连接测试会实际调用当前默认视觉模型，可能产生费用。温度 0 与输出上限保持识别管线的固定安全参数，不开放任意生成参数。
+
+非 Windows 部署须提供 32 字节随机数的 base64 `HOK_CONFIG_KEY`，使用 AES-256-GCM 加密；程序不会生成一个与密文放在一起的明文主密钥。解密失败保留原文件并禁止覆盖，应恢复原 Windows 用户/原加密环境；不能在另一台电脑直接使用 DPAPI 密文。已有 `.env` 不被改写，OBS 仍可从环境变量初始化。退出前确认设置页面保存成功。
 
 同一服务商且同一完整接口地址省略 apiKey 可沿用；切换接口/服务商会清除旧密钥，避免误发。API 显式传空字符串可清除密钥。Custom 仅允许无查询参数的公共 HTTPS；实际建连 DNS 查验拒绝内网/保留地址，不跟随重定向，响应上限 64 KiB。
 
@@ -29,6 +33,8 @@
 `GET /api/v1/ai-recognition/config` 返回公开配置及无敏感信息的 diagnostics（调度、命中、跳过、失败、取消、完成、缓存数量、busy）。
 
 `PUT /api/v1/ai-recognition/config` 接受 `{enabled,vendor,model,endpoint,apiKey?}`。两者均只允许本机、已授权 Control。英雄实际入口为 `/api/recognize-frame` / `/api/v1/recognition/frame`；此前文档的 `/api/v1/capture/browser` 不准确。
+
+多配置接口为 `POST /api/v1/ai-recognition/profiles`（`id? / name / enabled / vendor / model / endpoint / apiKey?`）；`PUT` 选择 `{activeId,backupId}`；`DELETE` 删除 `{id}`；`POST /api/v1/ai-recognition/test` 验证默认模型。公开响应只有 configured 标记，不含 Key。
 
 HUD 未变化裁图在本地复用最多 4 秒 OCR，变化字段仍合成一个 OCR 批次；独立工作器、比赛上下文、校准和重置隔离缓存。缓存复用不跳过发布校验。
 

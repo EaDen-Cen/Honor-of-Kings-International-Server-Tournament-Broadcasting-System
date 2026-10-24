@@ -57,7 +57,7 @@ export const test=base.extend<{ isolatedServer:void }>({
         cwd:project,
         env:{...process.env,PORT:String(port),HOST:host,NODE_ENV:'development',
           DATA_FILE:join(directory,'match.json'),UPLOAD_DIR:join(directory,'uploads','player-portraits'),
-          CONTROL_TOKEN:'e2e-control',CASTER_TOKEN:'e2e-caster',OVERLAY_TOKEN:'e2e-overlay',ACCESS_PASSWORD:''},
+          CONTROL_TOKEN:'e2e-control',CASTER_TOKEN:'e2e-caster',OVERLAY_TOKEN:'e2e-overlay',ACCESS_PASSWORD:'',OBS_WS_URL:'',OBS_WS_PASSWORD:''},
         stdio:['ignore',log,log],
       });
     }finally{closeSync(log);}

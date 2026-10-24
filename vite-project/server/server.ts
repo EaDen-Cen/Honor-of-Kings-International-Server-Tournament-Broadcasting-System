@@ -1,12 +1,7 @@
 import { invalidateHudCache } from './hudOcrCache.js';
 import { evaluateHero } from './aiEvaluation.js';
 import { fuseHud, fusePlayers, fusePostGame } from './aiFusion.js';
-import {
-  aiPublicConfig,
-  setAiConfig,
-  recognizeAiWithFallback,
-  aiRecognition,
-} from './aiRecognition.js';
+import { recognizeAiWithFallback, aiRecognition } from './aiRecognition.js';
 import sharp from 'sharp';
 import { postGameCaptureRowIds } from './postGameCaptureRows.js';
 import { isBroadcastPageRoute } from './uiRoutes.js';
@@ -47,6 +42,12 @@ import type { Role } from '../src/shared/types.js';
 import { TeamPresetStore } from './teamPresets.js';
 import { Store } from './store.js';
 import { ObsBridge } from './obsBridge.js';
+import { SecureSettings } from './secureSettings.js';
+import { AiProfiles } from './aiProfiles.js';
+import { DiscordVoting } from './discordVoting.js';
+import { PostGameCarousel } from './postGameCarousel.js';
+import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
+import { operatorPreferenceKey } from '../src/shared/operatorPreferences.js';
 import { uploadPortrait, servePortrait } from './portraits.js';
 import {
   captureRegion,
@@ -95,7 +96,34 @@ const uploadDirectory = resolve(
   process.env.UPLOAD_DIR || resolve(dirname(dataFile), 'uploads/player-portraits'),
 );
 const diagnostics = new Diagnostics(resolve(dirname(dataFile), 'logs'));
-const obsBridge = new ObsBridge();
+const secureSettings = new SecureSettings(resolve(dirname(dataFile), 'secure-settings.json'));
+const aiProfiles = new AiProfiles(secureSettings);
+const savedObs = secureSettings.get<{ address: string; password: string }>('obs');
+let obsBridge = new ObsBridge(
+  savedObs?.address || process.env.OBS_WS_URL,
+  savedObs?.password ?? process.env.OBS_WS_PASSWORD,
+);
+const carousel = new PostGameCarousel(
+  secureSettings,
+  () => store.data.state,
+  (scene, isCurrent) => obsBridge.switchScene(scene, isCurrent),
+);
+const carouselTimer = setInterval(() => void carousel.tick(), 250);
+carouselTimer.unref();
+let discord: DiscordVoting | undefined;
+let discordLoadError = '';
+try {
+  discord = new DiscordVoting(resolve(dirname(dataFile), 'audience-votes.json'), secureSettings);
+} catch {
+  discordLoadError = '投票记录加载失败；原文件已保留，自动投票已停用。';
+}
+const discordTimer = setInterval(() => {
+  void discord
+    ?.tick()
+    .then(() => discord?.autoStart(store.data.state))
+    .catch(() => diagnostics.record('discord_sync_failed'));
+}, 5000);
+discordTimer.unref();
 diagnostics.record('server_start', { ocrEnabled: true });
 const recovery = new RecoveryManager(dataFile, uploadDirectory);
 recovery.automatic();
@@ -126,11 +154,248 @@ const server = createServer(async (req, res) => {
   }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/v1/recognition/gold-curve') {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localOperatorRequest(req)
+      ) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      if (req.method !== 'POST') {
+        json(405, { error: 'POST required' });
+        req.resume();
+        return;
+      }
+      try {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 6 * 1024 * 1024) throw Error('Curve crop too large');
+        }
+        const input = JSON.parse(body);
+        if (
+          typeof input.image !== 'string' ||
+          !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(input.image) ||
+          !store.data.state.postGameReports.some((r) => r.id === input.reportId)
+        )
+          throw Error('Invalid curve image or report');
+        const started = performance.now();
+        const frame = await sharp(Buffer.from(input.image.split(',')[1], 'base64'), {
+          limitInputPixels: 9000000,
+        })
+          .png()
+          .toBuffer();
+        const result = await recognizeSettlementGoldCurve(frame, playerRecognition);
+        if (!store.data.state.postGameReports.some((r) => r.id === input.reportId))
+          throw Error('Report changed');
+        await mkdir(uploadDirectory, { recursive: true });
+        const name = `${randomUUID()}.png`;
+        await writeFile(resolve(uploadDirectory, name), frame, { flag: 'wx' });
+        json(200, {
+          page: 'recap',
+          reportId: input.reportId,
+          capturedAt: Date.now(),
+          evidence: `/uploads/player-portraits/${name}`,
+          rows: [],
+          candidates: [],
+          goldCurve: result,
+          elapsedMs: performance.now() - started,
+        });
+      } catch (error) {
+        json(400, { error: error instanceof Error ? error.message : '经济曲线识别失败' });
+      }
+      return;
+    }
+    if (url.pathname === '/api/v1/postgame-carousel') {
+      const role = roleFor(req.headers.authorization?.replace(/^Bearer /, ''));
+      if (!role) {
+        json(403, { error: 'Authorization required' });
+        return;
+      }
+      if (req.method === 'GET') {
+        json(200, carousel.snapshot());
+        return;
+      }
+      if (role !== 'control' || !localOperatorRequest(req)) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      try {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 16000) throw Error('Request too large');
+        }
+        const input = JSON.parse(body);
+        if (req.method === 'PUT') json(200, carousel.configure(input));
+        else if (req.method === 'POST') json(200, await carousel.command(input.action, input.page));
+        else json(405, { error: 'GET, PUT or POST required' });
+      } catch (error) {
+        json(400, { error: error instanceof Error ? error.message : 'Carousel failed' });
+      }
+      return;
+    }
+    if (url.pathname === '/api/v1/audience-vote') {
+      const role = roleFor(req.headers.authorization?.replace(/^Bearer /, ''));
+      if (!role) {
+        json(403, { error: 'Authorization required' });
+        return;
+      }
+      if (req.method !== 'GET') {
+        json(405, { error: 'GET required' });
+        return;
+      }
+      json(200, discord?.snapshot(role !== 'control') ?? { votes: [], error: discordLoadError });
+      return;
+    }
+    if (
+      url.pathname.startsWith('/api/v1/discord/') ||
+      url.pathname === '/api/v1/obs/config' ||
+      url.pathname === '/api/v1/operator-preferences' ||
+      url.pathname.startsWith('/api/v1/ai-recognition/profiles') ||
+      url.pathname === '/api/v1/ai-recognition/test'
+    ) {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localOperatorRequest(req)
+      ) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      try {
+        let body = '';
+        if (req.method !== 'GET')
+          for await (const chunk of req) {
+            body += chunk;
+            if (body.length > (url.pathname === '/api/v1/operator-preferences' ? 250000 : 64000))
+              throw Error('Request too large');
+          }
+        const input = body ? JSON.parse(body) : {};
+        if (!input || typeof input !== 'object' || Array.isArray(input))
+          throw Error('Invalid input');
+        if (url.pathname === '/api/v1/operator-preferences') {
+          if (req.method === 'GET') {
+            json(200, secureSettings.get('preferences') ?? {});
+            return;
+          }
+          if (req.method !== 'PUT') {
+            json(405, { error: 'GET or PUT required' });
+            return;
+          }
+          if (
+            Object.entries(input).some(
+              ([key, value]) =>
+                !operatorPreferenceKey(key) || typeof value !== 'string' || value.length > 100000,
+            )
+          )
+            throw Error('Invalid operator preferences');
+          secureSettings.set('preferences', input);
+          json(200, { ok: true });
+          return;
+        }
+        if (url.pathname === '/api/v1/obs/config') {
+          const current = secureSettings.get<{ address: string; password: string }>('obs');
+          if (req.method === 'GET') {
+            json(200, {
+              address: current?.address || process.env.OBS_WS_URL || 'ws://127.0.0.1:4455',
+              configured: current ? !!current.password : !!process.env.OBS_WS_PASSWORD,
+              storageError: secureSettings.error,
+            });
+            return;
+          }
+          if (req.method !== 'PUT') {
+            json(405, { error: 'GET or PUT required' });
+            return;
+          }
+          const { validateLocalObsUrl } = await import('./obsBridge.js');
+          const address = validateLocalObsUrl(input.address);
+          let environmentAddress = '';
+          try {
+            environmentAddress = validateLocalObsUrl(process.env.OBS_WS_URL || '');
+          } catch {
+            /* Invalid environment addresses cannot retain credentials. */
+          }
+          if (
+            input.password !== undefined &&
+            (typeof input.password !== 'string' || input.password.length > 512)
+          )
+            throw Error('Invalid OBS password');
+          const password =
+            input.password ??
+            (current?.address === address
+              ? current.password
+              : environmentAddress === address
+                ? process.env.OBS_WS_PASSWORD || ''
+                : '');
+          secureSettings.set('obs', { address, password });
+          obsBridge.close();
+          obsBridge = new ObsBridge(address, password);
+          json(200, { ok: true });
+          return;
+        }
+        if (url.pathname === '/api/v1/ai-recognition/test') {
+          if (req.method !== 'POST') {
+            json(405, { error: 'POST required' });
+            return;
+          }
+          json(200, await aiRecognition.testConnection());
+          return;
+        }
+        if (url.pathname === '/api/v1/ai-recognition/profiles') {
+          if (req.method === 'POST') {
+            json(200, aiProfiles.save(input));
+            return;
+          }
+          if (req.method === 'PUT') {
+            json(200, aiProfiles.select(input.activeId, input.backupId || ''));
+            return;
+          }
+          if (req.method === 'DELETE') {
+            json(200, aiProfiles.remove(input.id));
+            return;
+          }
+          json(405, { error: 'POST, PUT or DELETE required' });
+          return;
+        }
+        if (!discord) throw Error(discordLoadError);
+        const action = url.pathname.split('/').at(-1);
+        if (action === 'config' && req.method === 'GET') {
+          json(200, discord.publicConfig());
+          return;
+        }
+        if (action === 'config' && req.method === 'PUT') {
+          json(200, discord.saveConfig(input));
+          return;
+        }
+        if (req.method !== 'POST') {
+          json(405, { error: 'POST required' });
+          return;
+        }
+        if (action === 'test') json(200, await discord.testConnection());
+        else if (action === 'start') json(200, await discord.start(store.data.state, input));
+        else if (action === 'end' || action === 'cancel')
+          json(200, await discord.finish(input.id, action === 'cancel'));
+        else if (action === 'retry') {
+          await discord.tick(true);
+          json(200, discord.snapshot());
+        } else if (action === 'recover')
+          json(200, await discord.recover(input.id, input.messageId));
+        else json(404, { error: 'Unknown Discord action' });
+      } catch (error) {
+        json(400, { error: error instanceof Error ? error.message : 'Integration request failed' });
+      }
+      return;
+    }
     if (
       url.pathname === '/api/v1/obs/status' ||
       url.pathname === '/api/v1/obs/scene' ||
       url.pathname === '/api/v1/obs/audio' ||
-      url.pathname === '/api/v1/obs/layout'
+      url.pathname === '/api/v1/obs/layout' ||
+      url.pathname === '/api/v1/obs/crossfade'
     ) {
       // This integration never accepts a remotely proxied Control session:
       // the OBS WebSocket is deliberately bound to the local operator machine.
@@ -167,7 +432,7 @@ const server = createServer(async (req, res) => {
         }
         return;
       }
-      if (url.pathname.endsWith('/audio')) {
+      if (url.pathname.endsWith('/audio') || url.pathname.endsWith('/crossfade')) {
         if (req.method === 'GET') {
           try {
             json(200, { inputs: await obsBridge.audioInputs() });
@@ -202,6 +467,31 @@ const server = createServer(async (req, res) => {
             ? (input as Record<string, unknown>)
             : {};
         const { inputName, targetVolume, durationMs } = values;
+        if (url.pathname.endsWith('/crossfade')) {
+          if (
+            typeof values.from !== 'string' ||
+            typeof values.to !== 'string' ||
+            typeof targetVolume !== 'number' ||
+            !Number.isFinite(targetVolume) ||
+            targetVolume < 0 ||
+            targetVolume > 2 ||
+            !Number.isInteger(durationMs) ||
+            Number(durationMs) < 0 ||
+            Number(durationMs) > 5000
+          ) {
+            json(400, { error: 'Invalid crossfade request' });
+            return;
+          }
+          try {
+            json(
+              200,
+              await obsBridge.crossfade(values.from, values.to, targetVolume, Number(durationMs)),
+            );
+          } catch (error) {
+            json(409, { error: error instanceof Error ? error.message : 'Crossfade failed' });
+          }
+          return;
+        }
         if (
           typeof inputName !== 'string' ||
           !inputName.trim() ||
@@ -258,6 +548,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
+        carousel.pause();
         json(200, await obsBridge.switchScene(scene));
       } catch (error) {
         json(409, { error: error instanceof Error ? error.message : 'OBS scene change failed' });
@@ -333,7 +624,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (req.method === 'GET') {
-        json(200, { ...aiPublicConfig(), diagnostics: aiRecognition.diagnostics() });
+        json(200, { ...aiProfiles.publicConfig(), diagnostics: aiRecognition.diagnostics() });
         return;
       }
       if (req.method !== 'PUT') {
@@ -349,9 +640,11 @@ const server = createServer(async (req, res) => {
             return;
           }
         }
-        json(200, setAiConfig(JSON.parse(body)));
-      } catch {
-        json(400, { error: 'Invalid AI settings or endpoint' });
+        json(200, aiProfiles.save({ ...JSON.parse(body), id: aiProfiles.publicConfig().activeId }));
+      } catch (error) {
+        json(400, {
+          error: error instanceof Error ? error.message : 'Invalid AI settings or endpoint',
+        });
       }
       return;
     }

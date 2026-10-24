@@ -1,4 +1,8 @@
-import { AiRecognitionSettings } from './control/AiRecognitionSettings';
+import { IntegrationSettings } from './control/IntegrationSettings';
+import { DiscordVotePanel } from './control/DiscordVotePanel';
+import { AudienceVoteOverlay } from './shared/AudienceVoteView';
+import { CarouselOverlay, PostGameCarouselPanel } from './control/PostGameCarouselPanel';
+import { OperatorPreferences } from './control/OperatorPreferences';
 import { PostGamePanel } from './control/PostGamePanel';
 import { MvpOverlay } from './overlay/MvpOverlay';
 import { PostGameBroadcast } from './overlay/PostGameBroadcast';
@@ -128,7 +132,7 @@ const settingsFromState = (state: MatchState): MatchSettings => ({
   artSourceMode: state.artSourceMode,
 });
 
-function MatchSettingsPanel({ state, send, disabled, token }: { state: MatchState; send: (a: Action) => void; disabled: boolean; token: string }) {
+function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send: (a: Action) => void; disabled: boolean; token: string }) {
   const t = translator(state.language);
   const { form, setForm, dirty, conflicts, reset } = useSettingsDraft(settingsFromState(state));
   const firstPickLocked = state.currentPhase > 0;
@@ -144,7 +148,6 @@ function MatchSettingsPanel({ state, send, disabled, token }: { state: MatchStat
       gameNumber: state.gameNumber,
     } });
   }}>
-    <AiRecognitionSettings token={token} zh={state.language === 'zh'} />
     <div className="match-settings-grid">
       <section><h3>{t('matchDisplay')}</h3>
         <label>{t('stage')}<input maxLength={80} value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })} /></label>
@@ -301,6 +304,8 @@ export default function BroadcastApp() {
     </main>;
   }
   const matchupRole=/^\/overlay\/postgame-(clash|jungle|mid|farm|roam)$/.exec(location.pathname)?.[1] as PlayerRole|undefined;
+  if(role==='overlay'&&location.pathname==='/overlay/audience-mvp')return <ViewportCanvas className="overlay"><AudienceVoteOverlay token={token}/></ViewportCanvas>;
+  if(role==='overlay'&&location.pathname==='/overlay/postgame-carousel')return <ViewportCanvas className="overlay">{state&&<CarouselOverlay state={state} token={token}/>}</ViewportCanvas>;
   if (role === 'overlay') return <ViewportCanvas className="overlay">{state ? (location.pathname==='/overlay/game-hud'?<GameHud state={state}/>:location.pathname==='/overlay/mvp'?<MvpOverlay state={state}/>:matchupRole?<PostGameBroadcast state={state} mode="compare" compareRole={matchupRole}/>:location.pathname==='/overlay/postgame-compare'?<PostGameBroadcast state={state} mode="compare"/>:location.pathname==='/overlay/game-progress'?<PostGameBroadcast state={state} mode="progress"/>:<DraftOverlay state={state} />) : <p className="notice">{connectionLabel(status,lang)}</p>}</ViewportCanvas>;
   return <main className={`workspace ${role === 'control' ? 'control-workspace' : ''}`}>
     <header className="topbar">
@@ -309,6 +314,7 @@ export default function BroadcastApp() {
         <b className={connected ? 'status live' : 'status'}>{connectionLabel(status, lang)}</b>
         <span>{role === 'caster' ? t('delayedFeed', { seconds: snapshot?.casterDelaySeconds ?? '—' }) : t('controlRealtime')}</span>
         {role === 'control' && <button onClick={()=>setShowAccess(value=>!value)}>{lang === 'zh'?'访问与网站设置':'Access and website settings'}</button>}
+        {role==='control'&&<button onClick={()=>document.dispatchEvent(new CustomEvent('hok-open-panel',{detail:'integration-settings'}))}>{lang==='zh'?'设置中心':'Settings'}</button>}
         {!local && <button onClick={() => setToken('')}>{t('logout')}</button>}
       </div>
     </header>
@@ -319,6 +325,7 @@ export default function BroadcastApp() {
     {state ? <>
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
+        <OperatorPreferences token={token}/>
         <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
         <DockWorkspace zh={lang==='zh'} panels={{
           monitor: <div className="control-monitor">
@@ -361,7 +368,9 @@ export default function BroadcastApp() {
           players: <><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /><LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} /></>,
           obs: <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />,
           hud: <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />,
-          postgame: <div id="postgame-tools"><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,
+          postgame: <div id="postgame-tools"><PostGameCarouselPanel token={token}/><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,
+          voting: <DiscordVotePanel token={token} state={state}/>,
+          settings: <IntegrationSettings token={token} zh={lang==='zh'}/>,
           recovery: <RecoveryPanel token={token} zh={state.language==='zh'} />,
           analysis: <><DraftHistory state={state} /><Analysis state={state} lang={lang} /></>,
         }} />

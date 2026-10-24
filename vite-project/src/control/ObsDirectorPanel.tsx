@@ -8,6 +8,7 @@ import {
   recommendedObsCue,
   resolveObsCue,
   type ObsCueMap,
+  type ObsCue,
 } from './obsCues';
 
 interface ObsStatus {
@@ -64,7 +65,15 @@ export function ObsDirectorPanel({
   zh: boolean;
   state: MatchState;
 }) {
-  const suggested = recommendedObsCue(state);
+  const inferred = recommendedObsCue(state);
+  const [manualCue, setManualCue] = useState<ObsCue | ''>('');
+  const suggested = manualCue || inferred;
+  const [automation, setAutomation] = useState<'hint' | 'prepare' | 'auto'>('hint');
+  const autoCue = useRef('');
+  useEffect(() => {
+    setManualCue('');
+    autoCue.current = '';
+  }, [state.draftGameNumber, state.blueTeam.id, state.redTeam.id]);
   const [cueMap, setCueMap] = useState<ObsCueMap>(() => {
     try {
       return parseObsCueMap(localStorage.getItem('hok-obs-scene-cues-v1'));
@@ -106,8 +115,43 @@ export function ObsDirectorPanel({
   const statusVersion = useRef(0);
   const [audioInputs, setAudioInputs] = useState<ObsAudioInput[]>([]);
   const [audioName, setAudioName] = useState('');
-  const [targetVolume, setTargetVolume] = useState(100);
-  const [fadeMs, setFadeMs] = useState(3000);
+  const [hadAudioPreferences] = useState(() => {
+    try {
+      return localStorage.getItem('hok-obs-audio-v1') !== null;
+    } catch {
+      return false;
+    }
+  });
+  const [targetVolume, setTargetVolume] = useState(() => {
+    try {
+      return Math.min(
+        200,
+        Math.max(
+          0,
+          Number(JSON.parse(localStorage.getItem('hok-obs-audio-v1') || '{}').targetVolume ?? 100),
+        ),
+      );
+    } catch {
+      return 100;
+    }
+  });
+  const [fadeMs, setFadeMs] = useState(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem('hok-obs-audio-v1') || '{}').fadeMs;
+      return [0, 1000, 3000, 5000].includes(value) ? value : 3000;
+    } catch {
+      return 3000;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('hok-obs-audio-v1', JSON.stringify({ targetVolume, fadeMs }));
+    } catch {
+      /* Session controls remain usable. */
+    }
+  }, [targetVolume, fadeMs]);
+  const [crossfadeTo, setCrossfadeTo] = useState('');
+  const fadeGeneration = useRef(0);
   const [layout, setLayout] = useState<{ scene: string; sources: ObsBrowserSource[] } | null>(null);
   const [layoutError, setLayoutError] = useState('');
   const [layoutBusy, setLayoutBusy] = useState(false);
@@ -168,7 +212,7 @@ export function ObsDirectorPanel({
       const inputs = result.inputs ?? [];
       setAudioInputs(inputs);
       if (!audioInitialized.current && inputs[0]) {
-        setTargetVolume(Math.round(inputs[0].volume * 100));
+        if (!hadAudioPreferences) setTargetVolume(Math.round(inputs[0].volume * 100));
         audioInitialized.current = true;
       }
       setAudioName((current) =>
@@ -178,7 +222,7 @@ export function ObsDirectorPanel({
     } catch (error) {
       setAudioError(error instanceof Error ? error.message : 'OBS audio unavailable');
     }
-  }, [token]);
+  }, [token, hadAudioPreferences]);
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
@@ -220,7 +264,8 @@ export function ObsDirectorPanel({
     }
   };
   const fadeAudio = async (target: number) => {
-    if (audioBusy || !audioName || !status?.connected) return;
+    if (!audioName || !status?.connected) return;
+    const generation = ++fadeGeneration.current;
     setAudioBusy(true);
     setAudioError('');
     try {
@@ -238,9 +283,10 @@ export function ObsDirectorPanel({
       if (!res.ok) throw new Error(result.error || 'OBS audio fade failed');
       await refreshAudio();
     } catch (error) {
-      setAudioError(error instanceof Error ? error.message : 'OBS audio fade failed');
+      if (generation === fadeGeneration.current)
+        setAudioError(error instanceof Error ? error.message : 'OBS audio fade failed');
     } finally {
-      setAudioBusy(false);
+      if (generation === fadeGeneration.current) setAudioBusy(false);
     }
   };
   const switchScene = async (target = selected) => {
@@ -288,6 +334,23 @@ export function ObsDirectorPanel({
       setBusy(false);
     }
   };
+  useEffect(() => {
+    const target = resolveObsCue(suggested, status?.scenes ?? [], cueMap);
+    const eventKey = `${state.draftGameNumber}:${suggested}`;
+    if (
+      automation === 'hint' ||
+      !target ||
+      !status?.connected ||
+      manualCue ||
+      autoCue.current === eventKey
+    )
+      return;
+    autoCue.current = eventKey;
+    if (automation === 'prepare') setSelected(target);
+    else if (target !== status.programScene) void switchScene(target);
+    // Only a new stage may execute; manual scene changes must not be fought by polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggested, automation, status?.connected, cueMap, state.draftGameNumber, manualCue]);
   return (
     <details id="obs-workspace" className="panel obs-director" data-testid="obs-director">
       <summary>
@@ -351,7 +414,7 @@ export function ObsDirectorPanel({
           </button>
           <span className="muted">
             {zh
-              ? '只读比赛状态；不会因 OCR 或比赛进度自动切镜。'
+              ? '默认仅提示；自动切镜需在下方明确开启，人工切镜会暂停赛后轮播。'
               : 'Match state is read-only here; OCR and match progress never switch scenes automatically.'}
           </span>
         </div>
@@ -385,6 +448,48 @@ export function ObsDirectorPanel({
               {zh
                 ? '根据导播控制台当前 BP、开局及赛后状态提示推荐场景；先将每个阶段绑定到 OBS 中的真实场景。'
                 : 'Suggestions follow Control BP, game and postgame state. Map each stage to an actual OBS scene first.'}
+            </p>
+            <div className="toolbar">
+              <label>
+                {zh ? '建议模式' : 'Cue mode'}
+                <select
+                  value={automation}
+                  onChange={(e) => {
+                    autoCue.current = '';
+                    setAutomation(e.target.value as typeof automation);
+                  }}
+                >
+                  <option value="hint">仅提示</option>
+                  <option value="prepare">半自动：准备后人工切换</option>
+                  <option value="auto">自动切镜（本次会话明确授权）</option>
+                </select>
+              </label>
+              <label>
+                人工阶段覆盖
+                <select
+                  value={manualCue}
+                  onChange={(e) => setManualCue(e.target.value as ObsCue | '')}
+                >
+                  <option value="">跟随系统推断</option>
+                  {obsCueKeys.map((c) => (
+                    <option value={c} key={c}>
+                      {obsCueLabels[c].zh}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="muted">
+              {manualCue
+                ? '依据：导播人工指定'
+                : inferred === 'postgame'
+                  ? '依据：本局已确认 / 已有赛后报告'
+                  : inferred === 'game'
+                    ? '依据：BP 已完成，推断加载 / 入局；无需先确认本局有效'
+                    : inferred === 'draft'
+                      ? '依据：已有 BP 操作'
+                      : '依据：尚未开始 BP'}
+              。实际播出以 OBS 确认状态为准。
             </p>
             <div className="obs-cue-list">
               {obsCueKeys.map((cue) => {
@@ -661,7 +766,6 @@ export function ObsDirectorPanel({
                     max={200}
                     step={5}
                     value={targetVolume}
-                    disabled={audioBusy}
                     onChange={(e) => setTargetVolume(Number(e.target.value))}
                   />
                   <label>
@@ -669,7 +773,6 @@ export function ObsDirectorPanel({
                     <select
                       aria-label="OBS fade duration"
                       value={fadeMs}
-                      disabled={audioBusy}
                       onChange={(e) => setFadeMs(Number(e.target.value))}
                     >
                       <option value={0}>{zh ? '立即' : 'Instant'}</option>
@@ -690,10 +793,68 @@ export function ObsDirectorPanel({
                   >
                     {zh ? '淡入至目标音量' : 'Fade to target volume'}
                   </button>
+                  <button
+                    type="button"
+                    disabled={!audioBusy}
+                    onClick={() => void fadeAudio(targetVolume)}
+                  >
+                    中断旧渐变并应用当前目标
+                  </button>
+                </div>
+                <div className="toolbar">
+                  <label>
+                    交叉淡化至持久音源
+                    <select value={crossfadeTo} onChange={(e) => setCrossfadeTo(e.target.value)}>
+                      <option value="">请选择另一个 BGM</option>
+                      {audioInputs
+                        .filter((i) => i.name !== audioName)
+                        .map((i) => (
+                          <option key={i.name} value={i.name}>
+                            {i.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!crossfadeTo || audioBusy}
+                    onClick={() => {
+                      setAudioBusy(true);
+                      setAudioError('');
+                      void fetch(`${apiURL}/api/v1/obs/crossfade`, {
+                        method: 'POST',
+                        headers: {
+                          Authorization: `Bearer ${token}`,
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          from: audioName,
+                          to: crossfadeTo,
+                          targetVolume: targetVolume / 100,
+                          durationMs: fadeMs,
+                        }),
+                        signal: AbortSignal.timeout(fadeMs + 15000),
+                      })
+                        .then(async (r) => {
+                          const data = await r.json();
+                          if (!r.ok) throw Error(data.error);
+                          await refreshAudio();
+                        })
+                        .catch((e) => setAudioError(String(e)))
+                        .finally(() => setAudioBusy(false));
+                    }}
+                  >
+                    交叉淡化
+                  </button>
                 </div>
                 <p className="muted">
+                  跨场景持续播放要求这些音源在 OBS
+                  中持续存在，并在相关场景引用同一源；媒体源应关闭切换时重新播放 /
+                  隐藏时关闭。只控制所选 BGM，不处理游戏或解说音源。
+                </p>
+                <p className="muted">
                   {zh
-                    ? '只调整所选音频源音量，不改变 OBS 录制或直播状态；淡出不会修改混音器静音开关。'
+                    ? '只调整所选音频源音量；可中断旧渐变并从当前实际音量接续。'
                     : 'Only adjusts the selected input volume. Recording and streaming remain unchanged; fade-out does not toggle OBS mute.'}
                 </p>
               </>
@@ -703,8 +864,8 @@ export function ObsDirectorPanel({
         )}
         <p className="muted">
           {zh
-            ? 'OBS 场景联动只在导播点击后执行；音频仍为手动渐变。磁盘容量预警与自动切镜尚未实现。'
-            : 'Scene cues execute only when the director clicks Take; audio fades remain manual. Disk alerts and automatic scene switching are not implemented.'}
+            ? '默认手动执行；自动模式仅在本次会话明确授权后按阶段变化执行。音频为手动渐变；磁盘容量预警尚未实现。'
+            : 'Manual by default. Session-authorized automation follows stage changes. Audio fades are manual; disk alerts are not implemented.'}
         </p>
       </div>
     </details>

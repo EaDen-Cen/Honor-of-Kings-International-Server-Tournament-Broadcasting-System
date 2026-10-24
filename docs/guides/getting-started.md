@@ -1,5 +1,7 @@
 > [文档索引](../README.md) · 除特别注明外，文件路径以仓库根目录为基准，npm 命令在 `vite-project/` 中执行。
 
+2026-10-23 开发升级：更新后执行 `npm ci`、`npm run build` 并重启本地服务。外部连接改在 Control → 设置中心配置。Windows 使用当前用户 DPAPI；非 Windows 须预先提供 32 字节随机数 base64 `HOK_CONFIG_KEY`，否则可继续手动赛事流程，但不能保存外部服务凭证。不要改写旧 `.env`，也不要删除无法解密的安全配置。真实联调请先阅读 [Discord](discord-mvp-voting.md) 与 [OBS](obs-director-setup.md) 测试频道/持久音源要求。
+
 # 安装、运行与部署指南
 
 > v1.0.0 Release Candidate 状态：核心 BP / Auto BP / Player ID / 换英雄链路已完成软件验证。**局内 HUD 仍是测试功能**，顶栏 OCR 已有实验版本并要求七项重新校准，真实 OBS 长时间运行待实机验收。

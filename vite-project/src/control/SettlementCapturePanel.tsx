@@ -384,6 +384,66 @@ export function SettlementCapturePanel({
           ? '① 在游戏中打开结算页 → ② 点击「采集整页」→ ③ 核对十人数据并应用。默认使用 BP 窗口，不需要逐项框选。'
           : 'Open a settlement page → Capture full page → Review ten players and apply. Uses the BP window by default; no individual boxes needed.'}
       </p>
+      <label>
+        单独导入经济曲线裁图（包含完整刻度与时间轴）
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={busy || disabled}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (!file) return;
+            if (file.size > 4 * 1024 * 1024) {
+              setMessage('曲线裁图不能超过 4 MB');
+              return;
+            }
+            const request = pending.current.start(30000);
+            running.current = true;
+            setBusy(true);
+            setMessage('正在读取经济曲线…');
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onerror = () => {
+              if (request.finish()) {
+                running.current = false;
+                setBusy(false);
+                setMessage('无法读取图片');
+              }
+            };
+            reader.onload = () => {
+              if (!request.isCurrent()) return;
+              void fetch(
+                `${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api/v1/recognition/gold-curve`,
+                {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image: reader.result, reportId: report.id }),
+                  signal: request.signal,
+                },
+              )
+                .then(async (r) => {
+                  const data = await r.json();
+                  if (!r.ok) throw Error(data.error);
+                  if (!request.isCurrent()) return;
+                  setResults((old) => ({ ...old, recap: data }));
+                  setSelected('recap');
+                  setRecapLeft('');
+                  setMessage(data.goldCurve?.error || '经济曲线已读取；核对队伍方向后人工采用。');
+                })
+                .catch((error) => {
+                  if (request.isCurrent()) setMessage(String(error));
+                })
+                .finally(() => {
+                  if (request.finish()) {
+                    running.current = false;
+                    setBusy(false);
+                  }
+                });
+            };
+          }}
+        />
+      </label>
       <p className="muted">
         {zh
           ? '默认蓝方 P1–P5 对应系统蓝方 P1–P5、红方同理；仅在实际换位时手动修正。各页复用。可逐页上传截图，已采集页面会保留。低置信度数字留在草稿，不会自动入库。'

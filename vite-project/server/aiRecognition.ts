@@ -60,6 +60,30 @@ export class AiRecognitionService {
     endpoint: '',
     apiKey: '',
   };
+  private backup?: Settings;
+  savedConfig() {
+    return { ...this.settings };
+  }
+  async testConnection() {
+    if (!this.settings.apiKey || !this.settings.model)
+      throw Error('AI credentials or model missing');
+    const result = await this.ask(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'Describe this test image in one word.',
+      AbortSignal.timeout(5000),
+    );
+    if (!result) throw Error('AI returned no usable response');
+    return { ok: true };
+  }
+  configureBackup(input: unknown) {
+    if (!input) {
+      this.backup = undefined;
+      return;
+    }
+    const candidate = new AiRecognitionService();
+    candidate.configure(input);
+    this.backup = candidate.savedConfig();
+  }
   private epoch = 0;
   private active?: { controller: AbortController; epoch: number; scope: string; key: string };
   private lastDispatch = -Infinity;
@@ -136,11 +160,12 @@ export class AiRecognitionService {
     image: string,
     prompt: string,
     signal: AbortSignal,
+    settings = this.settings,
   ): Promise<string | undefined> {
     const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(image);
     if (!match || match[2].length > 2_700_000) return;
     const requestEpoch = this.epoch;
-    const current = { ...this.settings },
+    const current = { ...settings },
       mime = 'image/' + match[1],
       data = match[2];
     let target = current.endpoint;
@@ -246,7 +271,12 @@ export class AiRecognitionService {
     const aborted = new Promise<undefined>((resolve) =>
       job.controller.signal.addEventListener('abort', () => resolve(undefined), { once: true }),
     );
-    void Promise.race([this.ask(image, prompt, job.controller.signal), aborted])
+    const answer = this.ask(image, prompt, job.controller.signal).catch((error) => {
+      if (this.backup?.enabled && this.backup.apiKey && !job.controller.signal.aborted)
+        return this.ask(image, prompt, job.controller.signal, this.backup);
+      throw error;
+    });
+    void Promise.race([answer, aborted])
       .then((raw) => {
         if (!raw || job.epoch !== this.epoch || job.controller.signal.aborted) return;
         this.cache.set(key, { raw, until: this.now() + TTL_MS });

@@ -146,3 +146,177 @@
     display: contents;
   }
 }
+/* Event desk: static gradients avoid continuous GPU animation during encoding. */
+.control-workspace {
+  background:
+    radial-gradient(ellipse at 12% 0, rgba(13, 113, 145, 0.16), transparent 42%),
+    radial-gradient(ellipse at 95% 30%, rgba(42, 59, 116, 0.2), transparent 48%), #080f1b;
+  color: #e5eef8;
+}
+.control-workspace .topbar {
+  border-bottom: 1px solid #29435d;
+  background: linear-gradient(115deg, #10283b, #101828);
+  padding: 18px 22px;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px #0003;
+}
+.control-workspace .panel {
+  border-color: #2b4056;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #142337f5, #101a2af5);
+  box-shadow: 0 4px 16px #0002;
+}
+.control-workspace button {
+  min-height: 34px;
+  border-radius: 7px;
+}
+.control-workspace button.primary {
+  background: #13758b;
+  border-color: #4bd2e2;
+  font-weight: 700;
+}
+.control-workspace :focus-visible {
+  outline: 3px solid #55dce8;
+  outline-offset: 2px;
+}
+.control-workspace .panel > h2,
+.control-workspace .panel > h3 {
+  color: #d9f6ff;
+  letter-spacing: 0.03em;
+}
+.control-workspace .muted {
+  color: #a8bad0;
+}
+.dock-panel[data-panel='obs'] {
+  border-top: 3px solid #48c8d9;
+}
+.dock-panel[data-panel='postgame'] {
+  border-top: 3px solid #bd9b62;
+}
+.dock-panel[data-panel='voting'] {
+  border-top: 3px solid #a197ef;
+}
+.dock-panel[data-panel='draft'] {
+  border-top: 3px solid #428fe4;
+}
+.dock-workspace .flexlayout__tab_button--selected {
+  background: #183e53;
+  color: #e6fbff;
+  border-bottom: 2px solid #4ed8e5;
+}
+.dock-workspace .flexlayout__outline_rect {
+  border: 3px solid #55dce8;
+  background: #55dce822;
+}
+.dock-workspace .flexlayout__splitter:hover {
+  background: #28738c;
+}
+.dock-panel {
+  scrollbar-gutter: stable;
+  min-width: 0;
+}
+.dock-panel input,
+.dock-panel select {
+  max-width: 100%;
+  min-width: 0;
+}
+.integration-settings label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.integration-settings input {
+  min-width: 0;
+}
+.integration-settings .settings-checkbox {
+  display: flex;
+}
+.vote-candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.vote-candidate {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #102b43;
+  border: 1px solid #286891;
+  border-radius: 10px;
+}
+.vote-candidate.red {
+  background: #351f30;
+  border-color: #975061;
+}
+.vote-candidate.winner {
+  border-color: #f2c969;
+  box-shadow: 0 0 0 2px #f2c96944;
+}
+.vote-candidate progress {
+  width: 100%;
+  accent-color: #54d5ef;
+}
+.vote-candidate.red progress {
+  accent-color: #ed8796;
+}
+.audience-result {
+  display: block;
+  padding: 18px;
+  color: #ffe2a1;
+  font-size: 22px;
+}
+.audience-vote-overlay {
+  width: 1920px;
+  height: 1080px;
+  padding: 48px 120px;
+  box-sizing: border-box;
+  background: radial-gradient(ellipse at top, #183e5d, #0a1224 75%);
+  color: #edf6ff;
+  font-family: Inter, 'Microsoft YaHei', sans-serif;
+}
+.audience-vote-overlay h1 {
+  font-size: 52px;
+  margin: 16px 0;
+}
+.audience-vote-overlay .vote-results h3 {
+  font-size: 32px;
+  margin: 16px 0;
+}
+.audience-vote-overlay .vote-candidates {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.audience-vote-overlay .vote-candidate {
+  font-size: 24px;
+  padding: 14px;
+}
+.game-grade-badge {
+  width: 88px;
+  height: 58px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-left: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .control-workspace * {
+    scroll-behavior: auto !important;
+  }
+}
+.control-workspace a {
+  color: #7cdae8;
+  line-height: 1.5;
+}
+.dock-workspace .flexlayout__tab {
+  background: #0c1727;
+}
+.dock-workspace .flexlayout__layout {
+  background: #0a1422;
+}
+.postgame-carousel-panel > a,
+.discord-vote-panel > a {
+  display: block;
+  margin: 14px 0 8px;
+}
+.postgame-carousel-panel p {
+  line-height: 1.55;
+}
