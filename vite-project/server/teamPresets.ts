@@ -27,6 +27,22 @@ function substitutes(value: unknown): ReservePlayer[] {
   if (new Set(result.map(p => p.id)).size !== result.length || new Set(result.map(p => p.name.trim().toLocaleLowerCase())).size !== result.length) throw new Error('substitutesInvalid');
   return result;
 }
+export type LibraryImportConflict = 'skip' | 'replace';
+
+/** Parse every incoming team before performing filesystem writes. */
+export function validateImportedTeams(input: unknown): TeamPreset[] {
+  if (!Array.isArray(input) || input.length > 300) throw new Error('teamTransferInvalid');
+  const ids = new Set<string>();
+  return input.map(value => {
+    const team = value as TeamPreset;
+    if (!team || typeof team.id !== 'string' || !/^team-[0-9a-f-]{36}$/.test(team.id) ||
+      !Number.isSafeInteger(team.createdAt) || !Number.isSafeInteger(team.updatedAt) ||
+      team.createdAt < 0 || team.updatedAt < team.createdAt || ids.has(team.id)) throw new Error('teamTransferInvalid');
+    ids.add(team.id);
+    return {...fields(team),substitutes:substitutes(team.substitutes),id:team.id,createdAt:team.createdAt,updatedAt:team.updatedAt};
+  });
+}
+
 export class TeamPresetStore {
   private teams: TeamPreset[] = [];
   constructor(private file: string) {
@@ -58,6 +74,21 @@ export class TeamPresetStore {
     const previous = this.get(id); if (!previous) throw new Error('presetMissing');
     const team = {...fields(input),substitutes:substitutes((input as TeamPreset)?.substitutes ?? previous.substitutes),id,createdAt:previous.createdAt,updatedAt:Date.now()};
     this.persist(this.teams.map(t => t.id === id ? team : t)); return structuredClone(team);
+  }
+  importBatch(input: unknown, conflict: LibraryImportConflict) {
+    if (!['skip', 'replace'].includes(conflict)) throw new Error('teamTransferInvalid');
+    const incoming = validateImportedTeams(input);
+    const current = new Map(this.teams.map(t => [t.id,t]));
+    let added = 0, replaced = 0, skipped = 0;
+    for (const team of incoming) {
+      if (current.has(team.id)) {
+        if (conflict === 'skip') { skipped++; continue; }
+        replaced++;
+      } else added++;
+      current.set(team.id, team);
+    }
+    if (added || replaced) this.persist([...current.values()]);
+    return {added,replaced,skipped,total:this.teams.length};
   }
   delete(id: string) {
     if (!this.get(id)) throw new Error('presetMissing');
