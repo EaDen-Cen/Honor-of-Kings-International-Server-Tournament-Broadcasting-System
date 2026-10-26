@@ -1,7 +1,7 @@
 /**
  * Canonical hero ID order for the global HOK roster.
  *
- * IDs 1..119 now follow the official World of Honor of Kings "Launch Time"
+ * IDs 1..120 now follow the official World of Honor of Kings "Launch Time"
  * order from oldest -> newest. The official page exposes Flowborn as one entry;
  * the five tournament-selectable forms are kept adjacent in Camp ID order.
  * Annette / Florentino / Lorion share the Plus 2.0 release batch with Devara
@@ -130,7 +130,8 @@ export const releaseOrderEnglishNames = [
   "Florentino",
   "Lorion",
   "Devara",
-  "Wang Wei"
+  "Wang Wei",
+  "Dunshan"
 ] as const;
 
 export const legacyHeroIdToReleaseId: Readonly<Record<number, number>> = {
