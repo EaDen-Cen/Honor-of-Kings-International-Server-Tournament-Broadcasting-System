@@ -82,6 +82,7 @@ export async function uploadPortrait(req: IncomingMessage, res: ServerResponse, 
       format = metadata.format === 'jpeg' ? 'jpg' : metadata.format as 'png' | 'webp';
       if (mimeByExtension[format] !== mime) { json(415, { error: 'uploadFormat' }); return; }
       encoded = await pipeline.toFormat(metadata.format as 'jpeg' | 'png' | 'webp').toBuffer();
+      if (encoded.length > MAX_PORTRAIT_BYTES) { json(413, { error: 'uploadTooLarge' }); return; }
     } catch {
       json(415, { error: 'uploadFormat' }); return;
     }
