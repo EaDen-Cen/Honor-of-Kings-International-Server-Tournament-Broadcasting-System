@@ -7,8 +7,8 @@ type ImportResult = {added:number;replaced:number;skipped:number;images:number;e
 type Conflict = 'skip' | 'replace';
 
 export function TeamLibraryTransfer({
-  token, lang, disabled, onImported,
-}: {token:string;lang:Language;disabled:boolean;onImported:()=>Promise<void>}) {
+  token, lang, disabled, onImported, onBusy,
+}: {token:string;lang:Language;disabled:boolean;onImported:()=>Promise<void>;onBusy:(value:boolean)=>void}) {
   const zh = lang === 'zh';
   const [busy,setBusy] = useState(false);
   const [bundle,setBundle] = useState<unknown>();
@@ -36,7 +36,7 @@ export function TeamLibraryTransfer({
   }[key] || label('操作失败：','Operation failed: ')+key);
   const download = async () => {
     if (busy || disabled) return;
-    setBusy(true);setError('');setResult(undefined);
+    setBusy(true);onBusy(true);setError('');setResult(undefined);
     try {
       const data = await request('export');
       const blob = new Blob([JSON.stringify(data)],{type:'application/json'});
@@ -46,7 +46,7 @@ export function TeamLibraryTransfer({
       document.body.appendChild(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     } catch (e) {setError(description(e instanceof Error ? e.message : 'teamTransferFailed'));}
-    finally {setBusy(false);}
+    finally {setBusy(false);onBusy(false);}
   };
   const choose = async (file?:File) => {
     setBundle(undefined);setPreview(undefined);setError('');setResult(undefined);
@@ -55,13 +55,13 @@ export function TeamLibraryTransfer({
     if (file.size > 135 * 1024 * 1024) {
       setError(description('teamTransferTooLarge'));return;
     }
-    setBusy(true);
+    setBusy(true);onBusy(true);
     try {
       const parsed:unknown = JSON.parse(await file.text());
       const summary = await request('preview','POST',{bundle:parsed}) as Preview;
       setBundle(parsed);setPreview(summary);
     } catch(e) {setError(description(e instanceof Error ? e.message : 'teamTransferInvalid'));}
-    finally {setBusy(false);}
+    finally {setBusy(false);onBusy(false);}
   };
   const apply = async () => {
     if (!preview || !bundle || busy || disabled) return;
@@ -71,14 +71,14 @@ export function TeamLibraryTransfer({
       : label(`新增 ${preview.newTeams} 支队伍，跳过 ${preview.conflicts} 支重复队伍？`,
         `Add ${preview.newTeams} teams and skip ${preview.conflicts} matching IDs?`);
     if (!window.confirm(text)) return;
-    setBusy(true);setError('');setResult(undefined);
+    setBusy(true);onBusy(true);setError('');setResult(undefined);
     try {
       const output = await request('import','POST',{bundle,conflict}) as ImportResult;
       await onImported();
       setResult(output);
       setBundle(undefined);setPreview(undefined);setFilename('');
     } catch (e) {setError(description(e instanceof Error ? e.message : 'teamTransferFailed'));}
-    finally {setBusy(false);}
+    finally {setBusy(false);onBusy(false);}
   };
   return <section className="team-library-transfer">
     <h3>{label('跨电脑迁移队伍资料','Transfer team library between computers')}</h3>
