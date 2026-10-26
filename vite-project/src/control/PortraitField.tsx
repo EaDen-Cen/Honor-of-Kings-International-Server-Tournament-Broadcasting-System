@@ -3,8 +3,8 @@ import { apiURL, portraitAssetURL } from '../shared/config';
 import { translator, type MessageKey } from '../shared/i18n';
 import type { Language } from '../shared/types';
 
-export function PortraitField({ value, token, lang, disabled, onChange, onBusy, library = false }: {
-  value: string; token: string; lang: Language; disabled: boolean; library?: boolean;
+export function PortraitField({ value, token, lang, disabled, onChange, onBusy, library = false, titleKey = 'portrait' }: {
+  value: string; token: string; lang: Language; disabled: boolean; library?: boolean; titleKey?: MessageKey;
   onChange: (url: string) => void; onBusy: (busy: boolean) => void;
 }) {
   const t = translator(lang);
@@ -56,7 +56,7 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
     }
   }
   return <div className="portrait-setting">
-    <label>{t('portrait')}<input aria-label={t('portrait')} maxLength={1000} disabled={disabled || uploading} value={value} onChange={e => { setError(undefined); onChange(e.target.value); }} /></label>
+    <label>{t(titleKey)}<input aria-label={t(titleKey)} maxLength={1000} disabled={disabled || uploading} value={value} onChange={e => { setError(undefined); onChange(e.target.value); }} /></label>
     <div className="portrait-input">
       <div className={`portrait-preview portrait-${value ? status : 'empty'}`}>
         {value ? <img key={src} src={src} alt={t('portraitPreview')} onLoad={() => setStatus('loaded')} onError={() => setStatus('failed')} /> : <span>—</span>}
@@ -69,6 +69,6 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
     <p className={`portrait-status ${status}`} role="status">{t(!value ? 'portraitEmpty' : status === 'loaded' ? 'portraitLoaded' : status === 'failed' ? 'portraitFailed' : 'portraitLoading')}</p>
     {value && <small className="portrait-url">{requestedURL}</small>}
     {error && <p className="error" role="alert">{t(error)}</p>}
-    <small>{t(library ? 'libraryPortraitUploadHint' : 'portraitUploadHint')}</small>
+    <small>{titleKey === 'logoAddress' ? (lang === 'zh' ? '队伍 Logo 上传后会保存在本机，并包含在队伍资料导出包内。' : 'Uploaded team logos are stored locally and included in team library exports.') : t(library ? 'libraryPortraitUploadHint' : 'portraitUploadHint')}</small>
   </div>;
 }
