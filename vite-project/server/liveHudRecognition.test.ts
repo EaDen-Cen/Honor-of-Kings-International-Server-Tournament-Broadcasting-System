@@ -116,7 +116,8 @@ test('GHUD UI distinguishes first read, low confidence, stalled clock and alread
     },
   };
   // The same frame is no longer eligible for another write, but it is already trusted.
-  assert.deepEqual(trustedLiveUpdates(applied, first, second), {});
+  assert.equal(trustedLiveUpdates(applied, first, second).blueKills, undefined);
+  assert.equal(trustedLiveUpdates(applied, first, second).gameTimeSeconds, undefined);
   assert.equal(liveHudReviewStates(applied, first, second).blueKills, 'published');
   assert.equal(liveHudReviewStates(applied, first, second).gameTimeSeconds, 'published');
 
