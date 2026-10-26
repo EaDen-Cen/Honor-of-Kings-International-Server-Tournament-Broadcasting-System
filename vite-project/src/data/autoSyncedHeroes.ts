@@ -46,6 +46,19 @@ const autoSyncedHeroes: Hero[] = [
     "counter": [],
     "beCountered": [],
     "relationshipStatus": "unverified"
+  },
+  {
+    "id": 120,
+    "englishName": "Dunshan",
+    "chineseName": "盾山",
+    "occupation": "Roaming",
+    "altOccupation": "",
+    "campId": 509,
+    "imageLink": "/heroesImg/121.png",
+    "combo": [],
+    "counter": [],
+    "beCountered": [],
+    "relationshipStatus": "unverified"
   }
 ];
 
