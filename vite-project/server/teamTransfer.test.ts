@@ -81,7 +81,7 @@ test('JPEG upload accepts valid progressive JPEG and stores a normalized decodab
   const root = mkdtempSync(join(tmpdir(),'hok-jpeg-'));
   const server = createServer((req,res)=>{void uploadPortrait(req,res,root);});
   try {
-    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
     const addr = server.address();
     if (!addr || typeof addr==='string') throw new Error('Missing TCP port');
     const jpeg = await sharp({create:{width:1080,height:1080,channels:3,background:'#ffffff'}})
