@@ -46,6 +46,22 @@ test('Flowborn localized names replace generic or coming-soon placeholders', () 
   assert.equal(preferredChineseHeroName('Flowborn (Mage)', '元流之子'), '元流之子（法师）');
 });
 
+test('Dunshan is the newest global Roaming hero and reuses the CN stable identity', () => {
+  const dunshan = heroes.find(hero => hero.id === 120);
+  assert.ok(dunshan);
+  assert.equal(dunshan.englishName, 'Dunshan');
+  assert.equal(dunshan.chineseName, '盾山');
+  assert.equal(dunshan.campId, 509);
+  assert.equal(dunshan.occupation, 'Roaming');
+  assert.equal(dunshan.imageLink, '/heroesImg/121.png');
+  assert.equal(heroes.filter(hero => hero.englishName === 'Dunshan').length, 1);
+  assert.equal(heroes.at(-1)?.id, 120);
+  assert.ok(allPoolHeroes.some(hero => hero.id === dunshan.id));
+  assert.ok(cnHeroes.some(hero => hero.id === dunshan.id));
+  assert.ok(heroAllowed('global', dunshan.id));
+  assert.ok(heroAllowed('cn', dunshan.id));
+});
+
 test('Wang Wei uses reviewed simplified Chinese display name and newest canonical ID', () => {
   assert.equal(preferredChineseHeroName('Wang Wei', '王維'), '王维');
   const wangWei = heroes.find(hero => hero.id === 119);
