@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import sharp from 'sharp';
 
 export const MAX_PORTRAIT_BYTES = 5 * 1024 * 1024;
 const mimeByExtension: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
@@ -69,11 +70,32 @@ export async function uploadPortrait(req: IncomingMessage, res: ServerResponse, 
       if (size > MAX_PORTRAIT_BYTES) { json(413, { error: 'uploadTooLarge' }); req.resume(); return; }
       chunks.push(Buffer.from(chunk));
     }
-    const data = Buffer.concat(chunks), format = portraitFormat(data);
-    if (!format || mimeByExtension[format] !== mime) { json(415, { error: 'uploadFormat' }); return; }
+    const data = Buffer.concat(chunks);
+    // The old hand-written JPEG segment scanner rejected otherwise decodable files.
+    // Ask libvips to decode the image instead of guessing from JPEG segment markers.
+    let encoded: Buffer;
+    let format: 'png' | 'jpg' | 'webp';
+    try {
+      const pipeline = sharp(data, { limitInputPixels: 25_000_000, failOn: 'error' });
+      const metadata = await pipeline.metadata();
+      if (!metadata.width || !metadata.height || !['jpeg', 'png', 'webp'].includes(metadata.format)) throw new Error('Invalid image');
+      format = metadata.format === 'jpeg' ? 'jpg' : metadata.format as 'png' | 'webp';
+      if (mimeByExtension[format] !== mime) { json(415, { error: 'uploadFormat' }); return; }
+      if (format === 'jpg') {
+        // Canonicalize JPEGs (including EXIF orientation) for reliable rendering.
+        encoded = await pipeline.rotate().jpeg().toBuffer();
+      } else {
+        // Preserve original PNG/WebP bytes: existing imports and cache hashes depend on this.
+        await pipeline.raw().toBuffer();
+        encoded = data;
+      }
+      if (encoded.length > MAX_PORTRAIT_BYTES) { json(413, { error: 'uploadTooLarge' }); return; }
+    } catch {
+      json(415, { error: 'uploadFormat' }); return;
+    }
     const name = `${randomUUID()}.${format}`;
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, name), data, { flag: 'wx' });
+    await writeFile(join(directory, name), encoded, { flag: 'wx' });
     json(201, { url: `/uploads/player-portraits/${name}` });
   } catch { if (!res.writableEnded) json(500, { error: 'uploadFailed' }); }
   finally { req.setTimeout(0); }
