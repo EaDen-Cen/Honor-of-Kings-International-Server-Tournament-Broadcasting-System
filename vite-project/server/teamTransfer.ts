@@ -33,7 +33,7 @@ function isBundledPublicAsset(url: string) {
   try {
     const decoded = decodeURIComponent(url);
     return /^\/(?:teamLogo|playerImg)\/[^/.][^/\\]*\.(?:png|jpg|jpeg|webp)$/i.test(decoded) &&
-      !decoded.includes('..') && !/[\x00-\x1f]/.test(decoded);
+      !decoded.includes('..') && ![...decoded].some(char => char.charCodeAt(0) < 32);
   } catch { return false; }
 }
 function localFile(url: string, uploads: string, publicRoot: string): string | undefined {
