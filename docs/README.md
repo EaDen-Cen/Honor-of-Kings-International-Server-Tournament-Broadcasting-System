@@ -1,5 +1,7 @@
 # 文档总索引
 
+> **2026-10-25**：盾山（Dunshan）已在国际服 10 月 21 日上线，程序开发分支补录为 Hero ID 120，更新离线头像、身份映射及回归测试，见 [英雄名单](research/hero-roster.md) / [同步说明](research/hero-sync.md)。
+
 > **2026-10-25 开发分支（尚未实机验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](guides/team-library-migration.md)。\n\n[返回项目首页](../README.md)
 
 2026-10-23 开发升级入口：[Discord / MVP 投票](guides/discord-mvp-voting.md)、[配置与 AI](guides/ai-recognition.md)、[OBS 与赛后轮播](guides/obs-director-setup.md)、[隔离验收及待验证清单](validation/2026-10-23-console-upgrade.md)。这些开发改动不追溯计入已发布的 RC。
