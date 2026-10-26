@@ -6,6 +6,7 @@ import { apiURL } from '../shared/config';
 import { translator } from '../shared/i18n';
 import { errorMessage } from '../shared/errorMessages';
 import { PortraitField } from './PortraitField';
+import { TeamLibraryTransfer } from './TeamLibraryTransfer';
 
 export function TeamLibrary({state, form, token, disabled, send, onRosterApply}: {state:MatchState;form:MatchSettings;token:string;disabled:boolean;send:(action:Action)=>void;onRosterApply:(side:Side,index:number,player:ReservePlayer)=>void}) {
   const t = translator(state.language);
@@ -13,6 +14,7 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
   const [selected,setSelected] = useState({blue:'',red:''});
   const [replacement,setReplacement] = useState({blue:{player:'',slot:0,source:''},red:{player:'',slot:0,source:''}});
   const [busy,setBusy] = useState(false);
+  const [transferBusy,setTransferBusy] = useState(false);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState<'presetSaved'|'presetDeleted'|'substituteFilled'|null>(null);
   const [open,setOpen] = useState(false);
@@ -78,7 +80,7 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
     const team = teams.find(team => team.id === (replacement[side].source || state[`${side}Team`].id));
     return team ? [...team.players.map((name,i) => ({id:'starter-'+i,name,role:team.playerRoles[i],portrait:team.playerPortraits[i]})),...(team.substitutes || [])].filter(p => p.name.trim()) : [];
   };
-  const unavailable = disabled || busy || uploads.size > 0;
+  const unavailable = disabled || busy || transferBusy || uploads.size > 0;
   const status = <>{error && <p role="alert" className="error">{error === 'uploadUnauthorized' ? t('uploadUnauthorized') : errorMessage(error,state.language)}</p>}{notice && <p className="library-status" role="status">{t(notice)}</p>}</>;
   return <section className="team-library">
     <div className="toolbar"><h3>{t('teamLibrary')}</h3><button type="button" onClick={() => {setOpen(true);void run(refresh);}}>{t('manageTeams')}</button><button type="button" disabled={busy} onClick={() => void run(refresh)}>{t('refreshTeams')}</button></div>
@@ -105,13 +107,17 @@ export function TeamLibrary({state, form, token, disabled, send, onRosterApply}:
     {open && createPortal(<dialog className="library-dialog" ref={dialog} onCancel={e => {e.preventDefault();e.stopPropagation();close();}}>
       <header className="toolbar"><h2>{t('teamLibrary')}</h2><button type="button" disabled={busy} onClick={close}>{t('closeLibrary')}</button></header>
       {status}
+      <TeamLibraryTransfer token={token} lang={state.language} disabled={unavailable}
+        onBusy={setTransferBusy} onImported={() => refresh()} />
       <div className="library-manager"><aside>
         <label>{t('searchTeams')}<input value={query} onChange={e => setQuery(e.target.value)} /></label>
         <button type="button" disabled={unavailable} onClick={() => {if(discard())blank();}}>{t('newTeam')}</button>
         <div className="library-list">{teams.filter(team => team.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(team => <button className={draft.id === team.id ? 'selected' : ''} type="button" key={team.id} disabled={unavailable} onClick={() => {if(!discard())return;edit(team);setError('');setNotice(null);}}>{team.name}</button>)}{!teams.length && <p>{t('noTeams')}</p>}</div>
       </aside><section className="library-editor">
         <label>{t('teamName')}<input maxLength={60} disabled={unavailable} value={draft.name} onChange={e => setDraft({...draft,name:e.target.value})} /></label>
-        <label>{t('logoAddress')}<input maxLength={1000} disabled={unavailable} value={draft.logo} onChange={e => setDraft({...draft,logo:e.target.value})} /></label>
+        <PortraitField library titleKey="logoAddress" value={draft.logo} token={token} lang={state.language} disabled={disabled || busy || transferBusy}
+          onChange={url => setDraft(previous => ({...previous,logo:url}))}
+          onBusy={uploading=>setUploads(previous=>{const next=new Set(previous);if(uploading)next.add(-1);else next.delete(-1);return next;})} />
         {draft.players.map((player,index) => <div className="player-setting-row" key={`${draft.id}-${index}`}>
           <label>{t('playerNumber',{number:index+1})}<input maxLength={40} disabled={unavailable} value={player} onChange={e => setDraft({...draft,players:draft.players.map((p,i) => i === index ? e.target.value : p)})} /></label>
           <label>{t('lane')}<select disabled={unavailable} value={draft.playerRoles[index]} onChange={e => setDraft({...draft,playerRoles:draft.playerRoles.map((r,i) => i === index ? e.target.value as typeof r : r)})}>{(['clash','jungle','mid','farm','roam'] as const).map(role => <option key={role} value={role}>{t(role)}</option>)}</select></label>
