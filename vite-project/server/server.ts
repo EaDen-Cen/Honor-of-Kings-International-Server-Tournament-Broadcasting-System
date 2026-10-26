@@ -1310,41 +1310,80 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === '/api/team-presets/transfer/export' && req.method === 'GET') {
-        try { json(200, exportTeamLibrary(presets,uploadDirectory,resolve(project,'public'))); }
-        catch (error) {
-          json(422,{error:error instanceof Error ? error.message : 'teamTransferInvalid'});
+        try {
+          json(200, exportTeamLibrary(presets, uploadDirectory, resolve(project, 'public')));
+        } catch (error) {
+          json(422, { error: error instanceof Error ? error.message : 'teamTransferInvalid' });
         }
         return;
       }
-      if (['/api/team-presets/transfer/preview','/api/team-presets/transfer/import'].includes(url.pathname)) {
-        if (req.method !== 'POST') { json(405,{error:'POST required'});req.resume();return; }
+      if (
+        ['/api/team-presets/transfer/preview', '/api/team-presets/transfer/import'].includes(
+          url.pathname,
+        )
+      ) {
+        if (req.method !== 'POST') {
+          json(405, { error: 'POST required' });
+          req.resume();
+          return;
+        }
         if (!req.headers['content-type']?.startsWith('application/json')) {
-          json(415,{error:'teamTransferInvalid'});req.resume();return;
+          json(415, { error: 'teamTransferInvalid' });
+          req.resume();
+          return;
         }
         try {
-          const limit = 135 * 1024 * 1024, chunks:Buffer[] = [];
+          const limit = 135 * 1024 * 1024;
+          const chunks: Buffer[] = [];
           let size = 0;
-          if (Number(req.headers['content-length']) > limit) { json(413,{error:'teamTransferTooLarge'});req.resume();return; }
-          req.setTimeout(120000,()=>req.destroy());
+          if (Number(req.headers['content-length']) > limit) {
+            json(413, { error: 'teamTransferTooLarge' });
+            req.resume();
+            return;
+          }
+          req.setTimeout(120000, () => req.destroy());
           for await (const chunk of req) {
             size += chunk.length;
-            if (size > limit) { json(413,{error:'teamTransferTooLarge'});req.destroy();return; }
+            if (size > limit) {
+              json(413, { error: 'teamTransferTooLarge' });
+              req.destroy();
+              return;
+            }
             chunks.push(Buffer.from(chunk));
           }
           req.setTimeout(0);
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
           if (url.pathname.endsWith('/preview')) {
-            json(200,await previewTeamLibrary(body.bundle,presets));
+            json(200, await previewTeamLibrary(body.bundle, presets));
           } else {
             // Preserve a point-in-time backup before replacing any existing roster.
             recovery.create(true);
-            json(200,await importTeamLibrary(body.bundle,presets,uploadDirectory,body.conflict));
+            json(
+              200,
+              await importTeamLibrary(body.bundle, presets, uploadDirectory, body.conflict),
+            );
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : '';
-          json(message==='teamTransferTooLarge'?413:message==='teamTransferMissingAsset'?422:
-            ['teamTransferInvalid','presetInvalid','substitutesInvalid'].includes(message)?400:500,
-            {error:['teamTransferTooLarge','teamTransferMissingAsset','teamTransferInvalid','presetInvalid','substitutesInvalid'].includes(message)?message:'teamTransferFailed'});
+          const status =
+            message === 'teamTransferTooLarge'
+              ? 413
+              : message === 'teamTransferMissingAsset'
+                ? 422
+                : error instanceof SyntaxError ||
+                    ['teamTransferInvalid', 'presetInvalid', 'substitutesInvalid'].includes(
+                      message,
+                    )
+                  ? 400
+                  : 500;
+          const expectedErrors = [
+            'teamTransferTooLarge',
+            'teamTransferMissingAsset',
+            'teamTransferInvalid',
+            'presetInvalid',
+            'substitutesInvalid',
+          ];
+          json(status, { error: expectedErrors.includes(message) ? message : 'teamTransferFailed' });
         }
         return;
       }
