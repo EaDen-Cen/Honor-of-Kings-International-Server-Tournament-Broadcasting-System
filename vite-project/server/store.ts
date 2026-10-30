@@ -231,7 +231,8 @@ export class Store {
     const state = next.state;
     switch (action.type) {
     case 'post_game_begin': {
-      const game=state.draftHistory.find(record=>record.id===state.committedGameId);
+      const gameId=action.gameId??state.committedGameId??state.draftHistory.at(-1)?.id;
+      const game=state.draftHistory.find(record=>record.id===gameId);
       if(!game)throw new Error('先确认有效局阵容 / Commit the game first');
       next.history.push(copy(state));state.activePostGameReportId=game.id;
       if(!state.postGameReports.some(report=>report.id===game.id))state.postGameReports.push({id:game.id,gameNumber:game.gameNumber,seriesFormat:state.seriesFormat,stage:state.stage,selectedMvpPlayerId:null,selectedMvpRowId:null,players:(['blue','red'] as const).flatMap(side=>game[`${side}Assignments`].map((heroId,slot)=>{

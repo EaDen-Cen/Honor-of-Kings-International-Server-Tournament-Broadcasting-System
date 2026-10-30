@@ -132,7 +132,9 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
   });
   return <details className="panel"><summary>{zh?'赛后数据与 MVP':'Post-game data and MVP'}</summary>
     <p className="muted">{zh?'先确认有效局。MVP 由赛事方投票决定，程序仅展示。OBS：/overlay/mvp（1920×1080）。':'Commit the game first. Organizers vote for MVP; the app only displays the result.'}</p>
-    <button disabled={disabled||!state.committedGameId} onClick={()=>send({type:'post_game_begin'})}>{zh?'准备本局 10 人报告':'Prepare ten-player report'}</button>
+    <button disabled={disabled||!state.draftHistory.length} onClick={()=>send({type:'post_game_begin'})}>{zh?(state.committedGameId?'准备本局 10 人报告':'打开上一有效局报告'):(state.committedGameId?'Prepare ten-player report':'Open last committed report')}</button>
+    <label>{zh?'编辑哪一局的赛后数据':'Post-game report to edit'}<select aria-label="Post-game report" value={report?.id??''} disabled={disabled||!state.draftHistory.length} onChange={e=>{if(e.target.value)send({type:'post_game_begin',gameId:e.target.value});}}><option value="">{zh?'选择已确认的比赛':'Select a committed game'}</option>{state.draftHistory.map(game=><option key={game.id} value={game.id}>{zh?`第 ${game.gameNumber} 局`:`Game ${game.gameNumber}`}</option>)}</select></label>
+    {report&&report.gameNumber!==(state.draftGameNumber??state.gameNumber)&&<p role="status">{zh?`正在编辑第 ${report.gameNumber} 局，当前比赛为第 ${state.draftGameNumber??state.gameNumber} 局。请确认报告局数；第二局数据需选择第二局报告，避免覆盖第一局。`:`Editing Game ${report.gameNumber}; current game is ${state.draftGameNumber??state.gameNumber}. Select the correct report before applying data.`}</p>}
     {report&&<><p>{zh?'第':'Game '}{report.gameNumber}{zh?'局 · 草稿':''}</p>
       <SettlementCapturePanel key={report.id} report={report} zh={zh} token={token} disabled={disabled} send={send}/>
       <details className="panel"><summary>{zh?'高级修正：单字段 OCR · 框选数字':'Advanced: field OCR · draw boxes on the actual screenshot'}</summary>
