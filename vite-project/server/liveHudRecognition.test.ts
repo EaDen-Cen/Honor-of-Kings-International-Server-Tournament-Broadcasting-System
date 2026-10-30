@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { Store } from './store.js';
-import { liveGameContext, trustedLiveUpdates, displayedGameSeconds, totalNeutralObjectives, initialLiveGameStats, type LiveHudSample } from '../src/shared/liveGame.js';
+import { liveGameContext, trustedLiveUpdates, liveHudReviewStates, displayedGameSeconds, totalNeutralObjectives, initialLiveGameStats, type LiveHudSample } from '../src/shared/liveGame.js';
 import { liveCaptureKeys, liveCaptureRects, liveCaptureProfile, validLiveCaptureRects, parseLiveNumber } from '../src/shared/gameCapture.js';
 import type { Action } from '../src/shared/types.js';
 
@@ -93,6 +93,45 @@ test('GHUD requires a complete geometrically valid ROI profile, two reads from s
   assert.throws(()=>apply(store,{type:'live_game_ocr',context,previous:a,sample:b}),/No consistent/);
   b.profile=a.profile;
   assert.ok(a.profile.length>10);
+});
+
+
+test('GHUD UI distinguishes first read, low confidence, stalled clock and already published OCR', () => {
+  const baseline = initialLiveGameStats();
+  const first = sample(100000, 130, 6200, 8);
+  const second = sample(101000, 131, 6300, 8);
+  first.profile = 'same HUD calibration';
+  second.profile = first.profile;
+  assert.equal(liveHudReviewStates(baseline, undefined, first).blueKills, 'first-read');
+  assert.equal(liveHudReviewStates(baseline, first, second).blueKills, 'verified');
+  assert.equal(liveHudReviewStates(baseline, first, second).gameTimeSeconds, 'verified');
+
+  const applied = {
+    ...baseline,
+    blueKills: 8,
+    gameTimeSeconds: 131,
+    sources: {
+      blueKills: { source: 'ocr' as const, capturedAt: second.capturedAt, confidence: .96 },
+      gameTimeSeconds: { source: 'ocr' as const, capturedAt: second.capturedAt, confidence: .96 },
+    },
+  };
+  // The same frame is no longer eligible for another write, but it is already trusted.
+  assert.equal(trustedLiveUpdates(applied, first, second).blueKills, undefined);
+  assert.equal(trustedLiveUpdates(applied, first, second).gameTimeSeconds, undefined);
+  assert.equal(liveHudReviewStates(applied, first, second).blueKills, 'published');
+  assert.equal(liveHudReviewStates(applied, first, second).gameTimeSeconds, 'published');
+
+  const weak = structuredClone(second);
+  weak.candidates.find(candidate => candidate.key === 'redKills')!.confidence = .77;
+  assert.equal(liveHudReviewStates(baseline, first, weak).redKills, 'low-confidence');
+  const frozen = {...baseline,sources:{blueKills:{source:'manual' as const,capturedAt:90000,confidence:1}}};
+  assert.equal(liveHudReviewStates(frozen, first, second).blueKills, 'manual');
+
+  const still = structuredClone(second);
+  still.candidates.find(candidate => candidate.key === 'gameTimeSeconds')!.value = 130;
+  assert.equal(liveHudReviewStates(baseline, first, still).blueGold, 'clock-stalled');
+  assert.equal(liveHudReviewStates(baseline, first, still).gameTimeSeconds, 'clock-stalled');
+  assert.deepEqual(trustedLiveUpdates(baseline, first, still), {});
 });
 
 test('unchanged OCR game clock cannot verify a frozen replay frame',()=>{

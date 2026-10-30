@@ -116,6 +116,61 @@ export function trustedLiveUpdates(
   }
   return updates;
 }
+/** Describes the displayed candidate, not whether it can be submitted again.
+ * After the server publishes a verified frame, the same frame correctly stops
+ * producing another update; this must never make its UI badge revert to pending.
+ */
+export type LiveHudReviewState =
+  | 'first-read'
+  | 'published'
+  | 'manual'
+  | 'low-confidence'
+  | 'clock-stalled'
+  | 'verified'
+  | 'rejected';
+
+export function liveHudReviewStates(
+  stats: LiveGameStats,
+  previous: LiveHudSample | undefined,
+  sample: LiveHudSample,
+): Record<LiveCaptureKey, LiveHudReviewState> {
+  const updates = previous ? trustedLiveUpdates(stats, previous, sample) : {};
+  const oldClock = previous?.candidates.find(candidate => candidate.key === 'gameTimeSeconds');
+  const clock = sample.candidates.find(candidate => candidate.key === 'gameTimeSeconds');
+  const stalledClock =
+    !!previous &&
+    previous.profile === sample.profile &&
+    oldClock?.value != null &&
+    clock?.value != null &&
+    clock.value <= oldClock.value;
+  return Object.fromEntries(
+    liveCaptureKeys.map(key => {
+      const source = stats.sources?.[key];
+      const candidate = sample.candidates.find(item => item.key === key);
+      const prior = previous?.candidates.find(item => item.key === key);
+      let review: LiveHudReviewState = 'rejected';
+      if (source?.source === 'manual') review = 'manual';
+      else if (
+        source?.source === 'ocr' &&
+        source.capturedAt === sample.capturedAt &&
+        stats[key] === candidate?.value
+      )
+        review = 'published';
+      else if (!previous) review = 'first-read';
+      else if (
+        candidate?.value == null ||
+        prior?.value == null ||
+        candidate.confidence < 0.85 ||
+        prior.confidence < 0.85
+      )
+        review = 'low-confidence';
+      else if (stalledClock) review = 'clock-stalled';
+      else if (updates[key] !== undefined) review = 'verified';
+      return [key, review];
+    }),
+  ) as Record<LiveCaptureKey, LiveHudReviewState>;
+}
+
 export const initialLiveGameStats = (): LiveGameStats => ({
   blueKills: 0,
   redKills: 0,

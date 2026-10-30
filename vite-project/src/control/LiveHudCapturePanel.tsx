@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CaptureRequest } from './captureRequest';
 import type { Action, MatchState } from '../shared/types';
-import { liveGameContext, trustedLiveUpdates, type LiveHudSample } from '../shared/liveGame';
+import { liveGameContext, trustedLiveUpdates, liveHudReviewStates, type LiveHudSample, type LiveHudReviewState } from '../shared/liveGame';
 import {
   liveCaptureLabel,
   liveCaptureRects,
@@ -73,15 +73,12 @@ export function LiveHudCapturePanel({
     setAuto(false);
     setPublish(false);
   }, [context, token, cancelCapture]);
-  // Pending match writes pause sampling, but must not switch off the operator's
-  // automation preferences after every successfully published frame.
+  // A pending match write briefly disables controls after each OCR publish.
+  // Abort in-flight reads, but keep the last accepted frame: otherwise every
+  // automatic publish restarts the two-frame verifier at "first read".
+  // Context, token, calibration and capture-source changes still reset evidence.
   useEffect(() => {
-    if (disabled) {
-      cancelCapture();
-      last.current = undefined;
-      setResult(undefined);
-      setPrevious(undefined);
-    }
+    if (disabled) cancelCapture();
   }, [disabled, cancelCapture]);
   function editRegions(next: Record<LiveCaptureKey, CaptureRect>) {
     cancelCapture();
@@ -156,7 +153,13 @@ export function LiveHudCapturePanel({
       )
         return;
       const next = data as Result,
-        prior = last.current;
+        previousFrame = last.current,
+        // A long disconnect needs two fresh observations rather than
+        // comparing an old frame with a newly resumed feed.
+        prior =
+          previousFrame && next.capturedAt - previousFrame.capturedAt <= 15000
+            ? previousFrame
+            : undefined;
       setElapsedMs(Math.round(performance.now() - started));
       setPrevious(prior);
       setResult(next);
@@ -165,13 +168,17 @@ export function LiveHudCapturePanel({
       if (publish && calibrated && !capture.isStill && prior && Object.keys(updates).length)
         send({ type: 'live_game_ocr', context, previous: prior, sample: next });
       setMessage(
-        prior
+        !prior
           ? zh
-            ? '两次采样已比较；冲突、低置信度、异常跳变和冻结字段保持原值。'
-            : 'Samples compared; conflicting, weak, implausible and frozen fields retain their values.'
-          : zh
             ? '首帧仅作候选，请再次采样以核验。'
-            : 'First read is a candidate; sample again to verify.',
+            : 'First read is a candidate; sample again to verify.'
+          : Object.keys(updates).length
+            ? zh
+              ? '已验证部分字段；异常跳变、低置信度和人工冻结的字段保留原值。'
+              : 'Some fields verified; implausible, weak and manually frozen fields are preserved.'
+            : zh
+              ? '两帧尚未通过核验：请查看字段原因。静态截图或暂停画面不会产生有效的时间递进。'
+              : 'Two reads did not pass verification. Check each field; a still image or paused clock is not live evidence.',
       );
     } catch (e) {
       if (
@@ -229,6 +236,26 @@ export function LiveHudCapturePanel({
   }, [auto, calibrated, disabled, capture.ready, capture.isStill]);
   const updates =
     result && previous ? trustedLiveUpdates(state.liveGameStats, previous, result) : {};
+  const review = result ? liveHudReviewStates(state.liveGameStats, previous, result) : undefined;
+  const reviewLabel: Record<LiveHudReviewState, string> = zh
+    ? {
+        'first-read': '首帧候选 · 等待第二次采样',
+        published: '已核验并同步到赛事数据',
+        manual: '人工冻结 · 保留手动值',
+        'low-confidence': '低置信度 / OCR 无有效数值（需 ≥85%）',
+        'clock-stalled': '游戏计时未前进 · 截图或暂停画面',
+        verified: '两帧一致 · 可以应用',
+        rejected: '尚未通过核验 · 保留原值',
+      }
+    : {
+        'first-read': 'First read · waiting for another',
+        published: 'Verified and published to match data',
+        manual: 'Manually frozen · value preserved',
+        'low-confidence': 'Low confidence / unreadable OCR (requires ≥85%)',
+        'clock-stalled': 'Game clock did not advance · still frame',
+        verified: 'Verified in two reads · ready to apply',
+        rejected: 'Not yet verified · value preserved',
+      };
   return (
     <details id="live-hud-workspace" className="panel">
       <summary>
@@ -311,14 +338,8 @@ export function LiveHudCapturePanel({
               <span>
                 {c.value ?? '—'} · {Math.round(c.confidence * 100)}% · OCR: {c.text || '—'}
               </span>
-              <small className={updates[c.key] === undefined ? 'error' : ''}>
-                {updates[c.key] !== undefined
-                  ? zh
-                    ? '两帧一致'
-                    : 'Verified in two reads'
-                  : zh
-                    ? '待核验 / 保留原值'
-                    : 'Pending / existing value kept'}
+              <small className={review?.[c.key] === 'verified' || review?.[c.key] === 'published' ? '' : 'error'}>
+                {review ? reviewLabel[review[c.key]] : ''}
               </small>
             </div>
           ))}
