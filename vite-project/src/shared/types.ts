@@ -158,7 +158,7 @@ export type MatchSettings = Pick<
 >;
 
 export type Action =
-  | { type: 'post_game_begin' }
+  | { type: 'post_game_begin'; gameId?: string }
   | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}>; grades?:Array<{rowId:string;field:PostGameGradeField}> }
   | { type: 'post_game_grades'; reportId:string; updates:Array<{rowId:string;field:PostGameGradeField}> }
   | { type: 'post_game_mvp_art_scale'; reportId:string; scale:number }

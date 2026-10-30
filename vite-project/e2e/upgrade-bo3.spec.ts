@@ -109,6 +109,39 @@ test('BO3 rehearsal recommends game before commit and rotates six verified postg
   }
 });
 
+test('BO3 reports remain editable between games and switching reports isolates saved data', async ({ page, baseURL }) => {
+  const h = await harness(baseURL);
+  try {
+    await h.fill();
+    await h.send({ type: 'commit_game' });
+    const firstId = h.state().committedGameId!;
+    await h.send({ type: 'score', team: 'blue', delta: 1 });
+    await h.send({ type: 'next_game' });
+    await page.goto('/control#token=e2e-control');
+    await openDockPanel(page, 'postgame');
+    const panel = page.locator('#postgame-tools > details');
+    await panel.locator(':scope > summary').click();
+    await panel.getByRole('button', { name: '打开上一有效局报告' }).click();
+    await expect(panel.getByLabel('Post-game report')).toHaveValue(firstId);
+    await panel.getByText('选手评分 / Rating · 人工补录', { exact: true }).click();
+    const rating = panel.getByRole('textbox', { name: /^Rating / }).first();
+    await rating.fill('7'); await rating.press('Enter');
+    await expect.poll(() => h.state().postGameReports[0]?.players[0].fields.rating?.value).toBe(7);
+    await h.fill(); await h.send({ type: 'commit_game' });
+    const secondId = h.state().committedGameId!;
+    await panel.getByLabel('Post-game report').selectOption(secondId);
+    await expect(panel.getByLabel('Post-game report')).toHaveValue(secondId);
+    await expect(rating).toHaveValue('');
+    await rating.fill('9'); await rating.press('Enter');
+    await expect.poll(() => h.state().postGameReports.find(r => r.id === secondId)?.players[0].fields.rating?.value).toBe(9);
+    await panel.getByLabel('Post-game report').selectOption(firstId);
+    await expect(rating).toHaveValue('7');
+    await rating.fill('8'); await rating.press('Enter');
+    await expect.poll(() => h.state().postGameReports[0].players[0].fields.rating?.value).toBe(8);
+    expect(h.state().postGameReports.find(r => r.id === secondId)?.players[0].fields.rating?.value).toBe(9);
+  } finally { h.close(); }
+});
+
 test('connection settings are masked, reject remote control, and preserve keys when editing model', async ({
   request,
   page,

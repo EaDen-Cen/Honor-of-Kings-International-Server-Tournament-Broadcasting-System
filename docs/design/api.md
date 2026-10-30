@@ -105,3 +105,5 @@ AI 配置 GET/PUT `/api/v1/ai-recognition/config` 仅本机授权 Control；GET 
 | `/api/v1/recognition/gold-curve` | POST `{image,reportId}`，支持完整经济图或包含刻度的宽幅裁图；返回候选和本机证据，不自动发布 |
 
 `GET /api/v1/audience-vote` 和 `GET /api/v1/postgame-carousel` 需有效角色令牌。前者对 Overlay 隐藏配置要求隐藏的实时票数。轮播 PUT 保存六页配置、POST `{action,page?}` 执行 start/pause/resume/previous/next/show/stop，写操作仍限本机 Control。没有新增秘密到 MatchState、WebSocket 或比赛备份。
+
+`post_game_begin` 可传可选 `gameId`，仅允许选择 `draftHistory` 中已确认的局；已有报告复用，不清空数据。不传时优先当前确认局，否则最近确认局，支持进入下一局后补建报告。显式无效 ID 拒绝整个操作，不回退到其他报告。

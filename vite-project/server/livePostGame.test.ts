@@ -17,6 +17,32 @@ test('HUD bounds, undo, persistence snapshots, configurable objectives and next-
   apply(s,{type:'live_game_stats',stats});complete(s);apply(s,{type:'score',team:'blue',delta:1});apply(s,{type:'next_game'});
   assert.equal(s.data.state.liveGameStats.blueKills,0);assert.equal(s.data.state.liveGameStats.neutralObjectives[0].name,'Custom');assert.equal(s.data.state.liveGameStats.neutralObjectives[0].blue,0);
 });
+test('BO3 can prepare and edit the first report after starting the second game',()=>{
+  const s=new Store();complete(s);
+  const firstId=s.data.state.committedGameId!;
+  apply(s,{type:'score',team:'blue',delta:1});apply(s,{type:'next_game'});
+  apply(s,{type:'post_game_begin'});
+  assert.equal(s.data.state.activePostGameReportId,firstId);
+  const report=s.data.state.postGameReports[0];
+  apply(s,{type:'post_game_fields',reportId:firstId,updates:[{rowId:report.players[0].rowId,metric:'kills',field:{value:7,confidence:1,manual:true,sourcePage:'summary'}}]});
+  assert.equal(s.data.state.postGameReports[0].players[0].fields.kills?.value,7);
+  assert.equal(s.data.state.committedGameId,null);
+  assert.equal(s.data.state.gameNumber,2);
+  complete(s);const secondId=s.data.state.committedGameId!;
+  apply(s,{type:'post_game_begin'});
+  assert.equal(s.data.state.activePostGameReportId,secondId);
+  const second=s.data.state.postGameReports[1];
+  apply(s,{type:'post_game_fields',reportId:secondId,updates:[{rowId:second.players[0].rowId,metric:'kills',field:{value:2,confidence:.95,manual:false,sourcePage:'summary'}}]});
+  assert.equal(s.data.state.postGameReports[1].players[0].fields.kills?.value,2);
+  apply(s,{type:'post_game_begin',gameId:firstId});
+  apply(s,{type:'post_game_fields',reportId:firstId,updates:[{rowId:report.players[0].rowId,metric:'kills',field:{value:8,confidence:1,manual:true,sourcePage:'summary'}}]});
+  assert.equal(s.data.state.postGameReports[0].players[0].fields.kills?.value,8);
+  assert.equal(s.data.state.postGameReports[1].players[0].fields.kills?.value,2);
+  const before=structuredClone(s.data);
+  assert.throws(()=>apply(s,{type:'post_game_begin',gameId:'missing-game'}));
+  assert.deepEqual(s.data,before);
+});
+
 test('team recap keeps side identity and trusted fields through repeated collection, manual correction and undo',()=>{
   const s=new Store();complete(s);apply(s,{type:'post_game_begin'});const report=s.data.state.postGameReports[0];
   const field={value:38600,confidence:.9,manual:false,sourcePage:'recap' as const,capturedAt:100};
