@@ -36,6 +36,7 @@ import { currentGame, displaySides, normalizeState, ruleLocked } from './shared/
 import { TeamLibrary } from './control/TeamLibrary';
 import { PortraitField } from './control/PortraitField';
 import { ControlHeroPicker } from './control/ControlHeroPicker';
+import { DraftHeroCorrection } from './control/DraftHeroCorrection';
 import { DockWorkspace } from './control/DockWorkspace';
 import { useSettingsDraft } from './control/useSettingsDraft';
 import { SettingsDialog } from './control/SettingsDialog';
@@ -354,6 +355,7 @@ export default function BroadcastApp() {
 
         </div>,
           draft: <div id="draft-workspace">
+           <DraftHeroCorrection state={state} disabled={disabled} send={send} />
           {state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
