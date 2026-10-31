@@ -10,7 +10,7 @@ import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
 import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/heroIdOrder.js';
-import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
+import { initialState, phases, type Action, type GameDraftRecord, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
 
@@ -167,6 +167,14 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
     }
   }
 }
+/** Create an empty report only once; never wipe earlier game data. */
+function preparePostGameReport(state: MatchState, game: GameDraftRecord) {
+  if(!state.postGameReports.some(report=>report.id===game.id))state.postGameReports.push({id:game.id,gameNumber:game.gameNumber,seriesFormat:state.seriesFormat,stage:state.stage,selectedMvpPlayerId:null,selectedMvpRowId:null,players:(['blue','red'] as const).flatMap(side=>game[`${side}Assignments`].map((heroId,slot)=>{
+        const team=game[`${side}Team`],rosterIndex=normalizePlayerSlotOrder(game[`${side}PlayerSlotOrder`])[slot];
+        return {rowId:`${team.id}:${rosterIndex}`,playerId:team.players[rosterIndex],side,slot,rosterIndex,teamName:team.name,portrait:team.playerPortraits[rosterIndex],role:team.playerRoles[rosterIndex],heroId,fields:{}};
+      }))});
+}
+
 export class Store {
   data: Data;
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
@@ -235,10 +243,7 @@ export class Store {
       const game=state.draftHistory.find(record=>record.id===gameId);
       if(!game)throw new Error('先确认有效局阵容 / Commit the game first');
       next.history.push(copy(state));state.activePostGameReportId=game.id;
-      if(!state.postGameReports.some(report=>report.id===game.id))state.postGameReports.push({id:game.id,gameNumber:game.gameNumber,seriesFormat:state.seriesFormat,stage:state.stage,selectedMvpPlayerId:null,selectedMvpRowId:null,players:(['blue','red'] as const).flatMap(side=>game[`${side}Assignments`].map((heroId,slot)=>{
-        const team=game[`${side}Team`],rosterIndex=normalizePlayerSlotOrder(game[`${side}PlayerSlotOrder`])[slot];
-        return {rowId:`${team.id}:${rosterIndex}`,playerId:team.players[rosterIndex],side,slot,rosterIndex,teamName:team.name,portrait:team.playerPortraits[rosterIndex],role:team.playerRoles[rosterIndex],heroId,fields:{}};
-      }))});
+      preparePostGameReport(state, game);
       break;
     }
     case 'post_game_fields': {
@@ -405,6 +410,59 @@ export class Store {
       state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
+    case 'replace_draft_hero': {
+      if (!['blue', 'red'].includes(action.team) || !['ban', 'pick'].includes(action.action)) throw new Error('操作无效');
+      const record = action.gameId
+        ? state.draftHistory.find(game => game.id === action.gameId)
+        : state.committedGameId
+          ? state.draftHistory.find(game => game.id === state.committedGameId)
+          : undefined;
+      if (action.gameId && !record) throw new Error('无法找到指定历史局 / Unknown game');
+      // No gameId means the current live draft, including the just-committed game.
+      const live = !action.gameId || action.gameId === state.committedGameId;
+      const target = live ? state : record!;
+      const targetPool = live ? state.heroPool : (record?.heroPool ?? 'global');
+      if (!heroAllowed(targetPool, action.heroId)) throw new Error('heroNotInPool');
+      const selections = action.action === 'ban'
+        ? target[`${action.team}Bans`] ?? []
+        : target[`${action.team}Picks`];
+      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= selections.length) throw new Error('未找到已锁定的英雄槽位 / Locked slot not found');
+      const previous = selections[action.index];
+      if (previous === action.heroId) break;
+      const occupied = (['blue', 'red'] as const).flatMap(team => [
+        ...(target[`${team}Bans`] ?? []).filter((_, index) => action.action !== 'ban' || team !== action.team || index !== action.index),
+        ...target[`${team}Picks`].filter((_, index) => action.action !== 'pick' || team !== action.team || index !== action.index),
+      ]).filter((id): id is number => id !== null);
+      if (occupied.some(id => draftHeroGroupKey(state, id) === draftHeroGroupKey(state, action.heroId))) throw new Error('该英雄已被选择或禁用');
+      next.history.push(copy(state));
+      const replace = (game: MatchState | typeof record) => {
+        if (!game) return;
+        if (action.action === 'ban') {
+          const bans = game[`${action.team}Bans`];
+          if (bans) bans[action.index] = action.heroId;
+          return;
+        }
+        game[`${action.team}Picks`][action.index] = action.heroId;
+        const assignments = game[`${action.team}Assignments`];
+        for (let index = 0; index < assignments.length; index++) {
+          if (assignments[index] === previous) assignments[index] = action.heroId;
+        }
+      };
+      if (live) {
+        replace(state);
+        if (record) replace(record);
+        if (state.draftComplete) validateLineup(state, true);
+      } else replace(record);
+      // Post-game identities follow the corrected committed lineup; numeric fields
+      // and manually entered scores must never be erased by a BP correction.
+      if (record && action.action === 'pick') {
+        const report = state.postGameReports.find(item => item.id === record.id);
+        if (report) for (const player of report.players) {
+          if (player.side === action.team) player.heroId = record[`${action.team}Assignments`][player.slot];
+        }
+      }
+      break;
+    }
     case 'draft_action': {
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (state.draftRuleMode === 'player' && [...state.blueTeam.players, ...state.redTeam.players].some(player => !playerIdentity(player))) throw new Error('playerMissing');
@@ -459,6 +517,9 @@ export class Store {
         redAssignments: [...state.redAssignments] as number[],
       });
       state.committedGameId = id;
+      // Make Game 2 active on commit, without deleting Game 1 fields.
+      preparePostGameReport(state, state.draftHistory[state.draftHistory.length - 1]);
+      state.activePostGameReportId = id;
       break;
     }
     case 'next_game': {

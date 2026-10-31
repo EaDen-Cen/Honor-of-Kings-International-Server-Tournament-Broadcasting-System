@@ -65,3 +65,5 @@
 
 - [可停靠工作区：拖拽、预设、保存与恢复](guides/dock-workspace.md)
 - [PR #91 验证记录、基准范围与待实机验收项](validation/pr91-validation.md)
+
+- [2026-10-30 · 已锁定英雄纠错、BO3 报告与开播检查](guides/live-preflight-and-corrections-2026-10-30.md)：跨局人工纠错、真实 OBS 录制盘剩余空间、逐局伪强制启动流程。
