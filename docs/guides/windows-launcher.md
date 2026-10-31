@@ -103,3 +103,7 @@ URL 仅从 cloudflared 的盒状公告行获取；帮助链接、子域后缀、
 交接时 Sites API 未部署；本 PR 只实现 GitHub 侧调用，不改变网站 D1、所有者登录或手动填写功能。查看启动器消息及 `artifacts/cloudflared.log`；无密钥日志。
 
 测试：`powershell -NoProfile -File scripts/tunnel-sync.test.ps1` 使用模拟网络，不含真实凭据。完整成功配对、Cloudflare 断线重连和 Sites 真实部署仍待双方联合验收。
+
+## 2026-10-30 · 开播检查与 OBS 录制盘容量（待实机验收）
+
+原启动器服务/隧道机制保留，Control 页面新增逐局伪强制开播清单与紧急绕过。本机 `GET /api/v1/obs/storage` 先向 OBS WebSocket v5 请求真正的录制目录，再读取同机磁盘剩余空间。未连接 OBS 时可用本机 `HOK_RECORDING_DIR` 显式指定真正录制文件夹；不要误用 `vite-project`、`DATA_FILE` 所在 C 盘。若 OBS 与后端不在同一电脑，磁盘监控必须部署于真实录制机，不能假定跨机路径代表同一硬盘。详见 [现场指南](live-preflight-and-corrections-2026-10-30.md)。
