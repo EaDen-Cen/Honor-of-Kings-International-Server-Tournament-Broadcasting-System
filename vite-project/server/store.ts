@@ -405,6 +405,59 @@ export class Store {
       state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
+    case 'replace_draft_hero': {
+      if (!['blue', 'red'].includes(action.team) || !['ban', 'pick'].includes(action.action)) throw new Error('操作无效');
+      const record = action.gameId
+        ? state.draftHistory.find(game => game.id === action.gameId)
+        : state.committedGameId
+          ? state.draftHistory.find(game => game.id === state.committedGameId)
+          : undefined;
+      if (action.gameId && !record) throw new Error('无法找到指定历史局 / Unknown game');
+      // No gameId means the current live draft, including the just-committed game.
+      const live = !action.gameId || action.gameId === state.committedGameId;
+      const target = live ? state : record!;
+      const targetPool = live ? state.heroPool : (record?.heroPool ?? 'global');
+      if (!heroAllowed(targetPool, action.heroId)) throw new Error('heroNotInPool');
+      const selections = action.action === 'ban'
+        ? target[`${action.team}Bans`] ?? []
+        : target[`${action.team}Picks`];
+      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= selections.length) throw new Error('未找到已锁定的英雄槽位 / Locked slot not found');
+      const previous = selections[action.index];
+      if (previous === action.heroId) break;
+      const occupied = (['blue', 'red'] as const).flatMap(team => [
+        ...(target[`${team}Bans`] ?? []).filter((_, index) => action.action !== 'ban' || team !== action.team || index !== action.index),
+        ...target[`${team}Picks`].filter((_, index) => action.action !== 'pick' || team !== action.team || index !== action.index),
+      ]).filter((id): id is number => id !== null);
+      if (occupied.some(id => draftHeroGroupKey(state, id) === draftHeroGroupKey(state, action.heroId))) throw new Error('该英雄已被选择或禁用');
+      next.history.push(copy(state));
+      const replace = (game: MatchState | typeof record) => {
+        if (!game) return;
+        if (action.action === 'ban') {
+          const bans = game[`${action.team}Bans`];
+          if (bans) bans[action.index] = action.heroId;
+          return;
+        }
+        game[`${action.team}Picks`][action.index] = action.heroId;
+        const assignments = game[`${action.team}Assignments`];
+        for (let index = 0; index < assignments.length; index++) {
+          if (assignments[index] === previous) assignments[index] = action.heroId;
+        }
+      };
+      if (live) {
+        replace(state);
+        if (record) replace(record);
+        if (state.draftComplete) validateLineup(state, true);
+      } else replace(record);
+      // Post-game identities follow the corrected committed lineup; numeric fields
+      // and manually entered scores must never be erased by a BP correction.
+      if (record && action.action === 'pick') {
+        const report = state.postGameReports.find(item => item.id === record.id);
+        if (report) for (const player of report.players) {
+          if (player.side === action.team) player.heroId = record[`${action.team}Assignments`][player.slot];
+        }
+      }
+      break;
+    }
     case 'draft_action': {
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (state.draftRuleMode === 'player' && [...state.blueTeam.players, ...state.redTeam.players].some(player => !playerIdentity(player))) throw new Error('playerMissing');
