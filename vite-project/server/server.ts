@@ -27,6 +27,7 @@ import { liveGameContext } from '../src/shared/liveGame.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { Diagnostics } from './diagnostics.js';
+import { recordingDiskSpace } from './recordingStorage.js';
 import { acquireBackendLock, RecoveryManager, archiveData } from './recovery.js';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
 import { solvePlayerSlotCandidates } from '../src/shared/playerSlots.js';
@@ -393,6 +394,7 @@ const server = createServer(async (req, res) => {
     }
     if (
       url.pathname === '/api/v1/obs/status' ||
+       url.pathname === '/api/v1/obs/storage' ||
       url.pathname === '/api/v1/obs/scene' ||
       url.pathname === '/api/v1/obs/audio' ||
       url.pathname === '/api/v1/obs/layout' ||
@@ -406,6 +408,31 @@ const server = createServer(async (req, res) => {
       ) {
         json(403, { error: 'Local Control only' });
         req.resume();
+        return;
+      }
+      if (url.pathname.endsWith('/storage')) {
+        if (req.method !== 'GET') {
+          json(405, { error: 'GET required' });
+          return;
+        }
+        // Never guess the OBS output drive from DATA_FILE or the project directory.
+        // An explicit local fallback is useful if OBS WebSocket is offline.
+        let directory = '';
+        let source: 'obs' | 'configured' = 'obs';
+        try { directory = await obsBridge.recordDirectory(); }
+        catch {
+          directory = process.env.HOK_RECORDING_DIR?.trim() || '';
+          source = 'configured';
+        }
+        if (!directory) {
+          json(200, { ok: false, error: 'OBS recording directory unavailable. Connect local OBS WebSocket or set HOK_RECORDING_DIR.' });
+          return;
+        }
+        try {
+          json(200, { ok: true, directory, source, ...await recordingDiskSpace(directory) });
+        } catch {
+          json(200, { ok: false, directory, source, error: 'Cannot read free space for the actual recording volume' });
+        }
         return;
       }
       if (url.pathname.endsWith('/status')) {
