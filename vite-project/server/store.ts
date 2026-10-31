@@ -10,7 +10,7 @@ import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
 import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/heroIdOrder.js';
-import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
+import { initialState, phases, type Action, type GameDraftRecord, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
 
@@ -167,6 +167,11 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
     }
   }
 }
+/** Create an empty report only once; never wipe earlier game data. */
+function preparePostGameReport(state: MatchState, game: GameDraftRecord) {
+  preparePostGameReport(state, game);
+}
+
 export class Store {
   data: Data;
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
@@ -512,6 +517,9 @@ export class Store {
         redAssignments: [...state.redAssignments] as number[],
       });
       state.committedGameId = id;
+      // Make Game 2 active on commit, without deleting Game 1 fields.
+      preparePostGameReport(state, state.draftHistory[state.draftHistory.length - 1]);
+      state.activePostGameReportId = id;
       break;
     }
     case 'next_game': {
