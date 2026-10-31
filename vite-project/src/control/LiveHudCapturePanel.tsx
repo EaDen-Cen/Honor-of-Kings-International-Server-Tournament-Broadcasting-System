@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CaptureRequest } from './captureRequest';
 import type { Action, MatchState } from '../shared/types';
-import { liveGameContext, trustedLiveUpdates, liveHudReviewStates, type LiveHudSample, type LiveHudReviewState } from '../shared/liveGame';
+import {
+  liveGameContext,
+  trustedLiveUpdates,
+  liveHudReviewStates,
+  type LiveHudSample,
+  type LiveHudReviewState,
+} from '../shared/liveGame';
 import {
   liveCaptureLabel,
   liveCaptureRects,
@@ -338,7 +344,11 @@ export function LiveHudCapturePanel({
               <span>
                 {c.value ?? '—'} · {Math.round(c.confidence * 100)}% · OCR: {c.text || '—'}
               </span>
-              <small className={review?.[c.key] === 'verified' || review?.[c.key] === 'published' ? '' : 'error'}>
+              <small
+                className={
+                  review?.[c.key] === 'verified' || review?.[c.key] === 'published' ? '' : 'error'
+                }
+              >
                 {review ? reviewLabel[review[c.key]] : ''}
               </small>
             </div>

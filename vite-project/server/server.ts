@@ -394,7 +394,7 @@ const server = createServer(async (req, res) => {
     }
     if (
       url.pathname === '/api/v1/obs/status' ||
-       url.pathname === '/api/v1/obs/storage' ||
+      url.pathname === '/api/v1/obs/storage' ||
       url.pathname === '/api/v1/obs/scene' ||
       url.pathname === '/api/v1/obs/audio' ||
       url.pathname === '/api/v1/obs/layout' ||
@@ -419,19 +419,29 @@ const server = createServer(async (req, res) => {
         // An explicit local fallback is useful if OBS WebSocket is offline.
         let directory = '';
         let source: 'obs' | 'configured' = 'obs';
-        try { directory = await obsBridge.recordDirectory(); }
-        catch {
+        try {
+          directory = await obsBridge.recordDirectory();
+        } catch {
           directory = process.env.HOK_RECORDING_DIR?.trim() || '';
           source = 'configured';
         }
         if (!directory) {
-          json(200, { ok: false, error: 'OBS recording directory unavailable. Connect local OBS WebSocket or set HOK_RECORDING_DIR.' });
+          json(200, {
+            ok: false,
+            error:
+              'OBS recording directory unavailable. Connect local OBS WebSocket or set HOK_RECORDING_DIR.',
+          });
           return;
         }
         try {
-          json(200, { ok: true, directory, source, ...await recordingDiskSpace(directory) });
+          json(200, { ok: true, directory, source, ...(await recordingDiskSpace(directory)) });
         } catch {
-          json(200, { ok: false, directory, source, error: 'Cannot read free space for the actual recording volume' });
+          json(200, {
+            ok: false,
+            directory,
+            source,
+            error: 'Cannot read free space for the actual recording volume',
+          });
         }
         return;
       }
@@ -1398,9 +1408,7 @@ const server = createServer(async (req, res) => {
               : message === 'teamTransferMissingAsset'
                 ? 422
                 : error instanceof SyntaxError ||
-                    ['teamTransferInvalid', 'presetInvalid', 'substitutesInvalid'].includes(
-                      message,
-                    )
+                    ['teamTransferInvalid', 'presetInvalid', 'substitutesInvalid'].includes(message)
                   ? 400
                   : 500;
           const expectedErrors = [
@@ -1410,7 +1418,9 @@ const server = createServer(async (req, res) => {
             'presetInvalid',
             'substitutesInvalid',
           ];
-          json(status, { error: expectedErrors.includes(message) ? message : 'teamTransferFailed' });
+          json(status, {
+            error: expectedErrors.includes(message) ? message : 'teamTransferFailed',
+          });
         }
         return;
       }

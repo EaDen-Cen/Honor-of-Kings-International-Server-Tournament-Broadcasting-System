@@ -102,7 +102,13 @@ export function MvpOverlay({ state }: { state: MatchState }) {
         {player.grade && (player.grade.manual || player.grade.confidence >= 0.85) && (
           <div className="mvp-screen-hero">
             {zh ? '游戏评级' : 'Game grade'} · {player.grade.value}
-            {['SSS','SS','S','A+','B','C'].includes(player.grade.value)&&<img className="game-grade-badge" src={`/grades/${player.grade.value==='A+'?'A-plus':player.grade.value}.png`} alt={`${player.grade.value} 游戏原始评级`}/>}
+            {['SSS', 'SS', 'S', 'A+', 'B', 'C'].includes(player.grade.value) && (
+              <img
+                className="game-grade-badge"
+                src={`/grades/${player.grade.value === 'A+' ? 'A-plus' : player.grade.value}.png`}
+                alt={`${player.grade.value} 游戏原始评级`}
+              />
+            )}
           </div>
         )}
         {reliableField(player.fields.rating) && (
