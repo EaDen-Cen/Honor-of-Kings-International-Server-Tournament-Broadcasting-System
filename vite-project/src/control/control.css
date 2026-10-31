@@ -1671,6 +1671,12 @@
 .operator-id-preflight input{flex:none;width:17px;height:17px}
 .operator-id-preflight.verified{border-color:#4eac9188;background:#5ab99a15}
 
+/* Live preflight is visible until confirmed; it never traps operators in a modal. */
+.preflight-checklist{margin:0 0 14px;padding:12px;border:1px solid var(--border,#304258);border-radius:10px;background:rgba(35,65,95,.16)}
+.preflight-checklist h3{margin:0 12px 0 0}
+.preflight-check{display:flex;align-items:flex-start;gap:10px;margin:10px 0;font-size:14px}
+.preflight-check input{margin-top:3px}
+.preflight-checklist .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 /* OBS director: compact, responsive workspace with deliberate manual cue controls. */
 .obs-director{min-width:0}
 .obs-director-content{display:grid;gap:14px;padding-top:12px;min-width:0}
