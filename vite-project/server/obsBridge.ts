@@ -216,6 +216,13 @@ export class ObsBridge {
       }
     });
   }
+  /** OBS WebSocket v5 reports its actual recording folder, not the app/data disk. */
+  async recordDirectory(): Promise<string> {
+    const result = await this.request('GetRecordDirectory');
+    if (typeof result.recordDirectory !== 'string' || !result.recordDirectory.trim())
+      throw new Error('OBS recording directory is unavailable');
+    return result.recordDirectory;
+  }
   async status(): Promise<ObsSnapshot> {
     if (this.configurationError)
       return {
