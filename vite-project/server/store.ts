@@ -172,7 +172,7 @@ function preparePostGameReport(state: MatchState, game: GameDraftRecord) {
   if(!state.postGameReports.some(report=>report.id===game.id))state.postGameReports.push({id:game.id,gameNumber:game.gameNumber,seriesFormat:state.seriesFormat,stage:state.stage,selectedMvpPlayerId:null,selectedMvpRowId:null,players:(['blue','red'] as const).flatMap(side=>game[`${side}Assignments`].map((heroId,slot)=>{
         const team=game[`${side}Team`],rosterIndex=normalizePlayerSlotOrder(game[`${side}PlayerSlotOrder`])[slot];
         return {rowId:`${team.id}:${rosterIndex}`,playerId:team.players[rosterIndex],side,slot,rosterIndex,teamName:team.name,portrait:team.playerPortraits[rosterIndex],role:team.playerRoles[rosterIndex],heroId,fields:{}};
-      }))})
+      }))});
 }
 
 export class Store {
@@ -243,7 +243,7 @@ export class Store {
       const game=state.draftHistory.find(record=>record.id===gameId);
       if(!game)throw new Error('先确认有效局阵容 / Commit the game first');
       next.history.push(copy(state));state.activePostGameReportId=game.id;
-      preparePostGameReport(state, game);;
+      preparePostGameReport(state, game);
       break;
     }
     case 'post_game_fields': {
