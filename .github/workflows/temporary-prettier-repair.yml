@@ -1,0 +1,33 @@
+name: Temporary Prettier branch repair
+on:
+  push:
+    branches:
+      - fix/live-game-hero-correction-preflight-20261030
+    paths:
+      - .github/workflows/temporary-prettier-repair.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: vite-project/package-lock.json
+      - run: npm ci
+        working-directory: vite-project
+      - run: npm run format
+        working-directory: vite-project
+      - name: Commit formatting only to this PR branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vite-project
+          if git diff --cached --quiet; then echo 'No formatting changes'; exit 0; fi
+          git commit -m 'style: apply project Prettier formatting to core files'
+          git push origin HEAD:fix/live-game-hero-correction-preflight-20261030
