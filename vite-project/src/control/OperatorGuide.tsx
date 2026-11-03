@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
+import { StartupPreflight } from './StartupPreflight';
 import { canVerifyPlayerOrder, playerOrderCheckKey } from '../shared/playerOrderPreflight';
 
 /** Anchor navigation must reveal collapsed tools before the browser scrolls.
@@ -83,6 +84,7 @@ export function OperatorGuide({
                 : 'Check the result and update the series score before starting the next game.';
   return (
     <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
+      <StartupPreflight state={state} />
       <ol className="operator-steps">
         {labels.map((label, index) => (
           <li key={label} aria-current={step === index ? 'step' : undefined}>

@@ -135,8 +135,8 @@ export function liveHudReviewStates(
   sample: LiveHudSample,
 ): Record<LiveCaptureKey, LiveHudReviewState> {
   const updates = previous ? trustedLiveUpdates(stats, previous, sample) : {};
-  const oldClock = previous?.candidates.find(candidate => candidate.key === 'gameTimeSeconds');
-  const clock = sample.candidates.find(candidate => candidate.key === 'gameTimeSeconds');
+  const oldClock = previous?.candidates.find((candidate) => candidate.key === 'gameTimeSeconds');
+  const clock = sample.candidates.find((candidate) => candidate.key === 'gameTimeSeconds');
   const stalledClock =
     !!previous &&
     previous.profile === sample.profile &&
@@ -144,10 +144,10 @@ export function liveHudReviewStates(
     clock?.value != null &&
     clock.value <= oldClock.value;
   return Object.fromEntries(
-    liveCaptureKeys.map(key => {
+    liveCaptureKeys.map((key) => {
       const source = stats.sources?.[key];
-      const candidate = sample.candidates.find(item => item.key === key);
-      const prior = previous?.candidates.find(item => item.key === key);
+      const candidate = sample.candidates.find((item) => item.key === key);
+      const prior = previous?.candidates.find((item) => item.key === key);
       let review: LiveHudReviewState = 'rejected';
       if (source?.source === 'manual') review = 'manual';
       else if (
