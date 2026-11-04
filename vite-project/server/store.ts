@@ -526,7 +526,9 @@ export class Store {
       if (!state.committedGameId) throw new Error('commitBeforeNext');
       if (seriesFinished(state)) throw new Error('seriesHasEnded');
       if (state.gameNumber !== currentGame(state) + 1) throw new Error('updateScoreBeforeNext');
-      next.history.push(copy(state)); clearDraft(state); break;
+      next.history.push(copy(state)); clearDraft(state);
+      state.activePostGameReportId = null;
+      break;
     }
     case 'swap_sides': {
       if (state.currentPhase > 0 || state.committedGameId) throw new Error('swapOnlyBetweenGames');

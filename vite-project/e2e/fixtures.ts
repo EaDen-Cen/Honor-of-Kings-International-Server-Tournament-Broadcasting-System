@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 
 export { expect } from '@playwright/test';
 export type { Page, Route } from '@playwright/test';
@@ -55,7 +56,7 @@ export const test=base.extend<{ isolatedServer:void }>({
     try{
       child=spawn(process.execPath,['--import','tsx','server/server.ts'],{
         cwd:project,
-        env:{...process.env,PORT:String(port),HOST:host,NODE_ENV:'development',
+        env:{...process.env,PORT:String(port),HOST:host,NODE_ENV:'development',HOK_CONFIG_KEY:randomBytes(32).toString('base64'),
           DATA_FILE:join(directory,'match.json'),UPLOAD_DIR:join(directory,'uploads','player-portraits'),
           CONTROL_TOKEN:'e2e-control',CASTER_TOKEN:'e2e-caster',OVERLAY_TOKEN:'e2e-overlay',ACCESS_PASSWORD:'',OBS_WS_URL:'',OBS_WS_PASSWORD:''},
         stdio:['ignore',log,log],

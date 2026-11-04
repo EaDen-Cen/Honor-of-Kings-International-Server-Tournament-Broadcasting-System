@@ -86,6 +86,18 @@ export function LiveHudCapturePanel({
   useEffect(() => {
     if (disabled) cancelCapture();
   }, [disabled, cancelCapture]);
+  const manualSources = JSON.stringify(
+    Object.entries(state.liveGameStats.sources ?? {}).filter(
+      ([, source]) => source.source === 'manual',
+    ),
+  );
+  useEffect(() => {
+    // An operator edit requires fresh evidence; ordinary OCR acknowledgements do not.
+    cancelCapture();
+    last.current = undefined;
+    setPrevious(undefined);
+    setResult(undefined);
+  }, [manualSources, cancelCapture]);
   function editRegions(next: Record<LiveCaptureKey, CaptureRect>) {
     cancelCapture();
     last.current = undefined;

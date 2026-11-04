@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 import heroes from '../src/components/HeroList';
+import { openDockPanel } from './dockNavigation';
 
 test('empty history, inline settings and BO win boxes follow authoritative side swaps',async({browser,baseURL})=>{
   const h=await harness(baseURL),context=await browser.newContext({viewport:{width:1920,height:1080}});
@@ -23,6 +24,7 @@ test('empty history, inline settings and BO win boxes follow authoritative side 
     await control.getByRole('button',{name:'Match settings',exact:true}).click();
     await expect(control.locator('.settings-inline')).toBeVisible();
     await expect(control.locator('dialog[open]')).toHaveCount(0);
+    await openDockPanel(control, 'settings');
     await expect(control.getByRole('button',{name:'Apply AI settings',exact:true})).toBeVisible();
     await h.fill();
     await expect(page.locator('.hero-art')).toHaveCount(10);

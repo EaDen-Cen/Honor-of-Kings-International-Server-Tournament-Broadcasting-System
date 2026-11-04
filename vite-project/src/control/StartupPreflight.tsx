@@ -33,11 +33,11 @@ export function StartupPreflight({state}: {state: MatchState}) {
     setSaved(updated);
     try { sessionStorage.setItem(storageKey,JSON.stringify(updated)); } catch { /* session fallback */ }
   };
-  return <section className="panel preflight-checklist" aria-label={zh?'开播强提醒':'Broadcast startup checklist'}>
-    <div className="toolbar">
+  return <details className="panel preflight-checklist" aria-label={zh?'开播强提醒':'Broadcast startup checklist'}>
+    <summary className="toolbar">
       <h3>{zh ? `第 ${game} 局开播流程` : `Game ${game} startup checklist`}</h3>
       <strong role="status">{progress.done ? (progress.bypassed ? (zh?'紧急跳过（未验证）':'Bypassed; unverified') : (zh?'本次已人工确认':'Confirmed for this game')) : (zh?'未完成 · 开播前需检查':'Not complete · preflight required')}</strong>
-    </div>
+    </summary>
     {!progress.done ? <>
       <p className="muted">{zh ? '逐项确认后关闭提醒；每局重新出现。此流程故意采用“伪强制”，以免临场故障把导播彻底锁死。未通过的项目不能假装为通过。' : 'Confirm each item before dismissing. The checklist restarts every game. Emergency bypass prevents live-operation lockout.'}</p>
       {labels.map((label,index)=><label key={index} className="preflight-check">
@@ -52,5 +52,5 @@ export function StartupPreflight({state}: {state: MatchState}) {
         }}>{zh ? '紧急跳过（保留警告）' : 'Emergency bypass'}</button>
       </div>
     </> : <button type="button" onClick={()=>change({flags:0,done:false})}>{zh?'重新执行检查':'Repeat checks'}</button>}
-  </section>;
+  </details>;
 }
