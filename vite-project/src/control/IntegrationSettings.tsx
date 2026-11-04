@@ -71,7 +71,8 @@ export function IntegrationSettings({ token, zh }: { token: string; zh: boolean 
       <h2>{zh ? '设置中心 · 外部连接' : 'External connections'}</h2>
       <AiRecognitionSettings token={token} zh={zh} />
       <details className="panel">
-        <summary>Discord Bot / Webhook</summary>
+        <summary>Discord Webhook / 可选 Bot</summary>
+        <p>仅发送通知和已确认 MVP：只填 Webhook URL 并保存即可。下列 Bot Token、服务器 ID、频道 ID 仅用于可选自动投票；无需 Bot 时可留空。发送预览位于 Discord 通知 / 投票工作区。</p>
         {discord && (
           <>
             {discord.storageError && <p role="alert">{discord.storageError}</p>}

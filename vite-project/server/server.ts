@@ -47,6 +47,7 @@ import { ObsBridge } from './obsBridge.js';
 import { SecureSettings } from './secureSettings.js';
 import { AiProfiles } from './aiProfiles.js';
 import { AiBudget } from './aiBudget.js';
+import { DiscordWebhook } from './discordWebhook.js';
 import { DiscordVoting } from './discordVoting.js';
 import { PostGameCarousel } from './postGameCarousel.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
@@ -103,6 +104,13 @@ const secureSettings = new SecureSettings(resolve(dirname(dataFile), 'secure-set
 const aiProfiles = new AiProfiles(secureSettings);
 const aiBudget = new AiBudget(resolve(dirname(dataFile), 'ai-budget.json'));
 aiRecognition.setBudget(aiBudget);
+let webhook: DiscordWebhook | undefined;
+let webhookError = '';
+try {
+  webhook = new DiscordWebhook(resolve(dirname(dataFile), 'webhook-notices.json'), secureSettings);
+} catch {
+  webhookError = 'Webhook log unavailable; preserve and repair webhook-notices.json';
+}
 const savedObs = secureSettings.get<{ address: string; password: string }>('obs');
 let obsBridge = new ObsBridge(
   savedObs?.address || process.env.OBS_WS_URL,
@@ -376,6 +384,17 @@ const server = createServer(async (req, res) => {
             return;
           }
           json(405, { error: 'POST, PUT or DELETE required' });
+          return;
+        }
+        if (url.pathname.startsWith('/api/v1/discord/webhook')) {
+          if (!webhook) throw Error(webhookError);
+          if (url.pathname === '/api/v1/discord/webhook' && req.method === 'GET')
+            json(200, webhook.snapshot());
+          else if (url.pathname === '/api/v1/discord/webhook-preview' && req.method === 'POST')
+            json(200, webhook.preview(store.data.state, input));
+          else if (url.pathname === '/api/v1/discord/webhook-send' && req.method === 'POST')
+            json(200, await webhook.send(store.data.state, input));
+          else json(405, { error: 'Unsupported Webhook operation' });
           return;
         }
         if (!discord) throw Error(discordLoadError);
