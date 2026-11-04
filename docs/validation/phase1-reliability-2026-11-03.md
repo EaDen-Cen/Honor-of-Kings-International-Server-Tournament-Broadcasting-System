@@ -17,7 +17,8 @@
 - `npm test`：338 通过，0 失败，2 既有跳过（共 340）。
 - `npm run build`、`npm run lint`、`npm run format:check`：通过；Lint 保留 2 条既有 react-refresh warning。
 - 已复现的设置、静态 GHUD、人工冻结、Simulator 四项浏览器测试通过；剩余自动 HUD 与蓝/红先手同屏三项通过（37.3 秒）。
-- 完整 100 项 E2E（含新增 BO5 输入和刷新历史）及 Windows 启动器测试正在执行，结果待更新；不能据定向测试认定全量通过。
+- 完整 100 项 E2E：99 通过，1 项 GHUD 滑块键盘测试失败（12.6 分钟）；包含 BO3 彩排、BO5 五局不同数据及刷新历史。失败时焦点仍在折叠标题，滑块不在可视区；测试增加滚动到可视区与焦点断言后，单次及连续 3 次重跑通过。未删除原有宽度、高度、重置、持久化断言；仍不能将定向复测称为最终全量通过。
+- Windows 本机 managed-process、launcher-smoke、launcher-session、tunnel-sync 四组脚本通过；远端 Broadcast CI 的 windows-native job 也已通过。OBS/游戏/平板实机验收未执行。
 
 ## 操作变化与限制
 
