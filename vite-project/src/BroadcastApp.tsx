@@ -327,7 +327,7 @@ export default function BroadcastApp() {
       {role === 'caster' && <Board state={state} lang={lang} />}
       {role === 'control' && <>
         <OperatorPreferences token={token}/>
-        <OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
+        <OperatorGuide state={state} token={token} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
         <DockWorkspace zh={lang==='zh'} panels={{
           monitor: <div className="control-monitor">
           <Board state={state} lang={lang} compact />

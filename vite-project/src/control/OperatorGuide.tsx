@@ -18,12 +18,14 @@ function openWorkspace(id: string) {
 
 export function OperatorGuide({
   state,
+  token,
   connected,
   pending,
   onTeams,
   onSettings,
 }: {
   state: MatchState;
+  token: string;
   connected: boolean;
   pending: boolean;
   onTeams: () => void;
@@ -84,7 +86,7 @@ export function OperatorGuide({
                 : 'Check the result and update the series score before starting the next game.';
   return (
     <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
-      <StartupPreflight state={state} />
+      <StartupPreflight state={state} token={token} connected={connected} />
       <ol className="operator-steps">
         {labels.map((label, index) => (
           <li key={label} aria-current={step === index ? 'step' : undefined}>
