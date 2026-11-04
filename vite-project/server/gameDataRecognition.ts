@@ -392,16 +392,11 @@ export async function recognizeLiveHud(
         .extract(pixelRect(regions[key], 1920, 1080))
         .png()
         .toBuffer();
-      return prepareLiveHudCrop(input, key);
+      return 'data:image/png;base64,' + input.toString('base64');
     }),
   );
-  const result = await provider.recognizeNumbers(images);
-  const candidates = liveCaptureKeys.map((key, index) => ({
-    key,
-    value: parseLiveNumber(result.texts[index], key),
-    confidence: result.confidences[index],
-    text: result.texts[index],
-  }));
+  const result = await recognizeLiveHudCrops(images, provider, regions);
+  const candidates = result.candidates;
   return {
     candidates: aiContext ? fuseHud(images, candidates, aiContext) : candidates,
     elapsedMs: result.elapsedMs,
@@ -457,9 +452,10 @@ export async function recognizeLiveHudCrops(
   return {
     candidates: liveCaptureKeys.map((key, index) => ({
       key,
-      value: parseLiveNumber(result.texts[index], key),
-      confidence: result.confidences[index],
-      text: result.texts[index],
+      value: inputs[index].hasContent ? parseLiveNumber(result.texts[index], key) : null,
+      confidence: inputs[index].hasContent ? result.confidences[index] : 0,
+      text: inputs[index].hasContent ? result.texts[index] : '',
+      ...(!inputs[index].hasContent ? { rejection: 'blank-crop' as const } : {}),
     })),
     elapsedMs: performance.now() - start,
   };

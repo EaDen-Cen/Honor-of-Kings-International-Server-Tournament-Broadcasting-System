@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AiBudgetSettings } from './AiBudgetSettings';
 type Vendor =
   | 'openai'
   | 'anthropic'
@@ -110,6 +111,7 @@ export function AiRecognitionSettings({ token, zh }: { token: string; zh: boolea
   return (
     <section className="panel" aria-label="AI recognition settings">
       <h3>{zh ? 'AI 识别 · 多厂商 API' : 'AI Recognition · Multi-provider API'}</h3>
+      <AiBudgetSettings token={token} zh={zh} />
       <p className="muted">
         {zh
           ? 'AI 辅助英雄、选手、HUD 与赛后数字，仍经过原有校验。密钥在本机加密保存，重启自动加载；更换 Windows 用户后需重新配置。'

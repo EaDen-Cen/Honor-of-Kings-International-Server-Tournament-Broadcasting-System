@@ -12,6 +12,7 @@ export function fuseHud(
   service: AiRecognitionService = aiRecognition,
 ): LiveCandidate[] {
   return candidates.map((local, index) => {
+    if (local.rejection) return local;
     if (local.value !== null && local.confidence >= 0.85) return local;
     const ai = service.value(
       images[index],
