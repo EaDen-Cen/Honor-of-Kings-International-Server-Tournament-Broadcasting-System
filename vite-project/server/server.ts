@@ -1552,7 +1552,25 @@ const server = createServer(async (req, res) => {
         json(401, { error: '访问口令缺失或无效，请重新输入' });
         return;
       }
-      if (url.pathname === '/api/match') json(200, store.snapshot(role));
+      if (url.pathname === '/api/v1/preflight-status') {
+        if (role !== 'control') {
+          json(403, { error: 'Control only' });
+          return;
+        }
+        const templates = await prepareHeroTemplates().catch(() => []);
+        const ids = new Set(templates.map((template) => template.heroId));
+        const missingTemplates = heroesForPool(store.data.state.heroPool).filter(
+          (hero) => !ids.has(hero.id),
+        ).length;
+        const viewers = [...clients.values()];
+        json(200, {
+          node: process.versions.node,
+          heroesReady: missingTemplates === 0,
+          missingTemplates,
+          casterConnections: viewers.filter((client) => client.role === 'caster').length,
+          overlayConnections: viewers.filter((client) => client.role === 'overlay').length,
+        });
+      } else if (url.pathname === '/api/match') json(200, store.snapshot(role));
       else if (url.pathname === '/api/v1/capabilities')
         json(200, {
           version: 1,

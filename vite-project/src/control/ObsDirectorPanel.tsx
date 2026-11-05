@@ -191,6 +191,7 @@ export function ObsDirectorPanel({
           );
         const next = (await res.json()) as ObsStatus;
         if (version !== statusVersion.current) return;
+        if (!Array.isArray(next?.scenes)) throw new Error('Invalid OBS scene list.');
         setStatus(next);
         setSelected((current) =>
           next.scenes.includes(current) ? current : next.programScene || next.scenes[0] || '',

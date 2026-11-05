@@ -4,17 +4,7 @@ import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
 import { StartupPreflight } from './StartupPreflight';
 import { canVerifyPlayerOrder, playerOrderCheckKey } from '../shared/playerOrderPreflight';
-
-/** Anchor navigation must reveal collapsed tools before the browser scrolls.
- * Keep every capture component mounted so jumping workspaces never drops it. */
-function openWorkspace(id: string) {
-  document.dispatchEvent(new CustomEvent('hok-open-panel', { detail: id }));
-  let element: HTMLElement | null = document.getElementById(id);
-  while (element) {
-    if (element instanceof HTMLDetailsElement) element.open = true;
-    element = element.parentElement;
-  }
-}
+import { openWorkspace } from './workspaceNavigation';
 
 export function OperatorGuide({
   state,

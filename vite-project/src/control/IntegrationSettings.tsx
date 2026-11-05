@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { WorkspaceShortcutSettings } from './WorkspaceShortcutSettings';
 import { apiURL } from '../shared/config';
 import { AiRecognitionSettings } from './AiRecognitionSettings';
 import type { DiscordPublicConfig } from '../shared/audienceVote';
@@ -69,6 +70,7 @@ export function IntegrationSettings({ token, zh }: { token: string; zh: boolean 
   return (
     <div id="integration-settings" className="integration-settings">
       <h2>{zh ? '设置中心 · 外部连接' : 'External connections'}</h2>
+      <WorkspaceShortcutSettings zh={zh} />
       <AiRecognitionSettings token={token} zh={zh} />
       <details className="panel">
         <summary>Discord Webhook / 可选 Bot</summary>

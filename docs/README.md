@@ -1,5 +1,14 @@
 # 文档总索引
 
+## 可靠性重构开发链（2026-11-03，尚未发布）
+
+- 现场操作：[完整比赛操作](guides/operator-guide.md)、[AI 费用保护](guides/ai-recognition.md)、[Webhook 优先 / 可选 Bot](guides/discord-mvp-voting.md)。
+- 当前边界：[完成度与问题答复](validation/reliability-status.md)、[真实设备验收清单](validation/hardware-acceptance.md)、[CI 修复报告](validation/ci-repair-report.md)。
+- 架构：[总览](architecture/overview.md)、[模块地图](architecture/module-map.md)、[数据流](architecture/data-flow.md)、[生命周期](architecture/state-machine.md)、[识别](architecture/recognition-pipeline.md)、[开发定位](architecture/developer-guide.md)。
+- 证据：[基线审计](validation/reliability-audit-2026-11-03.md)、[阶段一](validation/phase1-reliability-2026-11-03.md)、[阶段二](validation/phase2-core-2026-11-03.md)、[阶段三](validation/phase3-preflight-2026-11-03.md)、[阶段四与费用](validation/phase4-recognition-cost-2026-11-03.md)、[阶段五](validation/phase5-webhook-2026-11-03.md)。
+
+下方为此前功能与版本记录；开发分支能力不能追溯视为已发布 RC 内容。
+
 > **2026-10-25**：盾山（Dunshan）已在国际服 10 月 21 日上线，程序开发分支补录为 Hero ID 120，更新离线头像、身份映射及回归测试，见 [英雄名单](research/hero-roster.md) / [同步说明](research/hero-sync.md)。
 
 > **2026-10-25 开发分支（尚未实机验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](guides/team-library-migration.md)。\n\n[返回项目首页](../README.md)

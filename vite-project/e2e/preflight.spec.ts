@@ -11,6 +11,7 @@ test('manual confirmation never turns unavailable OBS or disk checks into a pass
     ? { ok: true, source: 'obs', directory: 'D:/recordings', freeBytes: 100 * 1024 ** 3, low: false }
     : { ok: false, error: 'OBS unavailable' },
   }));
+  await page.route('**/api/v1/obs/layout?*', route => route.fulfill({ json: { sources: [{ enabled: true, width: 1920, height: 1080 }] } }));
   await page.route('**/api/recovery', route => route.fulfill({ json: { backups: [], lastBackup: null } }));
   try {
     await h.send({ type: 'settings', settings: { ...h.state(), language: 'eng' } });
