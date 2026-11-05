@@ -6,7 +6,7 @@ const labels = {
   obs: /^(OBS director|OBS 导播)$/,
   players: /^(Players|玩家管理)$/,
   settings: /^(Settings|设置中心)$/,
-  voting: /^(MVP voting|MVP 投票)$/,
+  voting: /^(Discord notices \/ voting|Discord 通知 \/ 投票)$/,
 };
 /** Use the same visible menu as an operator; do not force-click hidden tools. */
 export async function openDockPanel(page: Page, id: keyof typeof labels) {
