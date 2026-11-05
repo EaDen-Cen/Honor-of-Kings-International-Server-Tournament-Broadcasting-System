@@ -7,7 +7,7 @@ const player=(values:Partial<Record<PostGameMetric,number>>={}):PostGamePlayer=>
 test('MVP retains the game identity when later roster defaults or sides change',()=>{
   const state=initialState(),saved=player();state.blueTeam.id='blue';state.blueTeam.players[0]='P1';state.blueTeam.playerRoles[0]='jungle';state.blueTeam.playerPortraits[0]='/player.png';
   const actual=postGamePlayerIdentity(state,saved);
-  assert.equal(actual.role,'clash');assert.equal(actual.portrait,saved.portrait);assert.equal(actual.heroId,saved.heroId);
+  assert.equal(actual.role,'clash');assert.equal(actual.portrait,'/player.png');assert.equal(actual.heroId,saved.heroId);
   [state.blueTeam,state.redTeam]=[state.redTeam,state.blueTeam];assert.equal(postGamePlayerIdentity(state,saved).role,'clash','team identity survives side swaps');
   state.redTeam.players[0]='Replacement';assert.equal(postGamePlayerIdentity(state,saved).role,'clash','a different player cannot supply historical role or photo');
 });

@@ -309,7 +309,7 @@ export function LineupAssignments({
         return false;
       }
       if (state.lineupConfirmed || state.lineupAutomationBlocked) return false;
-      const queued = send({ type: 'set_lineup_assignments', blue, red });
+      const queued = send({ type: 'set_lineup_assignments', blue, red, source: 'automatic' });
       if (!queued) {
         setMessage(
           zh
@@ -598,8 +598,6 @@ export function LineupAssignments({
     };
   }, [
     auto,
-    state.lineupConfirmed,
-    state.lineupAutomationBlocked,
     disabled,
     scan,
     state.bpInputMode,

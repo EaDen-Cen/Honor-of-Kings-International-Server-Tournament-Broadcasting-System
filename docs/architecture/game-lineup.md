@@ -19,13 +19,13 @@
 
 ## 操作与一致性
 
-`set_game_roles`、`swap_assignments`、`confirm_game_lineup` 支持显式 gameId。Store 校验目标局、分路排列及英雄合法性，并复用统一事务和 Undo。已确认阵容要求先解除确认。手动操作设置本局的 `lineupAutomationBlocked`，防止旧自动识别结果回写。下一局清除该标记。
+`set_game_roles`、`swap_assignments`、`confirm_game_lineup` 支持显式 gameId。Store 校验目标局、分路排列及英雄合法性，并复用统一事务和 Undo。已确认阵容要求先解除确认。手动操作设置本局的 `lineupAutomationBlocked`，防止旧自动识别结果回写。下一局清除该标记。自动识别动作显式标记 source=automatic，人工确认后的识别轮询停止。既有人工 set_lineup_assignments 保持可用，已确认锁定时仍要求先解锁。
 
 点击 BP 头像使用原 `replace_draft_hero`。它会更新对应 Pick 记录及引用该英雄的最终归属。拖动最终阵容英雄则调用 `swap_assignments`，Pick 记录继续保留原次序。
 
 界面只保存尚未确认的交互预览。正式修改仍通过 WebSocket 发往 Store，ACK 后显示服务器确认。相关阵容发生变更会取消旧预览。普通直播统计更新不关闭英雄选择器。
 
-Overlay 完成 BP 后按本局分路展示卡片，Caster 沿用配置的延迟并显示最终归属。赛后与 MVP 使用报告快照，后续队伍默认资料更新不会覆盖历史阵容。
+Overlay 完成 BP 后按本局分路展示卡片，Caster 沿用配置的延迟并显示最终归属。赛后与 MVP 使用报告中的本局分路，后续默认分路更新不会覆盖历史阵容。同一队伍、同一选手身份的照片继续沿用既有实时修正能力，照片更新不改写报告原始字段。
 
 ## 兼容与边界
 

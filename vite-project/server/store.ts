@@ -536,7 +536,7 @@ export class Store {
       break;
     }
     case 'set_lineup_assignments': {
-      if (state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority / 请使用人工阵容编辑');
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority / 请使用人工阵容编辑');
       if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
@@ -547,6 +547,7 @@ export class Store {
       state.blueAssignments = [...action.blue];
       state.redAssignments = [...action.red];
       validateLineup(state, true);
+      if (action.source !== 'automatic') state.lineupAutomationBlocked = true;
       break;
     }
     case 'score': {

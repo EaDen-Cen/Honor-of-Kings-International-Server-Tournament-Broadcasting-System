@@ -169,6 +169,14 @@ test('final hero swaps keep two-read validation without a 1.6-second polling pen
     );
     expect(calls - beforeSwap).toBeGreaterThanOrEqual(20);
     expect(elapsed).toBeLessThan(1500);
+    await h.send({ type: 'swap_assignments', team: 'blue', from: 0, to: 1 });
+    const manual = [...h.state().blueAssignments];
+    await expect(page.getByLabel('Game role lineup')).toContainText('Manual lineup active');
+    const stoppedCalls = calls;
+    // A complete auto-scan interval must not start more image work after manual ownership.
+    await page.waitForTimeout(1200);
+    expect(calls).toBe(stoppedCalls);
+    expect(h.state().blueAssignments).toEqual(manual);
   } finally {
     h.close();
   }

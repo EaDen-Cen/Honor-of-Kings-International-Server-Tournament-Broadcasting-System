@@ -191,7 +191,7 @@ export type Action =
   | { type: 'confirm_game_lineup'; confirmed: boolean; gameId?: string }
   | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[]; source?: 'automatic' }
   | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]]; source?: 'automatic' }
-  | { type: 'set_lineup_assignments'; blue: number[]; red: number[] }
+  | { type: 'set_lineup_assignments'; blue: number[]; red: number[]; source?: 'automatic' }
   | { type: 'settings'; settings: MatchSettings }
   | { type: 'hero_art_override'; heroId: number; override: HeroArtOverride }
   | { type: 'reset_hero_art_override'; heroId: number; layout?: HeroArtLayout }

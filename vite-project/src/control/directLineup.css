@@ -70,3 +70,10 @@
 .direct-lineup img {
   -webkit-user-drag: none;
 }
+
+.control-monitor > .direct-draft {
+  display: contents;
+}
+.direct-drop-target {
+  outline: 3px solid #38bdf8;
+}

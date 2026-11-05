@@ -18,6 +18,7 @@ test('MVP resolves registered role, prioritizes photos, fills hero art, and sepa
     await h.send({type:'hero_data_override',heroId,override:{artLink:'/test-mvp-art.jpg'}});await h.send({type:'hero_art_override',heroId,override:{panel:{x:45,y:25,scale:1.25}}});
     const changed=h.state();changed.blueTeam.playerRoles=['jungle','clash','mid','farm','roam'];changed.blueTeam.playerPortraits[0]='/test-mvp-photo.jpg';await h.send({type:'settings',settings:changed});
     expect(h.state().postGameReports[0].players[0].role).toBe('clash');
+    await h.send({type:'set_game_roles',side:'blue',roles:['jungle','clash','mid','farm','roam']});
     const values={kills:8,deaths:2,assists:10,totalDamage:72000,participation:85,damageConversion:1.5,damageTaken:40000,damageShare:35,gold:12000,goldShare:30,healingShare:70,healing:15000,towerDamageShare:60,towerDamage:8000};
     await h.send({type:'post_game_fields',reportId:report.id,updates:Object.entries(values).map(([metric,value])=>({rowId:selected.rowId,metric:metric as PostGameMetric,field:{value,confidence:1,manual:true,sourcePage:'overview'}}))});await h.send({type:'select_mvp',reportId:report.id,rowId:selected.rowId});
     await page.setViewportSize({width:1920,height:1080});await page.goto('/overlay/mvp');

@@ -29,6 +29,13 @@ for (const count of [1, 3, 5] as const)
         );
         const picks = [...store.data.state.bluePicks],
           assignments = [...store.data.state.blueAssignments];
+        assert.throws(() =>
+          apply({
+            type: 'set_game_roles',
+            side: 'blue',
+            roles: ['clash', 'clash', 'mid', 'farm', 'roam'],
+          }),
+        );
         const roles = [...gameRoles];
         [roles[0], roles[3]] = [roles[3], roles[0]];
         apply({ type: 'set_game_roles', side: 'blue', roles });
@@ -73,6 +80,14 @@ for (const count of [1, 3, 5] as const)
         });
         apply({ type: 'select_mvp', reportId: report.id, rowId: row.rowId });
         apply({ type: 'confirm_game_lineup', confirmed: false });
+        assert.throws(() =>
+          apply({
+            type: 'set_lineup_assignments',
+            source: 'automatic',
+            blue: store.data.state.blueAssignments as number[],
+            red: store.data.state.redAssignments as number[],
+          }),
+        );
         apply({ type: 'set_game_roles', side: 'blue', roles: [...gameRoles] });
         assert.equal(store.data.state.postGameReports.at(-1)!.players[0].role, 'clash');
         assert.equal(store.data.state.postGameReports.at(-1)!.players[0].fields.kills?.value, game);

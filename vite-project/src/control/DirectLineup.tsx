@@ -48,6 +48,13 @@ export function DirectLineup({
   const guard = useRef(false);
   const touchSubmitted = useRef(false);
   const submitted = useRef<Action>();
+  const draftDropTarget = useRef<HTMLElement>();
+  function highlightDraftTarget(target?: HTMLElement) {
+    draftDropTarget.current?.classList.remove('direct-drop-target');
+    draftDropTarget.current = target;
+    target?.classList.add('direct-drop-target');
+  }
+  useEffect(() => () => draftDropTarget.current?.classList.remove('direct-drop-target'), []);
   const editContext = JSON.stringify([
     gameId,
     state.draftGameNumber,
@@ -87,6 +94,13 @@ export function DirectLineup({
     setPending(undefined);
     guard.current = false;
   }, [editContext]);
+  useEffect(() => {
+    if (error && submitted.current) {
+      setMessage(error);
+      submitted.current = undefined;
+      guard.current = false;
+    }
+  }, [error]);
   const historical = !!record && record.id !== state.committedGameId;
   const context = record ? { gameId: record.id } : {};
   const propose = (action: Action) => {
@@ -235,7 +249,7 @@ export function DirectLineup({
     );
   return (
     <section
-      className="panel direct-lineup"
+      className={`panel direct-lineup ${mode === 'draft' ? 'direct-draft' : ''}`}
       aria-label={mode === 'draft' ? 'Visual BP correction' : 'Game role lineup'}
     >
       <h3>
@@ -335,7 +349,17 @@ export function DirectLineup({
                       if (event.button === 0)
                         event.currentTarget.setPointerCapture(event.pointerId);
                     }}
+                    onPointerMove={(event) => {
+                      if (event.buttons === 1)
+                        highlightDraftTarget(
+                          document
+                            .elementFromPoint(event.clientX, event.clientY)
+                            ?.closest<HTMLElement>('[data-draft-target]') ?? undefined,
+                        );
+                    }}
+                    onPointerCancel={() => highlightDraftTarget()}
                     onPointerUp={(event) => {
+                      highlightDraftTarget();
                       const target = document
                         .elementFromPoint(event.clientX, event.clientY)
                         ?.closest<HTMLElement>('[data-draft-target]');
@@ -516,7 +540,7 @@ export function DirectLineup({
           )}
         </>
       )}
-      {error && <p role="alert">{error}</p>}
+
       {message && <p aria-live="polite">{message}</p>}
     </section>
   );

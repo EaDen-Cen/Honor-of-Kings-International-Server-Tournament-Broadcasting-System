@@ -372,7 +372,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
     }
     void run();
     return cleanup;
-  },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh,slots]);
+  },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,state.lineupConfirmed,state.lineupAutomationBlocked,token,zh,slots]);
 
   useEffect(()=>{
     if(state.lineupConfirmed||state.lineupAutomationBlocked||!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
