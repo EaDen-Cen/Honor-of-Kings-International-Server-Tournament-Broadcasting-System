@@ -57,6 +57,7 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
             currentProgramSceneName: scene,
           };
         else if (packet.d.requestType === 'GetRecordStatus') responseData = { outputActive: true };
+        else if (packet.d.requestType === 'GetRecordDirectory') responseData = { recordDirectory: 'E:\\OBS-Recordings' };
         else if (packet.d.requestType === 'GetInputList')
           responseData = {
             inputs: [{ inputName: 'Music' }, { inputName: 'OtherMusic' }, { inputName: 'Video' }],
@@ -130,6 +131,7 @@ test('OBS WebSocket v5 authenticates locally, reports recording, and confirms sc
     assert.equal(authenticated, true);
     assert.equal(first.programScene, 'BP');
     assert.equal(first.recording, true);
+    assert.equal(await bridge.recordDirectory(), 'E:\\OBS-Recordings');
     assert.deepEqual(first.scenes, ['BP', 'Game']);
     await assert.rejects(() => bridge.switchScene('Nonexistent'), /not present/);
     const changed = await bridge.switchScene('Game');

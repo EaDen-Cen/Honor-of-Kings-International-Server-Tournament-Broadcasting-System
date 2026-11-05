@@ -11,6 +11,16 @@ import {
   type ObsCue,
 } from './obsCues';
 
+interface RecordingStorageStatus {
+  ok: boolean;
+  directory?: string;
+  source?: 'obs' | 'configured';
+  freeBytes?: number;
+  totalBytes?: number;
+  freePercent?: number;
+  low?: boolean;
+  error?: string;
+}
 interface ObsStatus {
   configured: boolean;
   connected: boolean;
@@ -89,6 +99,7 @@ export function ObsDirectorPanel({
     }
   }, [cueMap]);
   const [status, setStatus] = useState<ObsStatus>();
+  const [storage, setStorage] = useState<RecordingStorageStatus>();
   const [selected, setSelected] = useState('');
   const [sceneOrder, setSceneOrder] = useState<string[]>(readSceneOrder);
   const [editingSceneOrder, setEditingSceneOrder] = useState(false);
@@ -223,6 +234,39 @@ export function ObsDirectorPanel({
       setAudioError(error instanceof Error ? error.message : 'OBS audio unavailable');
     }
   }, [token, hadAudioPreferences]);
+  const refreshStorage = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const result = await fetch(`${apiURL}/api/v1/obs/storage`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(8000)])
+            : AbortSignal.timeout(8000),
+          cache: 'no-store',
+        });
+        if (!result.ok)
+          throw new Error(result.status === 403 ? 'Local Control only' : 'Storage request failed');
+        const next = (await result.json()) as RecordingStorageStatus;
+        if (!signal?.aborted) setStorage(next);
+      } catch (error) {
+        if (!signal?.aborted)
+          setStorage({
+            ok: false,
+            error: error instanceof Error ? error.message : 'Storage check failed',
+          });
+      }
+    },
+    [token],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    void refreshStorage(controller.signal);
+    const timer = setInterval(() => void refreshStorage(controller.signal), 30000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, [refreshStorage]);
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
@@ -387,6 +431,49 @@ export function ObsDirectorPanel({
             <strong>{zh ? obsCueLabels[suggested].zh : obsCueLabels[suggested].eng}</strong>
           </div>
         </div>
+        <section
+          className="obs-workspace-card"
+          aria-label={zh ? 'OBS 录制磁盘容量' : 'OBS recording disk capacity'}
+        >
+          <div className="obs-director-toolbar">
+            <strong>{zh ? '实际录制磁盘剩余空间' : 'Free space on recording volume'}</strong>
+            <button type="button" onClick={() => void refreshStorage()}>
+              {zh ? '重新检测' : 'Check again'}
+            </button>
+          </div>
+          {!storage ? (
+            <p role="status">{zh ? '检测中…' : 'Checking…'}</p>
+          ) : storage.ok ? (
+            <p
+              role={storage.low ? 'alert' : 'status'}
+              className={storage.low ? 'obs-recording-warning' : 'muted'}
+            >
+              {storage.low ? (zh ? '容量不足警告：' : 'Low space warning: ') : ''}
+              {((storage.freeBytes ?? 0) / 1024 ** 3).toFixed(1)} GiB
+              {' / '}
+              {((storage.totalBytes ?? 0) / 1024 ** 3).toFixed(1)} GiB
+              {' · '}
+              {storage.freePercent}% {zh ? '可用' : 'free'}
+              {' · '}
+              {storage.source === 'obs' ? 'OBS' : 'HOK_RECORDING_DIR'}
+              {' · '}
+              {storage.directory}
+            </p>
+          ) : (
+            <p role="alert">
+              {zh ? '无法检测录制盘：' : 'Recording disk unknown: '}
+              {storage.error}
+              {zh
+                ? '。不能将程序盘容量当作录制盘容量。'
+                : '. Do not assume the app disk is the recording disk.'}
+            </p>
+          )}
+          <small className="muted">
+            {zh
+              ? '自动每 30 秒刷新；低于 20 GiB 或 10% 报警。这里只读取容量，不会控制 OBS 录制。'
+              : 'Refreshes every 30 s. Warns below 20 GiB or 10%. Read-only; does not start or stop recording.'}
+          </small>
+        </section>
         {status?.connected && status.recording === false && suggested === 'game' && (
           <p role="status" className="obs-recording-warning">
             {zh
@@ -864,8 +951,8 @@ export function ObsDirectorPanel({
         )}
         <p className="muted">
           {zh
-            ? '默认手动执行；自动模式仅在本次会话明确授权后按阶段变化执行。音频为手动渐变；磁盘容量预警尚未实现。'
-            : 'Manual by default. Session-authorized automation follows stage changes. Audio fades are manual; disk alerts are not implemented.'}
+            ? '默认手动执行；自动模式仅在本次会话明确授权后按阶段变化执行。音频为手动渐变；录制磁盘空间每 30 秒查询一次。'
+            : 'Manual by default. Session-authorized automation follows stage changes. Audio fades are manual; recording disk capacity is monitored every 30 seconds.'}
         </p>
       </div>
     </details>

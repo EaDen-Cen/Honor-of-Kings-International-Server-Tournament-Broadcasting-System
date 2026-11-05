@@ -27,6 +27,7 @@ npm run hero:crop-sync
 - [选手对齐、恢复、实验性 HUD 与赛后图形](../docs/guides/player-alignment-recovery-hud.md)
 - [赛后全高清 OBS 页面/API](../docs/design/api.md#pr-67经济时间线与赛后图形契约)
 - [Windows 启动器](../docs/guides/windows-launcher.md)
+- [2026-10-30 · 第二局赛后报告、锁定 BP 纠错、OBS 录制盘容量与逐局开播流程](../docs/guides/live-preflight-and-corrections-2026-10-30.md)
 - [v1.0.0 发布说明](../docs/releases/v1.0.0.md)
 - [系统结构](../docs/design/architecture.md)
 

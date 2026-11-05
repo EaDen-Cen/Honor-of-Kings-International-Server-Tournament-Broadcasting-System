@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CaptureRequest } from './captureRequest';
 import type { Action, MatchState } from '../shared/types';
-import { liveGameContext, trustedLiveUpdates, liveHudReviewStates, type LiveHudSample, type LiveHudReviewState } from '../shared/liveGame';
+import {
+  liveGameContext,
+  trustedLiveUpdates,
+  liveHudReviewStates,
+  type LiveHudSample,
+  type LiveHudReviewState,
+} from '../shared/liveGame';
 import {
   liveCaptureLabel,
   liveCaptureRects,
@@ -80,6 +86,18 @@ export function LiveHudCapturePanel({
   useEffect(() => {
     if (disabled) cancelCapture();
   }, [disabled, cancelCapture]);
+  const manualSources = JSON.stringify(
+    Object.entries(state.liveGameStats.sources ?? {}).filter(
+      ([, source]) => source.source === 'manual',
+    ),
+  );
+  useEffect(() => {
+    // An operator edit requires fresh evidence; ordinary OCR acknowledgements do not.
+    cancelCapture();
+    last.current = undefined;
+    setPrevious(undefined);
+    setResult(undefined);
+  }, [manualSources, cancelCapture]);
   function editRegions(next: Record<LiveCaptureKey, CaptureRect>) {
     cancelCapture();
     last.current = undefined;
@@ -338,7 +356,11 @@ export function LiveHudCapturePanel({
               <span>
                 {c.value ?? '—'} · {Math.round(c.confidence * 100)}% · OCR: {c.text || '—'}
               </span>
-              <small className={review?.[c.key] === 'verified' || review?.[c.key] === 'published' ? '' : 'error'}>
+              <small
+                className={
+                  review?.[c.key] === 'verified' || review?.[c.key] === 'published' ? '' : 'error'
+                }
+              >
                 {review ? reviewLabel[review[c.key]] : ''}
               </small>
             </div>

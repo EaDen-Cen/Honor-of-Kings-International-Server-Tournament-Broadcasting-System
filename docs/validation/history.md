@@ -421,3 +421,7 @@ Chrome 测试同时打开 Control、Caster、Overlay，完成选禁、刷新、�
 ## 2026-10-21 — PR #91 后续开发
 
 基线 c0afa2e 的 GitHub 两组工作流在 Lint 因未使用 TTL_MS 失败；Windows 原生任务通过，Linux 浏览器步骤被跳过。后续具体变更、实际执行结果和未验收边界集中记录于 [PR #91 验证](pr91-validation.md)。
+
+## 2026-10-30 · locked hero / Game 2 / recording volume / preflight (branch candidate)
+
+针对真实比赛反馈：新增 `replace_draft_hero` 可针对当前与归档局替换已锁定 Ban/Pick 槽位（不回退 BP），同步 `draftHistory` 和关联赛后报告英雄，保存已有人工字段；`commit_game` 自动建立并选择本局报告，避免第二局还在写第一局；本机 OBS `GetRecordDirectory` + `statfs` 读取真实录制分区可用空间，低于 20 GiB 或 10% 警告；每局 Control 伪强制开播清单带紧急绕过。新增锁定纠错与磁盘容量单元测试。尚待 Actions Build/Lint/浏览器回归及 Windows OBS 实机验证。细节见 [操作和限制](../guides/live-preflight-and-corrections-2026-10-30.md)。

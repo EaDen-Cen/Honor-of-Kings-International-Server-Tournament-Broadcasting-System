@@ -170,6 +170,8 @@ export type Action =
   | { type: 'live_game_freeze'; key:LiveCaptureKey; frozen:boolean }
   | { type: 'load_team_preset'; side: Side; presetId: string }
   | { type: 'draft_action'; team: Side; action: 'ban' | 'pick'; heroId: number }
+  /** Explicit operator correction for an already locked slot. Historical games use gameId. */
+  | { type: 'replace_draft_hero'; team: Side; action: 'ban' | 'pick'; index: number; heroId: number; gameId?: string }
   | { type: 'draft_pick_group'; team: Side; heroIds: number[] }
   | { type: 'skip_ban'; team: Side }
   | { type: 'undo' | 'reset_draft' | 'reset_match' }
