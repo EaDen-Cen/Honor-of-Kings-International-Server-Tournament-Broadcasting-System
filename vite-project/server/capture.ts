@@ -8,50 +8,49 @@ import { detectDraftLockCue } from './draftCueDetection.js';
 
 type MatchShape = 'square' | 'circle';
 
+// Both sides use the same mask, so excluded channels need no storage or dot products.
+const portraitSize = 32;
+const circleOffsets: number[] = [];
+for (let y = 0; y < portraitSize; y++) {
+  for (let x = 0; x < portraitSize; x++) {
+    const dx = (x + 0.5 - portraitSize / 2) / (portraitSize / 2);
+    const dy = (y + 0.5 - portraitSize / 2) / (portraitSize / 2);
+    // The lower-right Ban padlock covers the portrait.
+    if (dx * dx + dy * dy <= 1 && !(x >= portraitSize * 0.58 && y >= portraitSize * 0.58)) {
+      const offset = (y * portraitSize + x) * 3;
+      circleOffsets.push(offset, offset + 1, offset + 2);
+    }
+  }
+}
 async function features(
   source: string | Buffer,
   shape: MatchShape = 'square',
   region?: { left: number; top: number; width: number; height: number },
 ) {
-  const size = 32;
   let image = sharp(source);
   if (region) image = image.extract(region);
   const pixels: Buffer = await image
-    .resize(size, size, { fit: 'fill' })
+    .resize(portraitSize, portraitSize, { fit: 'fill' })
     .toColourspace('srgb')
     .removeAlpha()
     .raw()
     .toBuffer();
-  const included: number[] = [];
-  const insidePortrait = (x: number, y: number) => {
-    const dx = (x + 0.5 - size / 2) / (size / 2),
-      dy = (y + 0.5 - size / 2) / (size / 2);
-    // The live Ban padlock covers artwork, unlike the clean roster template.
-    // Exclude that overlay from identity evidence on both sides of comparison.
-    return (
-      shape !== 'circle' || (dx * dx + dy * dy <= 1 && !(x >= size * 0.58 && y >= size * 0.58))
-    );
-  };
-  for (let y = 0; y < size; y++)
-    for (let x = 0; x < size; x++) {
-      if (!insidePortrait(x, y)) continue;
-      const base = (y * size + x) * 3;
-      included.push(pixels[base], pixels[base + 1], pixels[base + 2]);
-    }
-  const mean = included.reduce((sum, n) => sum + n, 0) / Math.max(included.length, 1);
-  const values: number[] = [];
-  for (let y = 0; y < size; y++)
-    for (let x = 0; x < size; x++) {
-      const inside = insidePortrait(x, y);
-      const base = (y * size + x) * 3;
-      for (let channel = 0; channel < 3; channel++) {
-        values.push(inside ? pixels[base + channel] - mean : 0);
-      }
-    }
-  const norm = Math.sqrt(values.reduce((sum, n) => sum + n * n, 0));
-  return Float64Array.from(values, (n) => n / Math.max(norm, 1));
+  const values =
+    shape === 'circle'
+      ? Float64Array.from(circleOffsets, (offset) => pixels[offset])
+      : Float64Array.from(pixels);
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) sum += values[i];
+  const mean = sum / values.length;
+  let squares = 0;
+  for (let i = 0; i < values.length; i++) {
+    values[i] -= mean;
+    squares += values[i] * values[i];
+  }
+  const norm = Math.max(Math.sqrt(squares), 1);
+  for (let i = 0; i < values.length; i++) values[i] /= norm;
+  return values;
 }
-
 async function perceptualFingerprint(
   source: Buffer,
   region?: { left: number; top: number; width: number; height: number },
