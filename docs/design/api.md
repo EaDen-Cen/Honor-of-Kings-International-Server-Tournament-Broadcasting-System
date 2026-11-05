@@ -5,6 +5,10 @@
 | 接口 | 方法 | 用途 |
 | --- | --- | --- |
 | `/api/health` | GET | 进程健康检查 |
+| `/api/v1/ai-recognition/budget` | GET / PUT | 仅本机 Control；读取额度/用量或保存 dailyCalls、dailyUsd、estimatedRequestUsd、maxImageBytes；不返回密钥 |
+| `/api/v1/discord/webhook` | GET | 仅本机 Control；读取脱敏的最近 100 条投递记录 |
+| `/api/v1/discord/webhook-preview` | POST | 仅本机 Control；kind 与可选 pollUrl，返回 content/hash，不发送 |
+| `/api/v1/discord/webhook-send` | POST | 仅本机 Control；kind、id、previewHash 及可选 pollUrl/confirmUncertain；当前状态重新校验，返回投递记录 |
 | `/api/access?role=control\|caster\|overlay` | GET | 连接检查；经验证的本机返回请求角色 token；Control 可获取分享 token |
 | `/api/access?role=…` | POST | `{password}` 登录，也支持请求角色的 token |
 | `/api/access` | PUT | Control 保存 `{password}`，轮换全部角色 token |

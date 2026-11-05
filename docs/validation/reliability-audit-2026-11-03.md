@@ -2,6 +2,8 @@
 
 ## 范围与恢复点
 
+这是开工时的历史基线，后续进展以 [当前完成度](reliability-status.md) 和各阶段验证报告为准。
+
 基线 main：`c7f0f43f9519528e87bed9f50fee40d3be01f114`。独立分支 `codex/phase0-baseline-20261103`；本地已建立完整 Git bundle。没有访问用户运行中的比赛资料、配置或凭证，因此不能宣称已备份生产资料。上线前须停服创建受校验的 Recovery 备份。
 
 唯一开放 PR 为 [#99](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/99)，head `f8ef7e52bc436fef37be076116219c33c96b816c`，draft，25 个文件，517 增/22 删。含锁定 BP 纠错、自动新报告、OBS 容量、人工 checklist；应复用而非重做。检查发现：checklist 仅 sessionStorage 人工勾选；OBS 路径来自远程时必须避免误查本机同名路径；历史英雄纠错需审核规则上下文与最终阵容映射；尚不能按完成验收。
@@ -13,12 +15,14 @@
 | `npm ci` | 成功，Node 24.14.1 | 初次沙箱 DNS ENOTFOUND，正常权限重试成功；安装报告 12 moderate，尚未逐项审计 |
 | `npm run build` | 通过 | 不代表运行时功能通过 |
 | `npm run lint` | 通过 | 保留既有 warnings |
-| `npm run format:check` | 失败，42 文件 | main 自身基线问题，不跳过检查 |
+| `npm run format:check` | 本地报 42 文件 warning | Windows checkout 换行与 Prettier 的 LF 约定参与了结果；规范化后多数文件无 Git 内容差异，不能推断 main 有 42 项实质格式缺陷 |
 | `npm test`，正常 Windows 权限 | 331 通过，0 失败，2 跳过，共 333 | 沙箱首次 EPERM 不计为业务失败；真实私有图样未提供 |
-| 指定九项 E2E 本地复测 | 进行中 | 沙箱健康探测失败后改为正常权限；已复现设置与 GHUD/模拟器失败 |
+| 指定九项 E2E 本地复测 | 3 通过、6 失败 | 沙箱健康探测失败后改为正常权限；基线结果已与后续修复证据分开 |
 | Windows 启动器 / 真实 OBS / Discord / 平板 | 本次未执行实机验收 | 单元测试不能替代 |
 
 ## Actions 证据
+
+后续核实：OBS 地址校验只允许 loopback，基线审计提出的“远程目录误查本机”不属于可达的远程 OBS 配置路径。真实录制盘仍须现场核对。
 
 [Broadcast run 41163028740](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions/runs/41163028740)：validate 的 build/lint/unit/format/launcher 通过，浏览器 **90 通过、9 失败**；windows-native 通过。失败涉及旧设置入口、GHUD 提示和人工修改后的采样断言、自动发布采样时序、Simulator status 不唯一、Linux 安全配置写入、两个同屏布局断言。不能将其全部当作超时。
 
