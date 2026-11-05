@@ -1,3 +1,6 @@
+import { gameRoles } from './shared/gameLineup';
+import { playerAtSlot } from './shared/playerSlots';
+import { DirectLineup } from './control/DirectLineup';
 import { IntegrationSettings } from './control/IntegrationSettings';
 import { DiscordVotePanel } from './control/DiscordVotePanel';
 import { AudienceVoteOverlay } from './shared/AudienceVoteView';
@@ -59,11 +62,16 @@ function HeroSlot({ state, id, ban = false, lang }: { state: MatchState; id?: nu
       : <span className={skipped ? 'empty skipped-ban-label' : 'empty'}>{skipped ? t('emptyBan') : t(ban ? 'ban' : 'emptyPick')}</span>}
   </div>;
 }
-function Board({ state, lang, compact = false }: { state: MatchState; lang: Language; compact?: boolean }) {
+function Board({ state, lang, compact = false, onCorrect }: { state: MatchState; lang: Language; compact?: boolean; onCorrect?: (slot:{side:Side;kind:'ban'|'pick';index:number})=>void }) {
   const t = translator(lang);
   const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
   return <section className={`board ${compact ? 'compact-board' : ''}`}><div className="match-strip"><span>{t('gameTitle')}</span><span>{stageName(state.stage, lang)} · {t('gameNumber', { number: currentGame(state) })} · {seriesName(state.seriesFormat, lang)} · {draftRuleName(state, lang)}</span></div>
-    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
+    <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => onCorrect && i<state[`${side}Picks`].length ? <button key={i} data-draft-target={`${side}:pick:${i}`} aria-label={`Correct ${side} pick ${i+1}`} onClick={()=>onCorrect({side,kind:'pick',index:i})}><HeroSlot state={state} id={state[`${side}Picks`][i]} lang={lang} /></button> : <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => onCorrect && i<state[`${side}Bans`].length ? <button key={i} data-draft-target={`${side}:ban:${i}`} aria-label={`Correct ${side} ban ${i+1}`} onClick={()=>onCorrect({side,kind:'ban',index:i})}><HeroSlot state={state} id={state[`${side}Bans`][i]} ban lang={lang} /></button> : <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
+    {state.draftComplete && !onCorrect && <div className="team-grid">{displaySides(state).map(side=><div key={side}>{gameRoles.map(role=>{
+      const slot=Array.from({length:5},(_,i)=>i).find(i=>playerAtSlot(state,side,i).role===role)!;
+      const player=playerAtSlot(state,side,slot), hero=state[`${side}Assignments`][slot];
+      return <p key={role}>{t(role)} · {player.id} · {hero?name(state,hero,lang):'—'}</p>;
+    })}</div>)}</div>}
     <footer className={`phase ${phase?.team || ''}`} key={state.currentPhase}>{phase ? `${phaseName(state, lang)} · ${t('phaseStep', { step: state.currentPhase + 1, total: phases(state.draftMode, state.firstPickSide,state.banCount).length })}` : t('draftComplete')}</footer></section>;
 }
 function TeamAnalysis({
@@ -330,7 +338,7 @@ export default function BroadcastApp() {
         <OperatorGuide state={state} token={token} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} />
         <DockWorkspace zh={lang==='zh'} panels={{
           monitor: <div className="control-monitor">
-          <Board state={state} lang={lang} compact />
+          <DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="draft" renderBoard={onCorrect=><Board state={state} lang={lang} compact onCorrect={onCorrect}/>} />
           <section className="operator-bar panel">
             <div className="toolbar">
               <button disabled={disabled || !snapshot?.canUndo} onClick={() => send({ type: 'undo' })}>{t('undo')}</button>
@@ -367,7 +375,7 @@ export default function BroadcastApp() {
             </div>
             : <ControlHeroPicker state={state} disabled={disabled} active={!showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
         </div>,
-          players: <><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /><LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} /></>,
+          players: <><DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="lineup" /><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /><LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} /></>,
           obs: <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />,
           hud: <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />,
           postgame: <div id="postgame-tools"><PostGameCarouselPanel token={token}/><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,

@@ -1,3 +1,4 @@
+import { rolesForGame, validGameRoles } from '../src/shared/gameLineup.js';
 import { applyPostGameAction, preparePostGameReport } from './postGameActions.js';
 import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
 import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
@@ -106,8 +107,11 @@ export function portraitURL(value: unknown): asserts value is string {
   throw new Error('portraitInvalid');
 }
 function clearDraft(state: MatchState) {
+  delete state.blueGameRoles;
+  delete state.redGameRoles;
   state.liveGameStats = nextLiveGameStats(state.liveGameStats);
   Object.assign(state, {
+    lineupConfirmed: false, lineupAutomationBlocked: false,
     bluePlayerSlotOrder: [0,1,2,3,4], redPlayerSlotOrder: [0,1,2,3,4],
     blueBans: [], redBans: [], bluePicks: [], redPicks: [],
     blueAssignments: [null, null, null, null, null],
@@ -295,6 +299,8 @@ export class Store {
       if (!turn || turn.action !== 'pick' || turn.team !== action.team) throw new Error('当前选禁阶段不支持此操作，请确认轮次和队伍');
       if (!Array.isArray(action.heroIds) || action.heroIds.length !== turn.phaseIndexes.length || action.heroIds.length < 1 || action.heroIds.length > 2) throw new Error('pickGroupInvalid');
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       for (const heroId of action.heroIds) {
         const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
@@ -355,6 +361,8 @@ export class Store {
         }
       };
       if (live) {
+        state.lineupAutomationBlocked = true;
+        if (record) record.lineupAutomationBlocked = true;
         replace(state);
         if (record) replace(record);
         if (state.draftComplete) validateLineup(state, true);
@@ -385,6 +393,8 @@ export class Store {
       const reason = draftRestriction(state, phase.team, phase.action, action.heroId);
       if (reason) throw new Error(reason);
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       state[`${phase.team}${phase.action === 'ban' ? 'Bans' : 'Picks'}`].push(action.heroId);
       if (phase.action === 'pick') {
@@ -402,6 +412,8 @@ export class Store {
       const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
       if (!phase || phase.team !== action.team || phase.action !== 'ban') throw new Error('emptyBanOnlyDuringBan');
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       state[`${phase.team}Bans`].push(null);
       state.currentPhase++;
@@ -416,6 +428,7 @@ export class Store {
       state.draftHistory.push({
         id, firstPickSide: state.firstPickSide, heroPool:state.heroPool,banCount:state.banCount,gameNumber: currentGame(state), committedAt: this.clock(),
         blueTeam: copy(state.blueTeam), redTeam: copy(state.redTeam),
+        blueGameRoles: [...rolesForGame(state, "blue")], redGameRoles: [...rolesForGame(state, "red")], lineupConfirmed: state.lineupConfirmed, lineupAutomationBlocked:state.lineupAutomationBlocked,
         bluePlayerSlotOrder: [...state.bluePlayerSlotOrder], redPlayerSlotOrder: [...state.redPlayerSlotOrder],
         blueBans: [...state.blueBans], redBans: [...state.redBans],
         bluePicks: [...state.bluePicks], redPicks: [...state.redPicks],
@@ -441,12 +454,54 @@ export class Store {
       next.history.push(copy(state));
       [state.bluePlayerSlotOrder, state.redPlayerSlotOrder] = [state.redPlayerSlotOrder, state.bluePlayerSlotOrder];
       [state.blueTeam, state.redTeam] = [state.redTeam, state.blueTeam];
+      [state.blueGameRoles, state.redGameRoles] = [state.redGameRoles, state.blueGameRoles];
       [state.blueScore, state.redScore] = [state.redScore, state.blueScore];
       if (state.sideSwapMode === 'colorsOnly') state.displayLeftSide = state.displayLeftSide === 'blue' ? 'red' : 'blue';
       break;
     }
-    case 'swap_picks':
+    case 'set_game_roles':
+    case 'confirm_game_lineup':
     case 'swap_assignments': {
+      const record = state.draftHistory.find(game => game.id === (action.gameId ?? state.committedGameId));
+      if (action.gameId && !record) throw new Error('Unknown game / 找不到历史局');
+      const live = !action.gameId || action.gameId === state.committedGameId;
+      const target = live ? state : record!;
+      if (live && !state.draftComplete) throw new Error('completeDraftFirst');
+      if (action.type !== 'confirm_game_lineup' && target.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
+      if (action.type === 'confirm_game_lineup' && typeof action.confirmed !== 'boolean') throw new Error('Invalid confirmation');
+      if (action.type === 'set_game_roles' && (!['blue','red'].includes(action.side) || !validGameRoles(action.roles))) throw new Error('Invalid roles / 分路须包含五个不同位置');
+      if (action.type === 'swap_assignments') {
+        if (!['blue','red'].includes(action.team)) throw new Error('Invalid side');
+        integer(action.from, 0, 4); integer(action.to, 0, 4);
+      }
+      next.history.push(copy(state));
+      const update = (game: typeof target) => {
+        if (action.type === 'confirm_game_lineup') { game.lineupConfirmed = action.confirmed; game.lineupAutomationBlocked = true; }
+        else if (action.type === 'set_game_roles') game[`${action.side}GameRoles`] = [...action.roles];
+        else {
+          const assignments = game[`${action.team}Assignments`];
+          [assignments[action.from], assignments[action.to]] = [assignments[action.to], assignments[action.from]];
+        }
+      };
+      target.lineupAutomationBlocked = true;
+      if (record) record.lineupAutomationBlocked = true;
+      update(target);
+      if (live && record) update(record);
+      if (live) validateLineup(state, true);
+      else if (record) validateLineup({...state, ...record, committedGameId:record.id,
+        blueBans:record.blueBans??[], redBans:record.redBans??[],
+        bluePlayerSlotOrder:record.bluePlayerSlotOrder??[0,1,2,3,4], redPlayerSlotOrder:record.redPlayerSlotOrder??[0,1,2,3,4]}, true);
+      if (record) {
+        const report = state.postGameReports.find(report => report.id === record.id);
+        for (const row of report?.players ?? []) {
+          row.role = rolesForGame(record, row.side)[row.rosterIndex];
+          row.heroId = record[`${row.side}Assignments`][row.slot];
+        }
+      }
+      break;
+    }
+    case 'swap_picks': {
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
       if (!['blue', 'red'].includes(action.team)) throw new Error('操作无效');
@@ -458,6 +513,8 @@ export class Store {
       break;
     }
     case 'set_player_slot_orders': {
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!validPlayerSlotOrder(action.blue) || !validPlayerSlotOrder(action.red)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify([state.blueTeam.players,state.redTeam.players])) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
@@ -468,6 +525,8 @@ export class Store {
       break;
     }
     case 'set_player_slot_order': {
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!['blue','red'].includes(action.side) || !validPlayerSlotOrder(action.order)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify(state[`${action.side}Team`].players)) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
@@ -477,6 +536,8 @@ export class Store {
       break;
     }
     case 'set_lineup_assignments': {
+      if (state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority / 请使用人工阵容编辑');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
       for (const lineup of [action.blue, action.red]) {

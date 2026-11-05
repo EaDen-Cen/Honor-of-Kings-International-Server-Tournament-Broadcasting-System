@@ -111,7 +111,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   const lastSample=useRef<{schemaVersion:1;capturedAt:string;attempts:{images:string[];players:string[][];result:unknown}[]}>();
   latest.current={state,disabled,send,scanContext:scan?.context,scan};
 
-  const context=JSON.stringify([state.blueTeam.id,state.redTeam.id,state.blueTeam.players,state.redTeam.players,state.gameNumber,state.bpInputMode,state.committedGameId]);
+  const context=JSON.stringify([state.blueTeam.id,state.redTeam.id,state.blueTeam.players,state.redTeam.players,state.gameNumber,state.bpInputMode,state.committedGameId,state.lineupConfirmed,state.lineupAutomationBlocked]);
   const contextRef=useRef(context);
   contextRef.current=context;
 
@@ -183,10 +183,10 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
 
   function apply(side:Side,solution:PlayerSlotSolution) {
     const current=latest.current;
-    if(current.disabled||current.state.committedGameId||current.scanContext!==contextRef.current)return;
+    if(current.disabled||current.state.lineupConfirmed||current.state.lineupAutomationBlocked||current.state.committedGameId||current.scanContext!==contextRef.current)return;
     if(current.scan)submittedScan.current={scan:current.scan,orders:{[side]:[...solution.order]}};
     current.send({
-      type:'set_player_slot_order',
+      type:'set_player_slot_order',source:'automatic',
       side,
       order:solution.order,
       expectedPlayers:[...current.state[`${side}Team`].players],
@@ -238,7 +238,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   }
 
   useEffect(()=>{
-    if(disabled||!ready||state.bpInputMode!=='screen'||state.committedGameId||(!auto&&manualScan===0))return;
+    if((auto&&(state.lineupConfirmed||state.lineupAutomationBlocked))||disabled||!ready||state.bpInputMode!=='screen'||state.committedGameId||(!auto&&manualScan===0))return;
     let active=true;
     let providerReady=false;
     let retryAt=0;
@@ -375,7 +375,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
   },[auto,context,disabled,manualScan,ready,state.bpInputMode,state.committedGameId,token,zh,slots]);
 
   useEffect(()=>{
-    if(!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
+    if(state.lineupConfirmed||state.lineupAutomationBlocked||!auto||disabled||!scan||scan.context!==contextRef.current||state.committedGameId)return;
     // The channel permits one pending action. Apply a trusted ten-slot frame
     // atomically instead of depending on a later render/OCR frame for red.
     if(scan.blue?.automatic&&scan.red?.automatic&&(
@@ -383,7 +383,7 @@ export function PlayerSlotAlignment({state,token,disabled,send}:{state:MatchStat
       !sameOrder(state.redPlayerSlotOrder,scan.red.order)
     )){
       submittedScan.current={scan,orders:{blue:[...scan.blue.order],red:[...scan.red.order]}};
-      latest.current.send({type:'set_player_slot_orders',blue:scan.blue.order,red:scan.red.order,
+      latest.current.send({type:'set_player_slot_orders',source:'automatic',blue:scan.blue.order,red:scan.red.order,
         expectedPlayers:[[...state.blueTeam.players],[...state.redTeam.players]]});
       return;
     }

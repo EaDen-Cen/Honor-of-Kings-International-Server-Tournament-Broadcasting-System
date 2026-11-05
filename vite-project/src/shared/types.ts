@@ -59,6 +59,10 @@ export interface TeamPreset extends Team {
 }
 
 export interface GameDraftRecord {
+  blueGameRoles?: PlayerRole[];
+  redGameRoles?: PlayerRole[];
+  lineupConfirmed?: boolean;
+  lineupAutomationBlocked?: boolean;
   firstPickSide: Side;
   heroPool?:HeroPool;
   banCount?:BanCount;
@@ -80,6 +84,10 @@ export interface GameDraftRecord {
 }
 
 export interface MatchState {
+  blueGameRoles?: PlayerRole[];
+  redGameRoles?: PlayerRole[];
+  lineupConfirmed?: boolean;
+  lineupAutomationBlocked?: boolean;
   liveGameStats: LiveGameStats;
   postGameReports: PostGameReport[];
   activePostGameReportId: string | null;
@@ -178,9 +186,11 @@ export type Action =
   | { type: 'commit_game' | 'next_game' | 'swap_sides' }
   | { type: 'score'; team: Side; delta: 1 | -1 }
   | { type: 'swap_picks'; team: Side; from: number; to: number } // legacy alias: swaps assignments, never pick order
-  | { type: 'swap_assignments'; team: Side; from: number; to: number }
-  | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[] }
-  | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]] }
+  | { type: 'swap_assignments'; team: Side; from: number; to: number; gameId?: string }
+  | { type: 'set_game_roles'; side: Side; roles: PlayerRole[]; gameId?: string }
+  | { type: 'confirm_game_lineup'; confirmed: boolean; gameId?: string }
+  | { type: 'set_player_slot_order'; side: Side; order: number[]; expectedPlayers: string[]; source?: 'automatic' }
+  | { type: 'set_player_slot_orders'; blue: number[]; red: number[]; expectedPlayers: [string[], string[]]; source?: 'automatic' }
   | { type: 'set_lineup_assignments'; blue: number[]; red: number[] }
   | { type: 'settings'; settings: MatchSettings }
   | { type: 'hero_art_override'; heroId: number; override: HeroArtOverride }

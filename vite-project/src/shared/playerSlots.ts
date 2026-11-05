@@ -1,3 +1,4 @@
+import { rolesForGame } from './gameLineup.js';
 import type { MatchState, Side } from './types.js';
 
 export const validPlayerSlotOrder = (value: unknown): value is number[] =>
@@ -8,7 +9,7 @@ export const normalizePlayerSlotOrder = (value: unknown) =>
 export function playerAtSlot(state: MatchState, side: Side, slot: number) {
   const team = state[`${side}Team`];
   const index = normalizePlayerSlotOrder(state[`${side}PlayerSlotOrder`])[slot];
-  return { index, id: team.players[index] || '', role: team.playerRoles[index], portrait: team.playerPortraits[index] || '' };
+  return { index, id: team.players[index] || '', role: rolesForGame(state, side)[index], portrait: team.playerPortraits[index] || '' };
 }
 
 // Preserve punctuation for exact matching; confusion folding only affects similarity.

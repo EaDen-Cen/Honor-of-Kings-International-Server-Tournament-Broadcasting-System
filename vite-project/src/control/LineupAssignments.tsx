@@ -161,6 +161,8 @@ export function LineupAssignments({
     state.bluePlayerSlotOrder,
     state.redPlayerSlotOrder,
     state.draftComplete,
+    state.lineupConfirmed,
+    state.lineupAutomationBlocked,
     state.committedGameId,
     state.bpInputMode,
     disabled,
@@ -306,6 +308,7 @@ export function LineupAssignments({
         );
         return false;
       }
+      if (state.lineupConfirmed || state.lineupAutomationBlocked) return false;
       const queued = send({ type: 'set_lineup_assignments', blue, red });
       if (!queued) {
         setMessage(
@@ -326,7 +329,15 @@ export function LineupAssignments({
       });
       return true;
     },
-    [disabled, state.draftComplete, state.committedGameId, send, zh],
+    [
+      disabled,
+      state.draftComplete,
+      state.committedGameId,
+      state.lineupConfirmed,
+      state.lineupAutomationBlocked,
+      send,
+      zh,
+    ],
   );
 
   useEffect(() => {
@@ -563,6 +574,8 @@ export function LineupAssignments({
   useEffect(() => {
     if (
       !auto ||
+      state.lineupConfirmed ||
+      state.lineupAutomationBlocked ||
       !videoReady ||
       state.bpInputMode !== 'screen' ||
       !state.draftComplete ||
@@ -585,11 +598,15 @@ export function LineupAssignments({
     };
   }, [
     auto,
+    state.lineupConfirmed,
+    state.lineupAutomationBlocked,
     disabled,
     scan,
     state.bpInputMode,
     state.committedGameId,
     state.draftComplete,
+    state.lineupConfirmed,
+    state.lineupAutomationBlocked,
     videoReady,
   ]);
 

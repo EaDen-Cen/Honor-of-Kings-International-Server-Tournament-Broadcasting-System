@@ -1,3 +1,4 @@
+import { rolesForGame } from '../src/shared/gameLineup.js';
 import { canMergePostGameField } from '../src/shared/postGame.js';
 import { validGoldTimeline } from '../src/shared/postGameTimeline.js';
 import {
@@ -30,7 +31,7 @@ export function preparePostGameReport(state: MatchState, game: GameDraftRecord) 
             rosterIndex,
             teamName: team.name,
             portrait: team.playerPortraits[rosterIndex],
-            role: team.playerRoles[rosterIndex],
+            role: rolesForGame(game, side)[rosterIndex],
             heroId,
             fields: {},
           };

@@ -1,0 +1,72 @@
+.direct-lineup button {
+  touch-action: manipulation;
+}
+.direct-lineup img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.direct-slots,
+.direct-heroes,
+.direct-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.direct-slots button,
+.direct-heroes button,
+.direct-cards button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+}
+.direct-cards article {
+  flex: 1 1 140px;
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  padding: 8px;
+}
+.direct-cards button {
+  touch-action: none;
+  width: 100%;
+  margin-top: 8px;
+}
+.direct-lineup button[aria-pressed='true'],
+.direct-cards .drop-target {
+  outline: 3px solid #38bdf8;
+}
+.direct-heroes {
+  max-height: 280px;
+  overflow: auto;
+}
+.direct-heroes button {
+  width: 155px;
+}
+.direct-picker {
+  border: 2px solid #38bdf8;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.direct-heroes button {
+  touch-action: none;
+}
+.direct-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.direct-cards article {
+  min-width: 0;
+  padding: 5px;
+}
+.direct-cards button {
+  flex-direction: column;
+  overflow-wrap: anywhere;
+  user-select: none;
+}
+.direct-lineup img {
+  -webkit-user-drag: none;
+}

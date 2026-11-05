@@ -4,11 +4,11 @@ import {initialState} from '../src/shared/types.js';
 import {mvpStatSelection,postGamePlayerIdentity} from '../src/shared/postGamePresentation.js';
 import type {PostGamePlayer,PostGameReport,PostGameMetric} from '../src/shared/postGame.js';
 const player=(values:Partial<Record<PostGameMetric,number>>={}):PostGamePlayer=>({rowId:'blue:0',rosterIndex:0,slot:0,side:'blue',playerId:'P1',teamName:'Blue',portrait:'',role:'clash',heroId:1,fields:Object.fromEntries(Object.entries(values).map(([key,value])=>[key,{value,sourcePage:'overview',confidence:.95,manual:false}]))});
-test('MVP uses registered player role and portrait even after report creation, never P1 as clash',()=>{
+test('MVP retains the game identity when later roster defaults or sides change',()=>{
   const state=initialState(),saved=player();state.blueTeam.id='blue';state.blueTeam.players[0]='P1';state.blueTeam.playerRoles[0]='jungle';state.blueTeam.playerPortraits[0]='/player.png';
   const actual=postGamePlayerIdentity(state,saved);
-  assert.equal(actual.role,'jungle');assert.equal(actual.portrait,'/player.png');assert.equal(actual.heroId,saved.heroId);
-  [state.blueTeam,state.redTeam]=[state.redTeam,state.blueTeam];assert.equal(postGamePlayerIdentity(state,saved).role,'jungle','team identity survives side swaps');
+  assert.equal(actual.role,'clash');assert.equal(actual.portrait,saved.portrait);assert.equal(actual.heroId,saved.heroId);
+  [state.blueTeam,state.redTeam]=[state.redTeam,state.blueTeam];assert.equal(postGamePlayerIdentity(state,saved).role,'clash','team identity survives side swaps');
   state.redTeam.players[0]='Replacement';assert.equal(postGamePlayerIdentity(state,saved).role,'clash','a different player cannot supply historical role or photo');
 });
 test('three role statistics exclude repeated metric families from strongest same-team highlights',()=>{
