@@ -140,7 +140,7 @@ test('V2.2 settings, portrait fallback, mobile, reduced motion and delayed first
     await control.getByLabel('Player portrait URL', {exact:true}).first().fill(heroes[31].imageLink);
     await control.getByRole('button', {name:'Save settings',exact:true}).click();
     await expect(overlay.locator('.pick-team.blue .card-caption').first()).toContainText('Live Substitute');
-    await expect(overlay.locator('.pick-team.blue .position-icon').first()).toHaveAttribute('aria-label','Roaming');
+    await expect(overlay.locator('.pick-team.blue .position-icon').first()).toHaveAttribute('aria-label','Clash Lane');
     await expect(overlay.locator('.pick-team.blue .player-portrait').first()).toHaveAttribute('src',heroes[31].imageLink);
     expect(h.state().currentPhase).toBe(5);
 

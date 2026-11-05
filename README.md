@@ -358,3 +358,5 @@ Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以�
 ### PR #91（已合并）：后台 AI 辅助、可停靠工作区与启动准备
 
 AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。相关 AI / HUD 能力仍属于实验性功能；**代码已经合并 `main`，但不代表真实直播已验收**。Sites 网站端 API 不在此 PR 内，自动同步完成配对前可继续手动填写地址。
+
+本局分路与 BP 直接编辑正在独立分支开发。支持锁定头像纠错、最终英雄交换和选手临时换路，使用同一 Store 权威状态。操作方式见 [导播指南](docs/guides/operator-guide.md)，映射与兼容说明见 [本局阵容架构](docs/architecture/game-lineup.md)。
