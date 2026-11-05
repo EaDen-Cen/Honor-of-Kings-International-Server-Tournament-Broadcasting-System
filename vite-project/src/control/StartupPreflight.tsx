@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { currentGame } from '../shared/draftRules';
+import { PreflightStatus } from './PreflightStatus';
+import { playerOrderCheckKey } from '../shared/playerOrderPreflight';
 
-interface Progress { flags: number; done: boolean; bypassed?: boolean }
+interface Progress { flags: number; done: boolean; bypassed?: boolean; recordedAt?: string; unchecked?: string[] }
 const storageKey = 'hok-director-preflight-v1';
 const readSaved = (): Record<string, Progress> => {
   try {
@@ -11,10 +13,10 @@ const readSaved = (): Record<string, Progress> => {
   } catch { return {}; }
 };
 
-export function StartupPreflight({state}: {state: MatchState}) {
+export function StartupPreflight({state, token, connected}: {state: MatchState; token: string; connected: boolean}) {
   const zh = state.language === 'zh';
   const game = currentGame(state);
-  const key = [state.blueTeam.id, state.redTeam.id, game].join(':');
+  const key = [playerOrderCheckKey(state), game, state.seriesFormat, state.draftMode, state.banCount, state.firstPickSide].join(':');
   const [saved, setSaved] = useState<Record<string, Progress>>(readSaved);
   const progress = saved[key] ?? {flags:0,done:false};
   const labels = zh ? [
@@ -29,7 +31,7 @@ export function StartupPreflight({state}: {state: MatchState}) {
     'Check backup, overlays and remote connectivity',
   ];
   const change = (next: Progress) => {
-    const updated = {...saved,[key]:next};
+    const updated = {...saved,[key]:{...next, recordedAt: new Date().toISOString(), unchecked: labels.filter((_, index) => !(next.flags & (1 << index)))}};
     setSaved(updated);
     try { sessionStorage.setItem(storageKey,JSON.stringify(updated)); } catch { /* session fallback */ }
   };
@@ -38,6 +40,8 @@ export function StartupPreflight({state}: {state: MatchState}) {
       <h3>{zh ? `第 ${game} 局开播流程` : `Game ${game} startup checklist`}</h3>
       <strong role="status">{progress.done ? (progress.bypassed ? (zh?'紧急跳过（未验证）':'Bypassed; unverified') : (zh?'本次已人工确认':'Confirmed for this game')) : (zh?'未完成 · 开播前需检查':'Not complete · preflight required')}</strong>
     </summary>
+    <PreflightStatus token={token} connected={connected} zh={zh} />
+    {progress.bypassed && <p role="alert">{zh ? '紧急跳过记录（仅本浏览器会话）' : 'Emergency bypass record (this browser session only)'}: {progress.recordedAt} · {progress.unchecked?.join(' / ') || (zh ? '人工项目已勾选；自动状态仍需核查' : 'Manual items checked; observed status still requires review')}</p>}
     {!progress.done ? <>
       <p className="muted">{zh ? '逐项确认后关闭提醒；每局重新出现。此流程故意采用“伪强制”，以免临场故障把导播彻底锁死。未通过的项目不能假装为通过。' : 'Confirm each item before dismissing. The checklist restarts every game. Emergency bypass prevents live-operation lockout.'}</p>
       {labels.map((label,index)=><label key={index} className="preflight-check">
