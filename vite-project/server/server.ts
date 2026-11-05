@@ -46,6 +46,8 @@ import { Store } from './store.js';
 import { ObsBridge } from './obsBridge.js';
 import { SecureSettings } from './secureSettings.js';
 import { AiProfiles } from './aiProfiles.js';
+import { AiBudget } from './aiBudget.js';
+import { DiscordWebhook } from './discordWebhook.js';
 import { DiscordVoting } from './discordVoting.js';
 import { PostGameCarousel } from './postGameCarousel.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
@@ -100,6 +102,15 @@ const uploadDirectory = resolve(
 const diagnostics = new Diagnostics(resolve(dirname(dataFile), 'logs'));
 const secureSettings = new SecureSettings(resolve(dirname(dataFile), 'secure-settings.json'));
 const aiProfiles = new AiProfiles(secureSettings);
+const aiBudget = new AiBudget(resolve(dirname(dataFile), 'ai-budget.json'));
+aiRecognition.setBudget(aiBudget);
+let webhook: DiscordWebhook | undefined;
+let webhookError = '';
+try {
+  webhook = new DiscordWebhook(resolve(dirname(dataFile), 'webhook-notices.json'), secureSettings);
+} catch {
+  webhookError = 'Webhook log unavailable; preserve and repair webhook-notices.json';
+}
 const savedObs = secureSettings.get<{ address: string; password: string }>('obs');
 let obsBridge = new ObsBridge(
   savedObs?.address || process.env.OBS_WS_URL,
@@ -258,7 +269,8 @@ const server = createServer(async (req, res) => {
       url.pathname === '/api/v1/obs/config' ||
       url.pathname === '/api/v1/operator-preferences' ||
       url.pathname.startsWith('/api/v1/ai-recognition/profiles') ||
-      url.pathname === '/api/v1/ai-recognition/test'
+      url.pathname === '/api/v1/ai-recognition/test' ||
+      url.pathname === '/api/v1/ai-recognition/budget'
     ) {
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
@@ -279,6 +291,17 @@ const server = createServer(async (req, res) => {
         const input = body ? JSON.parse(body) : {};
         if (!input || typeof input !== 'object' || Array.isArray(input))
           throw Error('Invalid input');
+        if (url.pathname === '/api/v1/ai-recognition/budget') {
+          if (req.method === 'GET')
+            json(200, {
+              ...aiBudget.snapshot(),
+              diagnostics: aiRecognition.diagnostics(),
+              model: aiRecognition.publicConfig().model,
+            });
+          else if (req.method === 'PUT') json(200, aiBudget.configure(input));
+          else json(405, { error: 'GET or PUT required' });
+          return;
+        }
         if (url.pathname === '/api/v1/operator-preferences') {
           if (req.method === 'GET') {
             json(200, secureSettings.get('preferences') ?? {});
@@ -361,6 +384,17 @@ const server = createServer(async (req, res) => {
             return;
           }
           json(405, { error: 'POST, PUT or DELETE required' });
+          return;
+        }
+        if (url.pathname.startsWith('/api/v1/discord/webhook')) {
+          if (!webhook) throw Error(webhookError);
+          if (url.pathname === '/api/v1/discord/webhook' && req.method === 'GET')
+            json(200, webhook.snapshot());
+          else if (url.pathname === '/api/v1/discord/webhook-preview' && req.method === 'POST')
+            json(200, webhook.preview(store.data.state, input));
+          else if (url.pathname === '/api/v1/discord/webhook-send' && req.method === 'POST')
+            json(200, await webhook.send(store.data.state, input));
+          else json(405, { error: 'Unsupported Webhook operation' });
           return;
         }
         if (!discord) throw Error(discordLoadError);
@@ -1518,7 +1552,25 @@ const server = createServer(async (req, res) => {
         json(401, { error: '访问口令缺失或无效，请重新输入' });
         return;
       }
-      if (url.pathname === '/api/match') json(200, store.snapshot(role));
+      if (url.pathname === '/api/v1/preflight-status') {
+        if (role !== 'control') {
+          json(403, { error: 'Control only' });
+          return;
+        }
+        const templates = await prepareHeroTemplates().catch(() => []);
+        const ids = new Set(templates.map((template) => template.heroId));
+        const missingTemplates = heroesForPool(store.data.state.heroPool).filter(
+          (hero) => !ids.has(hero.id),
+        ).length;
+        const viewers = [...clients.values()];
+        json(200, {
+          node: process.versions.node,
+          heroesReady: missingTemplates === 0,
+          missingTemplates,
+          casterConnections: viewers.filter((client) => client.role === 'caster').length,
+          overlayConnections: viewers.filter((client) => client.role === 'overlay').length,
+        });
+      } else if (url.pathname === '/api/match') json(200, store.snapshot(role));
       else if (url.pathname === '/api/v1/capabilities')
         json(200, {
           version: 1,

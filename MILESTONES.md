@@ -1,5 +1,11 @@
 # HOK Broadcast 项目里程碑
 
+## 2026-11-05 · #99–#108 最终集成
+
+本分支汇总可靠性修复、逐局报告隔离、真实预检、Webhook-only、AI 预算、圆形头像性能优化、BP 直接纠错及本局实际阵容。核对时 main 为 e19717d，包含 #99/#100；#101–#108 已合并到各自链式基分支，功能链末端为 727d443。最终集成从 main 建立分支并正常 merge，保留两端提交历史，待最终 PR 审查。
+
+完整测试结果及各 PR 实际合并目标见 [最终集成记录](docs/validation/final-integration-2026-11-05.md)。正式发布、真实 OBS 音视频、实体平板、复杂遮挡和元流之子比赛样本仍需另行验收。以下较早日期段落保留当时记录。
+
 > **状态核对（2026-10-21）**：PR #67–#91 的相关变更均已合并 `main`；GitHub 已发布的 `v1.0.0-rc.1` 仍是 2026-10-10 的旧候选版，不包含其后提交。以下将**已合并的软件功能**和**未完成的真实 HOK / OBS / Sites 实机验收**分开记录；历史段落中的原型或旧界面应以较新 PR 为准。最新证据见 [PR #90](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/90)、[PR #91](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/91) 和 [PR #91 验证记录](docs/validation/pr91-validation.md)。
 
 ## 2026-10-20 · 识别延迟与 OBS 原画改进

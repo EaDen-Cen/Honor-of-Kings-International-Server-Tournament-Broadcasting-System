@@ -174,6 +174,11 @@ jobs:
         working-directory: vite-project
         run: npm run hero:sync
 
+      - name: Prepare matching broadcast artwork
+        if: steps.check.outputs.changed == 'true'
+        working-directory: vite-project
+        run: npm run hero:art-cache
+
       - name: Validate hero data
         if: steps.check.outputs.changed == 'true'
         working-directory: vite-project
@@ -218,6 +223,8 @@ jobs:
             vite-project/src/data/autoSyncedHeroes.ts
             vite-project/src/data/heroSyncOverrides.ts
             vite-project/public/heroesImg/
+            vite-project/public/heroesArt/
+            vite-project/src/data/broadcastArtAssets.ts
             research/hero-sync/
             docs/research/hero-roster.md
             MILESTONES.md

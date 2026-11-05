@@ -90,7 +90,7 @@ test('GHUD actual frame API checks access/context and screenshot review cannot d
     await capture.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
     await expect(sample).toBeEnabled();await sample.click();await expect(capture.getByText('1500 · 91% · OCR: 1.5k').first()).toBeVisible();
     await expect(sample).toBeEnabled();await sample.click();
-    await expect(capture.getByRole('status')).toContainText('Samples compared;');
+    await expect(capture.getByRole('status')).toContainText('Two reads did not pass verification.');
     await expect(capture.getByRole('button',{name:'Apply verified fields',exact:true})).toBeDisabled();
     await expect(capture.getByRole('checkbox',{name:'Try every second (skip if prior read is busy)',exact:true})).toBeDisabled();
     await expect(capture.getByRole('checkbox',{name:'Publish fields verified by two reads',exact:true})).toBeDisabled();
@@ -185,8 +185,11 @@ test('automatic HUD output remains enabled after its own state confirmations',as
       }});
     });
     let calls=0;
+    let releaseThird!: () => void;
+    const thirdRead = new Promise<void>(resolve => { releaseThird = resolve; });
     await page.route('**/api/v1/recognition/live-hud',async route=>{
       const call=++calls,context=route.request().postDataJSON().context;
+      if (call === 3) await thirdRead;
       // Fast-forward only browser scheduling. Evidence remains in the real
       // server's past, as it would for delayed OCR responses.
       const capturedAt=Date.now()-Math.max(0,5-call)*4000;
@@ -212,6 +215,7 @@ test('automatic HUD output remains enabled after its own state confirmations',as
     await expect(auto).toBeChecked();await expect(publish).toBeChecked();
     // Resuming after acknowledgement must collect fresh evidence and publish again.
     await expect.poll(()=>calls).toBeGreaterThanOrEqual(3);
+    releaseThird();
     await page.clock.fastForward(5001);
     await expect.poll(()=>h.state().liveGameStats.gameTimeSeconds).toBeGreaterThanOrEqual(30);
     await expect(auto).toBeChecked();await expect(publish).toBeChecked();

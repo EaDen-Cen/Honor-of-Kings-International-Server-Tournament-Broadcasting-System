@@ -12,6 +12,7 @@ import { useGameDataCapture } from './useGameDataCapture';
 import { ManualNumberInput } from './ManualNumberInput';
 import { hasPostGameFieldUpdate } from './postGameUpdates';
 import {playerRoleLabel,postGamePlayerIdentity} from '../shared/postGamePresentation';
+import { publishSharedGameStill } from './sharedGameStill';
 const storage='hok-post-game-regions-v1';
 type Regions=Record<string,NormalizedCaptureRegion>;
 function readRegions():Regions{try{const value=JSON.parse(localStorage.getItem(storage)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
@@ -51,6 +52,16 @@ export function PostGamePanel({state,token,disabled,send}:{state:MatchState;toke
   const [message,setMessage]=useState(''),[busy,setBusy]=useState(false),[candidates,setCandidates]=useState<Candidate[]>([]);
   const [row,setRow]=useState(0),[regions,setRegions]=useState(readRegions),[snapshot,setSnapshot]=useState('');
   const requestKey=useRef(''),request=useRef<AbortController>();
+  const previousReport = useRef(report?.id);
+  useEffect(() => {
+    if (previousReport.current === report?.id) return;
+    previousReport.current = report?.id;
+    request.current?.abort();
+    setSnapshot('');
+    setCandidates([]);
+    setMessage('');
+    publishSharedGameStill(undefined);
+  }, [report?.id]);
   requestKey.current=`${report?.id}:${metric}:${page}:${capture.sourceVersion}:${snapshot}:${JSON.stringify(regions)}:${token}`;
   const key=(index:number)=>`${page}:${metric}:${index}`;
   const regionFor=(index:number)=>{const saved=regions[key(index)];return validPostGameRegion(saved)?saved:undefined;};

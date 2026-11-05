@@ -1,3 +1,4 @@
+import { gameRoles } from '../shared/gameLineup';
 import { playerAtSlot } from '../shared/playerSlots';
 import { useLayoutEffect, useRef, useState } from 'react';
 import heroes from '../components/HeroList';
@@ -296,15 +297,22 @@ export function DraftOverlay({ state }: { state: MatchState }) {
               key={state[`${side}Team`].id}
               className={`pick-team ${side} display-${position === 0 ? 'left' : 'right'} ${phase?.team === side ? 'acting' : ''}`}
             >
-              {Array.from({ length: 5 }, (_, index) => (
-                <PickCard
-                  key={index}
-                  state={state}
-                  side={side}
-                  index={index}
-                  position={position === 0 ? 'left' : 'right'}
-                />
-              ))}
+              {Array.from({ length: 5 }, (_, index) => index)
+                .sort((a, b) =>
+                  state.draftComplete
+                    ? gameRoles.indexOf(playerAtSlot(state, side, a).role) -
+                      gameRoles.indexOf(playerAtSlot(state, side, b).role)
+                    : a - b,
+                )
+                .map((index) => (
+                  <PickCard
+                    key={index}
+                    state={state}
+                    side={side}
+                    index={index}
+                    position={position === 0 ? 'left' : 'right'}
+                  />
+                ))}
             </div>
           ))}
         </div>

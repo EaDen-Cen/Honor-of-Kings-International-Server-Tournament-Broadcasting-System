@@ -1,3 +1,4 @@
+import { validGameRoles } from '../src/shared/gameLineup.js';
 import { allPoolHeroes, heroAllowed } from '../src/shared/heroPool.js';
 import { phases, type Side } from '../src/shared/types.js';
 import { normalizeState } from '../src/shared/draftRules.js';
@@ -47,6 +48,11 @@ function validateStores(archive:RecoveryArchive,stage:string){
   if(![1,2].includes(raw.version)||!raw.state||!Array.isArray(raw.events)||!Array.isArray(raw.history)||!Array.isArray(raw.ids)||!Number.isSafeInteger(raw.revision)||raw.revision<0||!Number.isInteger(raw.delay)||raw.delay<0||raw.delay>3600)throw new Error('Invalid saved match');
   for(const state of [raw.state,...raw.history,...raw.events.map((event:{resultingState:unknown})=>event?.resultingState)]){
     if(!state||typeof state!=='object')throw new Error('Invalid saved match state');
+    for(const game of [state,...(state.draftHistory??[])]) {
+      for(const side of ['blue','red'] as const) if(game[`${side}GameRoles`]!==undefined&&!validGameRoles(game[`${side}GameRoles`])) throw new Error('Invalid game roles');
+      for(const field of ['lineupConfirmed','lineupAutomationBlocked']) if(game[field]!==undefined&&typeof game[field]!=='boolean') throw new Error('Invalid lineup confirmation');
+    }
+
     for(const side of ['blue','red'] as const)if(state[`${side}PlayerSlotOrder`]!==undefined&&!validPlayerSlotOrder(state[`${side}PlayerSlotOrder`]))throw new Error('Invalid player slot order');
   }
   // Store is the authoritative schema upgrader. Validate the migrated v2 view so

@@ -24,6 +24,22 @@ export interface LiveHudSample {
   candidates: LiveCandidate[];
   profile?: string;
 }
+export function liveFieldHealth(
+  source: LiveFieldSource | undefined,
+  now: number,
+  captureFailed: boolean,
+) {
+  if (source?.source === 'manual') return 'manual';
+  if (captureFailed) return 'capture-failed';
+  if (!source) return 'unverified';
+  if (
+    !Number.isFinite(source.capturedAt) ||
+    now < source.capturedAt ||
+    now - source.capturedAt > 15000
+  )
+    return 'stale';
+  return 'automatic';
+}
 export interface LiveGameStats {
   blueKills: number;
   redKills: number;
@@ -124,6 +140,7 @@ export type LiveHudReviewState =
   | 'first-read'
   | 'published'
   | 'manual'
+  | 'obscured'
   | 'low-confidence'
   | 'clock-stalled'
   | 'verified'
@@ -150,6 +167,7 @@ export function liveHudReviewStates(
       const prior = previous?.candidates.find((item) => item.key === key);
       let review: LiveHudReviewState = 'rejected';
       if (source?.source === 'manual') review = 'manual';
+      else if (candidate?.rejection === 'blank-crop') review = 'obscured';
       else if (
         source?.source === 'ocr' &&
         source.capturedAt === sample.capturedAt &&

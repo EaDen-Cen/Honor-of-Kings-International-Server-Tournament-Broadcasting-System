@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import heroes from '../src/components/HeroList.js';
 import { trustedRemoteHeroImage } from './capture.js';
@@ -117,9 +118,13 @@ test('every hero has a local portrait or an explicitly trusted temporary officia
       assert.equal(hero.relationshipStatus, 'unverified', `${hero.englishName}: remote portrait is only allowed for a new unverified hero`);
       continue;
     }
-    assert.match(hero.imageLink, /^\/heroesImg\/\d+\.(png|jpe?g|webp)$/);
+    assert.match(hero.imageLink, /^\/heroesImg\/(?:\d+|sync-\d+-[a-f0-9]{16})\.(png|jpe?g|webp)$/);
     const label = `${hero.englishName} (${hero.imageLink})`;
     const bytes = readFileSync(new URL(`../public${hero.imageLink}`, import.meta.url));
+    if (hero.imageLink.includes('/sync-')) {
+      assert.ok(hero.imageLink.startsWith(`/heroesImg/sync-${hero.campId}-`), label);
+      assert.ok(hero.imageLink.includes(`-${createHash('sha256').update(bytes).digest('hex').slice(0, 16)}.`), label);
+    }
     assert.ok(bytes.length >= 32, `${label}: missing image data`);
     const [width, height] = legacyImageDimensions(bytes, label);
     assert.ok(width > 0 && height > 0, `${label}: invalid dimensions ${width}×${height}`);

@@ -1,3 +1,4 @@
+import { rolesForGame } from './gameLineup.js';
 import { normalizePlayerSlotOrder, playerAtSlot } from './playerSlots.js';
 import { allPoolHeroes } from './heroPool.js';
 import { initialState, type GameDraftRecord, type MatchState, type Side, type Team } from './types.js';
@@ -95,6 +96,8 @@ export function normalizeState(raw: MatchState): MatchState {
   const normalizeAssignments = (value: Array<number | null> | undefined, picks: number[]) =>
     Array.from({ length: 5 }, (_, index) => value?.[index] ?? picks[index] ?? null);
   const state = { ...defaults, ...raw,
+    lineupConfirmed: raw.lineupConfirmed === true,
+    lineupAutomationBlocked: raw.lineupAutomationBlocked === true,
     bluePlayerSlotOrder: normalizePlayerSlotOrder(raw.bluePlayerSlotOrder),
     redPlayerSlotOrder: normalizePlayerSlotOrder(raw.redPlayerSlotOrder),
     blueTeam: normalizeTeam(raw.blueTeam, 'blue'), redTeam: normalizeTeam(raw.redTeam, 'red'),
@@ -107,6 +110,10 @@ export function normalizeState(raw: MatchState): MatchState {
     draftHistory: (raw.draftHistory ?? []).map(record => ({ ...record,
       bluePlayerSlotOrder: normalizePlayerSlotOrder(record.bluePlayerSlotOrder),
       redPlayerSlotOrder: normalizePlayerSlotOrder(record.redPlayerSlotOrder),
+      blueGameRoles: [...rolesForGame({...record,blueTeam:normalizeTeam(record.blueTeam,"blue")}, "blue")],
+      redGameRoles: [...rolesForGame({...record,redTeam:normalizeTeam(record.redTeam,"red")}, "red")],
+      lineupConfirmed: record.lineupConfirmed === true,
+      lineupAutomationBlocked: record.lineupAutomationBlocked === true,
       firstPickSide: record.firstPickSide ?? 'blue',
       blueTeam: normalizeTeam(record.blueTeam, 'blue'), redTeam: normalizeTeam(record.redTeam, 'red'),
       blueBans: [...(record.blueBans ?? [])],
@@ -126,5 +133,7 @@ export function normalizeState(raw: MatchState): MatchState {
   state.draftHistory=state.draftHistory.map(record=>({...record,heroPool:record.heroPool??'global',banCount:record.banCount??defaultBanCount(raw.draftMode)}));
   state.sideSwapMode = raw.sideSwapMode ?? 'moveTeams';
   state.draftGameNumber = raw.draftGameNumber ?? (raw.currentPhase > 0 ? raw.gameNumber : null);
+  if (raw.blueGameRoles) state.blueGameRoles = [...rolesForGame(state,"blue")];
+  if (raw.redGameRoles) state.redGameRoles = [...rolesForGame(state,"red")];
   return state;
 }

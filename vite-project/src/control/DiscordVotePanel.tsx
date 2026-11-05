@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DiscordWebhookPanel } from './DiscordWebhookPanel';
 import { apiURL } from '../shared/config';
 import { currentPostGameReport } from '../shared/postGame';
 import type { MatchState, Side } from '../shared/types';
@@ -79,102 +80,114 @@ export function DiscordVotePanel({ token, state }: { token: string; state: Match
     (v) => v.status !== 'failed' && (v.gameKey === key || v.reportId === key),
   );
   return (
-    <section className="panel discord-vote-panel" aria-label="Discord MVP 投票">
-      <h2>Discord · 观众 MVP 投票</h2>
-      <p className="muted">
-        默认全场 10 人、3 分钟单选。观众 MVP 独立存档，不覆盖原有 MVP。连接凭证在设置中心配置。
-      </p>
-      {config?.scope === 'winner' && (
-        <label>
-          已确认胜方
-          <select value={winner} onChange={(e) => setWinner(e.target.value as Side | '')}>
-            <option value="">请选择获胜队伍</option>
-            <option value="blue">{state.blueTeam.name}</option>
-            <option value="red">{state.redTeam.name}</option>
-          </select>
-        </label>
-      )}
-      <label>
-        投票时长
-        <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
-          {[2, 3, 4, 5].map((n) => (
-            <option key={n} value={n}>
-              {n} 分钟
-            </option>
-          ))}
-        </select>
-      </label>
+    <>
+      <DiscordWebhookPanel token={token} state={state} />
       <details>
-        <summary>核对 / 编辑候选人（{candidates.length}）</summary>
-        <div className="vote-candidates">
-          {candidates.map((c, i) => (
-            <label key={c.rowId}>
-              {c.team}
-              <input
-                maxLength={60}
-                value={c.name}
-                onChange={(e) =>
-                  setCandidates((all) =>
-                    all.map((p, j) => (i === j ? { ...p, name: e.target.value } : p)),
-                  )
-                }
-              />
+        <summary>可选增强：Discord Bot 自动投票（需要额外安装权限）</summary>
+        <section className="panel discord-vote-panel" aria-label="Discord MVP 投票">
+          <h2>Discord · 观众 MVP 投票</h2>
+          <p className="muted">
+            默认全场 10 人、3 分钟单选。观众 MVP 独立存档，不覆盖原有 MVP。连接凭证在设置中心配置。
+          </p>
+          {config?.scope === 'winner' && (
+            <label>
+              已确认胜方
+              <select value={winner} onChange={(e) => setWinner(e.target.value as Side | '')}>
+                <option value="">请选择获胜队伍</option>
+                <option value="blue">{state.blueTeam.name}</option>
+                <option value="red">{state.redTeam.name}</option>
+              </select>
             </label>
-          ))}
-        </div>
-      </details>
-      <div className="toolbar">
-        <button
-          className="primary"
-          disabled={busy || !key || duplicate || !config?.configured || ![5, 10].includes(candidates.length)}
-          onClick={() => void command('start', { candidates, minutes, winner })}
-        >
-          开始 MVP 投票
-        </button>
-        <button
-          disabled={busy || !current || !['active', 'pending'].includes(current.status)}
-          onClick={() => void command('end', { id: current?.id })}
-        >
-          提前结束
-        </button>
-        <button
-          disabled={busy || !current || !['active', 'pending'].includes(current.status)}
-          onClick={() => void command('cancel', { id: current?.id })}
-        >
-          取消投票
-        </button>
-        <button disabled={busy} onClick={() => void command('retry', {})}>
-          重试同步 / 最终计票
-        </button>
-      </div>
-      {current && <AudienceVoteView vote={current} />}
-      {current?.status === 'creation-uncertain' && (
-        <label>
-          核对同一 Bot 的投票消息 ID
-          <input value={recoveryId} onChange={(e) => setRecoveryId(e.target.value)} />
-          <button
-            disabled={busy || !recoveryId}
-            onClick={() => void command('recover', { id: current.id, messageId: recoveryId })}
-          >
-            恢复投票（不重发）
-          </button>
-        </label>
-      )}
-      <a href="/overlay/audience-mvp" target="_blank" rel="noreferrer">
-        观众 MVP Overlay · 1920×1080
-      </a>
-      <details>
-        <summary>历史记录（{votes.length}）</summary>
-        {votes.map((v) => (
-          <details key={v.id}>
-            <summary>
-              GAME {v.gameNumber} · {voteStatusLabel[v.status]}
-            </summary>
-            <AudienceVoteView vote={v} />
+          )}
+          <label>
+            投票时长
+            <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+              {[2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>
+                  {n} 分钟
+                </option>
+              ))}
+            </select>
+          </label>
+          <details>
+            <summary>核对 / 编辑候选人（{candidates.length}）</summary>
+            <div className="vote-candidates">
+              {candidates.map((c, i) => (
+                <label key={c.rowId}>
+                  {c.team}
+                  <input
+                    maxLength={60}
+                    value={c.name}
+                    onChange={(e) =>
+                      setCandidates((all) =>
+                        all.map((p, j) => (i === j ? { ...p, name: e.target.value } : p)),
+                      )
+                    }
+                  />
+                </label>
+              ))}
+            </div>
           </details>
-        ))}
+          <div className="toolbar">
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                !key ||
+                duplicate ||
+                !config?.configured ||
+                ![5, 10].includes(candidates.length)
+              }
+              onClick={() => void command('start', { candidates, minutes, winner })}
+            >
+              开始 MVP 投票
+            </button>
+            <button
+              disabled={busy || !current || !['active', 'pending'].includes(current.status)}
+              onClick={() => void command('end', { id: current?.id })}
+            >
+              提前结束
+            </button>
+            <button
+              disabled={busy || !current || !['active', 'pending'].includes(current.status)}
+              onClick={() => void command('cancel', { id: current?.id })}
+            >
+              取消投票
+            </button>
+            <button disabled={busy} onClick={() => void command('retry', {})}>
+              重试同步 / 最终计票
+            </button>
+          </div>
+          {current && <AudienceVoteView vote={current} />}
+          {current?.status === 'creation-uncertain' && (
+            <label>
+              核对同一 Bot 的投票消息 ID
+              <input value={recoveryId} onChange={(e) => setRecoveryId(e.target.value)} />
+              <button
+                disabled={busy || !recoveryId}
+                onClick={() => void command('recover', { id: current.id, messageId: recoveryId })}
+              >
+                恢复投票（不重发）
+              </button>
+            </label>
+          )}
+          <a href="/overlay/audience-mvp" target="_blank" rel="noreferrer">
+            观众 MVP Overlay · 1920×1080
+          </a>
+          <details>
+            <summary>历史记录（{votes.length}）</summary>
+            {votes.map((v) => (
+              <details key={v.id}>
+                <summary>
+                  GAME {v.gameNumber} · {voteStatusLabel[v.status]}
+                </summary>
+                <AudienceVoteView vote={v} />
+              </details>
+            ))}
+          </details>
+          <p role="status">{message || error}</p>
+        </section>
       </details>
-      <p role="status">{message || error}</p>
-    </section>
+    </>
   );
 }

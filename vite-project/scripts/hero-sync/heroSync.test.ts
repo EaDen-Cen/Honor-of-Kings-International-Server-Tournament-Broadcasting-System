@@ -69,7 +69,7 @@ test('Wang Wei uses reviewed simplified Chinese display name and newest canonica
   assert.equal(wangWei.englishName, 'Wang Wei');
   assert.equal(wangWei.chineseName, '王维');
   assert.equal(wangWei.campId, 138);
-  assert.equal(wangWei.imageLink, '/heroesImg/120.png');
+  assert.match(wangWei.imageLink, /^\/heroesImg\/(?:120|sync-138-[a-f0-9]{16})\.png$/);
 });
 
 test('normalization matches historical aliases without creating a duplicate hero', () => {

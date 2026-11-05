@@ -1,5 +1,7 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
+> **2026-11-05 最终集成内容**：本分支汇总 #99–#108，包含逐局报告隔离、真实预检、Discord Webhook-only、持久化 AI 预算、BP 头像直接纠错、鼠标与触屏英雄交换、本局实际分路及历史报告同步。#101–#108 此前合并到了各自的链式基分支，本次最终集成以 main 为目标，通过独立 PR 接受审查。提交关系、完整验证与发布边界见 [最终集成记录](docs/validation/final-integration-2026-11-05.md)。正式标签、发布与真实赛事验收另行跟踪。
+
 > **2026-10-25 盾山补录（开发分支）**：国际服 10 月 21 日上线盾山，新增本地稳定英雄 ID 120（Roaming），添加本地图标并沿用国服盾山身份映射，不重排历史英雄。详见 [英雄名单](docs/research/hero-roster.md)。真实比赛中的 BP 头像识别/OBS 实测仍待验收。
 
 > **2026-10-25 开发分支（尚未实机验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](docs/guides/team-library-migration.md)。\n\n## 2026-10-23 综合升级（开发分支，真实服务联调待配置）
@@ -8,7 +10,7 @@
 
 提供的 11:15 / ±9.2k 经济曲线已加入真实图片回归；完整截图与独立经济裁图使用不同的输入适配。选手 ID 与数字 OCR 使用不同常驻工作器并行，重复的赛后选手裁图可复用，但仍需人工核验。**性能目标和真实 Discord / OBS 验收尚不能仅凭隔离测试认定达成。**
 
-使用入口：Control →「设置中心」；面板列表 →「MVP 投票」；「赛后数据」→ 六类轮播。新增浏览器源 `/overlay/audience-mvp`、`/overlay/postgame-carousel` 均为 1920×1080。详见 [Discord 配置与投票](docs/guides/discord-mvp-voting.md)、[OBS 操作](docs/guides/obs-director-setup.md) 与 [本轮验证记录](docs/validation/2026-10-23-console-upgrade.md)。
+使用入口：Control →「设置中心」；面板列表 →「Discord 通知 / 投票」；「赛后数据」→ 六类轮播。新增浏览器源 `/overlay/audience-mvp`、`/overlay/postgame-carousel` 均为 1920×1080。详见 [Discord 配置与投票](docs/guides/discord-mvp-voting.md)、[OBS 操作](docs/guides/obs-director-setup.md) 与 [本轮验证记录](docs/validation/2026-10-23-console-upgrade.md)。
 
 > **当前主分支（2026-10-21）**：PR #67–#91 的相关功能更新已合并至 `main`（最新核对到 PR #91，提交 `00dedd05a224`）。已有 GitHub 预发布版本 `v1.0.0-rc.1` 是 2026-10-10 的旧快照，**不包含**此后的主分支改动；不能把两者当作同一版本。核心 BP / Control / Caster / OBS 图形支持彩排；Game HUD、AI 辅助识别和赛后自动采集仍需真实赛事连续验收。详见 [PR #91 验证记录](docs/validation/pr91-validation.md) 与 [发布说明](docs/releases/v1.0.0.md)。
 
@@ -356,3 +358,5 @@ Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以�
 ### PR #91（已合并）：后台 AI 辅助、可停靠工作区与启动准备
 
 AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。相关 AI / HUD 能力仍属于实验性功能；**代码已经合并 `main`，但不代表真实直播已验收**。Sites 网站端 API 不在此 PR 内，自动同步完成配对前可继续手动填写地址。
+
+本局分路与 BP 直接编辑已纳入此次最终集成。支持锁定头像纠错、最终英雄交换和选手临时换路，使用同一 Store 权威状态。操作方式见 [导播指南](docs/guides/operator-guide.md)，映射与兼容说明见 [本局阵容架构](docs/architecture/game-lineup.md)。

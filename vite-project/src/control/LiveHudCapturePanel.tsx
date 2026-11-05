@@ -5,11 +5,13 @@ import {
   liveGameContext,
   trustedLiveUpdates,
   liveHudReviewStates,
+  liveFieldHealth,
   type LiveHudSample,
   type LiveHudReviewState,
 } from '../shared/liveGame';
 import {
   liveCaptureLabel,
+  liveCaptureKeys,
   liveCaptureRects,
   validLiveCaptureRects,
   type LiveCaptureKey,
@@ -63,6 +65,12 @@ export function LiveHudCapturePanel({
     stateRef = useRef(state);
   const pending = useRef(new CaptureRequest());
   const [elapsedMs, setElapsedMs] = useState<number>();
+  const [now, setNow] = useState(Date.now);
+  const [captureFailed, setCaptureFailed] = useState(false);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const cancelCapture = useCallback(() => {
     epoch.current++;
     pending.current.cancel();
@@ -86,6 +94,18 @@ export function LiveHudCapturePanel({
   useEffect(() => {
     if (disabled) cancelCapture();
   }, [disabled, cancelCapture]);
+  const manualSources = JSON.stringify(
+    Object.entries(state.liveGameStats.sources ?? {}).filter(
+      ([, source]) => source.source === 'manual',
+    ),
+  );
+  useEffect(() => {
+    // An operator edit requires fresh evidence; ordinary OCR acknowledgements do not.
+    cancelCapture();
+    last.current = undefined;
+    setPrevious(undefined);
+    setResult(undefined);
+  }, [manualSources, cancelCapture]);
   function editRegions(next: Record<LiveCaptureKey, CaptureRect>) {
     cancelCapture();
     last.current = undefined;
@@ -167,6 +187,7 @@ export function LiveHudCapturePanel({
             ? previousFrame
             : undefined;
       setElapsedMs(Math.round(performance.now() - started));
+      setCaptureFailed(false);
       setPrevious(prior);
       setResult(next);
       last.current = next;
@@ -195,6 +216,7 @@ export function LiveHudCapturePanel({
       ) {
         last.current = undefined;
         setPrevious(undefined);
+        setCaptureFailed(true);
         setMessage(
           request.signal.reason instanceof Error
             ? request.signal.reason.message
@@ -248,6 +270,7 @@ export function LiveHudCapturePanel({
         'first-read': '首帧候选 · 等待第二次采样',
         published: '已核验并同步到赛事数据',
         manual: '人工冻结 · 保留手动值',
+        obscured: '区域无有效内容 / 疑似遮挡 · 保留原值',
         'low-confidence': '低置信度 / OCR 无有效数值（需 ≥85%）',
         'clock-stalled': '游戏计时未前进 · 截图或暂停画面',
         verified: '两帧一致 · 可以应用',
@@ -257,6 +280,7 @@ export function LiveHudCapturePanel({
         'first-read': 'First read · waiting for another',
         published: 'Verified and published to match data',
         manual: 'Manually frozen · value preserved',
+        obscured: 'Blank / possibly obscured region · value preserved',
         'low-confidence': 'Low confidence / unreadable OCR (requires ≥85%)',
         'clock-stalled': 'Game clock did not advance · still frame',
         verified: 'Verified in two reads · ready to apply',
@@ -273,6 +297,33 @@ export function LiveHudCapturePanel({
           : 'Attempts to read time, kills, gold and towers once per second (skipping overlapping requests). Verify two reads before applying or enabling automatic output. Manual edits freeze fields. Lost capture retains trusted values; screenshots are for review.'}
       </p>
       {capture.controls}
+      <ul aria-label={zh ? '可信字段状态' : 'Trusted field status'}>
+        {liveCaptureKeys.map((key) => {
+          const source = state.liveGameStats.sources?.[key];
+          const health = liveFieldHealth(source, now, captureFailed || !capture.ready);
+          const labels = zh
+            ? {
+                manual: '人工确认 / 已冻结',
+                'capture-failed': '采集失败 · 保留最后可信值',
+                unverified: '尚无可信采样',
+                stale: '数据过期 · 保留最后可信值',
+                automatic: '自动识别',
+              }
+            : {
+                manual: 'Manually confirmed / frozen',
+                'capture-failed': 'Capture failed · trusted value retained',
+                unverified: 'No trusted sample',
+                stale: 'Stale · trusted value retained',
+                automatic: 'Automatic recognition',
+              };
+          return (
+            <li key={key} data-field={key} data-health={health}>
+              {liveCaptureLabel(key, zh)}: {labels[health]}
+              {source && ` · ${new Date(source.capturedAt).toLocaleTimeString()}`}
+            </li>
+          );
+        })}
+      </ul>
       <LiveHudCalibration
         zh={zh}
         regions={regions}
@@ -327,7 +378,14 @@ export function LiveHudCapturePanel({
           {zh ? '自动播出两帧核验字段' : 'Publish fields verified by two reads'}
         </label>
         <button
-          disabled={disabled || !calibrated || capture.isStill || !Object.keys(updates).length}
+          disabled={
+            disabled ||
+            !calibrated ||
+            capture.isStill ||
+            !result ||
+            now - result.capturedAt > 15000 ||
+            !Object.keys(updates).length
+          }
           onClick={() => {
             if (previous && result)
               send({ type: 'live_game_ocr', context, previous, sample: result });

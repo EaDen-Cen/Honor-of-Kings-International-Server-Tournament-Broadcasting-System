@@ -1,8 +1,6 @@
-import { canMergePostGameField } from '../src/shared/postGame.js';
-import { validGoldTimeline } from '../src/shared/postGameTimeline.js';
-import { validatePostGameField, validatePostGameGrade, validatePostGameCurve } from './postGameValidation.js';
+import { rolesForGame, validGameRoles } from '../src/shared/gameLineup.js';
+import { applyPostGameAction, preparePostGameReport } from './postGameActions.js';
 import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
-import { normalizePlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeFileSync, fsyncSync, closeSync } from 'node:fs';
@@ -10,7 +8,7 @@ import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
 import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/heroIdOrder.js';
-import { initialState, phases, type Action, type GameDraftRecord, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
+import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
 
@@ -109,8 +107,11 @@ export function portraitURL(value: unknown): asserts value is string {
   throw new Error('portraitInvalid');
 }
 function clearDraft(state: MatchState) {
+  delete state.blueGameRoles;
+  delete state.redGameRoles;
   state.liveGameStats = nextLiveGameStats(state.liveGameStats);
   Object.assign(state, {
+    lineupConfirmed: false, lineupAutomationBlocked: false,
     bluePlayerSlotOrder: [0,1,2,3,4], redPlayerSlotOrder: [0,1,2,3,4],
     blueBans: [], redBans: [], bluePicks: [], redPicks: [],
     blueAssignments: [null, null, null, null, null],
@@ -167,14 +168,6 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
     }
   }
 }
-/** Create an empty report only once; never wipe earlier game data. */
-function preparePostGameReport(state: MatchState, game: GameDraftRecord) {
-  if(!state.postGameReports.some(report=>report.id===game.id))state.postGameReports.push({id:game.id,gameNumber:game.gameNumber,seriesFormat:state.seriesFormat,stage:state.stage,selectedMvpPlayerId:null,selectedMvpRowId:null,players:(['blue','red'] as const).flatMap(side=>game[`${side}Assignments`].map((heroId,slot)=>{
-        const team=game[`${side}Team`],rosterIndex=normalizePlayerSlotOrder(game[`${side}PlayerSlotOrder`])[slot];
-        return {rowId:`${team.id}:${rosterIndex}`,playerId:team.players[rosterIndex],side,slot,rosterIndex,teamName:team.name,portrait:team.playerPortraits[rosterIndex],role:team.playerRoles[rosterIndex],heroId,fields:{}};
-      }))});
-}
-
 export class Store {
   data: Data;
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
@@ -237,91 +230,8 @@ export class Store {
     if (!action || typeof action !== 'object') throw new Error('操作无效');
     const next = copy(this.data);
     const state = next.state;
-    switch (action.type) {
-    case 'post_game_begin': {
-      const gameId=action.gameId??state.committedGameId??state.draftHistory.at(-1)?.id;
-      const game=state.draftHistory.find(record=>record.id===gameId);
-      if(!game)throw new Error('先确认有效局阵容 / Commit the game first');
-      next.history.push(copy(state));state.activePostGameReportId=game.id;
-      preparePostGameReport(state, game);
-      break;
-    }
-    case 'post_game_fields': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!Array.isArray(action.updates)||!action.updates.length&&!action.grades?.length||action.updates.length>100)throw new Error('赛后报告无效 / Invalid post-game report');
-      if(action.grades!==undefined){
-        if(!Array.isArray(action.grades)||action.grades.length>10)throw new Error('Invalid grade report');
-        for(const {rowId,field} of action.grades){
-          if(!report.players.some(p=>p.rowId===rowId))throw new Error('Invalid game grade');
-          validatePostGameGrade(field);
-        }
-      }
-      for(const update of action.updates){
-        if(!report.players.some(p=>p.rowId===update.rowId))throw new Error('赛后字段无效 / Invalid post-game field');
-        validatePostGameField(update.metric, update.field, 'player');
-      }
-      next.history.push(copy(state));
-      for(const update of action.updates){const field=update.field,player=report.players.find(p=>p.rowId===update.rowId)!;if(!canMergePostGameField(player.fields[update.metric],field))continue;player.fields[update.metric]={value:field.value,confidence:field.confidence,manual:field.manual,sourcePage:field.sourcePage,...(field.resolution?{resolution:field.resolution}:{}),...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};}
-      for(const {rowId,field} of action.grades??[]){
-        const player=report.players.find(p=>p.rowId===rowId)!,old=player.grade;
-        if(field.manual||!old||!old.manual&&(old.confidence<.85||old.value===field.value)&&field.confidence>=old.confidence)player.grade={value:field.value,sourcePage:'summary',confidence:field.confidence,manual:field.manual,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
-      }
-      break;
-    }
-    case 'post_game_mvp_art_scale': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||typeof action.scale!=='number'||!Number.isFinite(action.scale)||action.scale<1||action.scale>2)throw new Error('Invalid MVP image scale');
-      next.history.push(copy(state));report.mvpArtScale=action.scale;
-      break;
-    }
-    case 'post_game_grades': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!Array.isArray(action.updates)||!action.updates.length||action.updates.length>10)throw new Error('Invalid grade report');
-      for(const {rowId,field} of action.updates){
-        if(!report.players.some(p=>p.rowId===rowId))throw new Error('Invalid game grade');
-        validatePostGameGrade(field);
-      }
-      next.history.push(copy(state));
-      for(const {rowId,field} of action.updates){
-        const player=report.players.find(p=>p.rowId===rowId)!,old=player.grade;
-        if(field.manual||!old||!old.manual&&(old.confidence<.85||old.value===field.value)&&field.confidence>=old.confidence)player.grade={value:field.value,sourcePage:'summary',confidence:field.confidence,manual:field.manual,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
-      }
-      break;
-    }
-    case 'post_game_team_fields': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!Array.isArray(action.updates)||!action.updates.length&&!action.goldDifference||action.updates.length>20)throw new Error('Invalid team report');
-      if(action.goldDifference!==undefined)validatePostGameCurve(action.goldDifference);
-      for(const {side,metric,field} of action.updates){
-        if(!['blue','red'].includes(side))throw new Error('Invalid team field');
-        validatePostGameField(metric, field, 'team');
-      }
-      next.history.push(copy(state));
-      report.teamFields??={};
-      for(const {side,metric,field} of action.updates){
-        const fields=report.teamFields[side]??={};
-        if(canMergePostGameField(fields[metric],field))fields[metric]={value:field.value,sourcePage:'recap',manual:field.manual,confidence:field.confidence,...(field.evidence?{evidence:field.evidence}:{}),...(field.capturedAt!==undefined?{capturedAt:field.capturedAt}:{})};
-      }
-      const curve=action.goldDifference;
-      if(curve&&(curve.source==='manual'||!report.goldDifference||report.goldDifference.source!=='manual'&&!(curve.partial&&!report.goldDifference.partial)&&(curve.confidence>=report.goldDifference.confidence||report.goldDifference.partial&&!curve.partial)))report.goldDifference={points:curve.points.map(p=>({timeSeconds:p.timeSeconds,difference:p.difference})),source:curve.source,confidence:curve.confidence,maxDifference:curve.maxDifference,...(curve.partial?{partial:true}:{}),...(curve.durationSeconds!==undefined?{durationSeconds:curve.durationSeconds}:{}),...(curve.evidence?{evidence:curve.evidence}:{}),...(curve.capturedAt!==undefined?{capturedAt:curve.capturedAt}:{})};
-      break;
-    }
-    case 'post_game_gold_timeline': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId);
-      if(!report||!validGoldTimeline(action.points))throw new Error('Invalid gold time-series; use verified, increasing replay samples');
-      next.history.push(copy(state));
-      report.goldTimeline=action.points.map(point=>({timeSeconds:point.timeSeconds,blueGold:point.blueGold,redGold:point.redGold}));
-      const differencePoints=action.points.map(point=>({timeSeconds:point.timeSeconds,difference:point.blueGold-point.redGold}));
-      report.goldDifference={points:differencePoints,source:'manual',confidence:1,maxDifference:Math.max(1,...differencePoints.map(point=>Math.abs(point.difference)))};
-      break;
-    }
-    case 'select_mvp': {
-      const report=state.postGameReports.find(r=>r.id===action.reportId),player=report?.players.find(p=>p.rowId===action.rowId);
-      if(!report||(action.rowId!==null&&!player))throw new Error('MVP 选手无效 / Invalid MVP player');
-      next.history.push(copy(state));state.activePostGameReportId=report.id;
-      report.selectedMvpRowId=player?.rowId??null;report.selectedMvpPlayerId=player?.playerId??null;
-      break;
-    }
+    if (applyPostGameAction(state, action)) next.history.push(copy(this.data.state));
+    else switch (action.type) {
     case 'live_game_freeze': {
       if(!liveCaptureKeys.includes(action.key)||typeof action.frozen!=='boolean')throw new Error('Invalid HUD field');
       next.history.push(copy(state));
@@ -389,6 +299,8 @@ export class Store {
       if (!turn || turn.action !== 'pick' || turn.team !== action.team) throw new Error('当前选禁阶段不支持此操作，请确认轮次和队伍');
       if (!Array.isArray(action.heroIds) || action.heroIds.length !== turn.phaseIndexes.length || action.heroIds.length < 1 || action.heroIds.length > 2) throw new Error('pickGroupInvalid');
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       for (const heroId of action.heroIds) {
         const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
@@ -449,6 +361,8 @@ export class Store {
         }
       };
       if (live) {
+        state.lineupAutomationBlocked = true;
+        if (record) record.lineupAutomationBlocked = true;
         replace(state);
         if (record) replace(record);
         if (state.draftComplete) validateLineup(state, true);
@@ -479,6 +393,8 @@ export class Store {
       const reason = draftRestriction(state, phase.team, phase.action, action.heroId);
       if (reason) throw new Error(reason);
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       state[`${phase.team}${phase.action === 'ban' ? 'Bans' : 'Picks'}`].push(action.heroId);
       if (phase.action === 'pick') {
@@ -496,6 +412,8 @@ export class Store {
       const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
       if (!phase || phase.team !== action.team || phase.action !== 'ban') throw new Error('emptyBanOnlyDuringBan');
       next.history.push(copy(state));
+      state.blueGameRoles ??= [...rolesForGame(state,"blue")];
+      state.redGameRoles ??= [...rolesForGame(state,"red")];
       state.draftGameNumber ??= state.gameNumber;
       state[`${phase.team}Bans`].push(null);
       state.currentPhase++;
@@ -510,6 +428,7 @@ export class Store {
       state.draftHistory.push({
         id, firstPickSide: state.firstPickSide, heroPool:state.heroPool,banCount:state.banCount,gameNumber: currentGame(state), committedAt: this.clock(),
         blueTeam: copy(state.blueTeam), redTeam: copy(state.redTeam),
+        blueGameRoles: [...rolesForGame(state, "blue")], redGameRoles: [...rolesForGame(state, "red")], lineupConfirmed: state.lineupConfirmed, lineupAutomationBlocked:state.lineupAutomationBlocked,
         bluePlayerSlotOrder: [...state.bluePlayerSlotOrder], redPlayerSlotOrder: [...state.redPlayerSlotOrder],
         blueBans: [...state.blueBans], redBans: [...state.redBans],
         bluePicks: [...state.bluePicks], redPicks: [...state.redPicks],
@@ -526,19 +445,63 @@ export class Store {
       if (!state.committedGameId) throw new Error('commitBeforeNext');
       if (seriesFinished(state)) throw new Error('seriesHasEnded');
       if (state.gameNumber !== currentGame(state) + 1) throw new Error('updateScoreBeforeNext');
-      next.history.push(copy(state)); clearDraft(state); break;
+      next.history.push(copy(state)); clearDraft(state);
+      state.activePostGameReportId = null;
+      break;
     }
     case 'swap_sides': {
       if (state.currentPhase > 0 || state.committedGameId) throw new Error('swapOnlyBetweenGames');
       next.history.push(copy(state));
       [state.bluePlayerSlotOrder, state.redPlayerSlotOrder] = [state.redPlayerSlotOrder, state.bluePlayerSlotOrder];
       [state.blueTeam, state.redTeam] = [state.redTeam, state.blueTeam];
+      [state.blueGameRoles, state.redGameRoles] = [state.redGameRoles, state.blueGameRoles];
       [state.blueScore, state.redScore] = [state.redScore, state.blueScore];
       if (state.sideSwapMode === 'colorsOnly') state.displayLeftSide = state.displayLeftSide === 'blue' ? 'red' : 'blue';
       break;
     }
-    case 'swap_picks':
+    case 'set_game_roles':
+    case 'confirm_game_lineup':
     case 'swap_assignments': {
+      const record = state.draftHistory.find(game => game.id === (action.gameId ?? state.committedGameId));
+      if (action.gameId && !record) throw new Error('Unknown game / 找不到历史局');
+      const live = !action.gameId || action.gameId === state.committedGameId;
+      const target = live ? state : record!;
+      if (live && !state.draftComplete) throw new Error('completeDraftFirst');
+      if (action.type !== 'confirm_game_lineup' && target.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
+      if (action.type === 'confirm_game_lineup' && typeof action.confirmed !== 'boolean') throw new Error('Invalid confirmation');
+      if (action.type === 'set_game_roles' && (!['blue','red'].includes(action.side) || !validGameRoles(action.roles))) throw new Error('Invalid roles / 分路须包含五个不同位置');
+      if (action.type === 'swap_assignments') {
+        if (!['blue','red'].includes(action.team)) throw new Error('Invalid side');
+        integer(action.from, 0, 4); integer(action.to, 0, 4);
+      }
+      next.history.push(copy(state));
+      const update = (game: typeof target) => {
+        if (action.type === 'confirm_game_lineup') { game.lineupConfirmed = action.confirmed; game.lineupAutomationBlocked = true; }
+        else if (action.type === 'set_game_roles') game[`${action.side}GameRoles`] = [...action.roles];
+        else {
+          const assignments = game[`${action.team}Assignments`];
+          [assignments[action.from], assignments[action.to]] = [assignments[action.to], assignments[action.from]];
+        }
+      };
+      target.lineupAutomationBlocked = true;
+      if (record) record.lineupAutomationBlocked = true;
+      update(target);
+      if (live && record) update(record);
+      if (live) validateLineup(state, true);
+      else if (record) validateLineup({...state, ...record, committedGameId:record.id,
+        blueBans:record.blueBans??[], redBans:record.redBans??[],
+        bluePlayerSlotOrder:record.bluePlayerSlotOrder??[0,1,2,3,4], redPlayerSlotOrder:record.redPlayerSlotOrder??[0,1,2,3,4]}, true);
+      if (record) {
+        const report = state.postGameReports.find(report => report.id === record.id);
+        for (const row of report?.players ?? []) {
+          row.role = rolesForGame(record, row.side)[row.rosterIndex];
+          row.heroId = record[`${row.side}Assignments`][row.slot];
+        }
+      }
+      break;
+    }
+    case 'swap_picks': {
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
       if (!['blue', 'red'].includes(action.team)) throw new Error('操作无效');
@@ -550,6 +513,8 @@ export class Store {
       break;
     }
     case 'set_player_slot_orders': {
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!validPlayerSlotOrder(action.blue) || !validPlayerSlotOrder(action.red)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify([state.blueTeam.players,state.redTeam.players])) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
@@ -560,6 +525,8 @@ export class Store {
       break;
     }
     case 'set_player_slot_order': {
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!['blue','red'].includes(action.side) || !validPlayerSlotOrder(action.order)) throw new Error('选手顺序必须包含五名不同选手 / Invalid player order');
       if (JSON.stringify(action.expectedPlayers) !== JSON.stringify(state[`${action.side}Team`].players)) throw new Error('阵容已改变，请重新识别 / Roster changed; scan again');
@@ -569,6 +536,8 @@ export class Store {
       break;
     }
     case 'set_lineup_assignments': {
+      if (action.source === 'automatic' && state.lineupAutomationBlocked) throw new Error('Manual lineup takes priority / 请使用人工阵容编辑');
+      if (state.lineupConfirmed) throw new Error('Unlock lineup first / 请先解除阵容确认');
       if (state.committedGameId) throw new Error('gameAlreadyCommitted');
       if (!state.draftComplete) throw new Error('completeDraftFirst');
       for (const lineup of [action.blue, action.red]) {
@@ -578,6 +547,7 @@ export class Store {
       state.blueAssignments = [...action.blue];
       state.redAssignments = [...action.red];
       validateLineup(state, true);
+      if (action.source !== 'automatic') state.lineupAutomationBlocked = true;
       break;
     }
     case 'score': {

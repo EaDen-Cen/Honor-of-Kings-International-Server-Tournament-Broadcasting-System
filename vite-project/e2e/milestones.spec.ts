@@ -172,7 +172,7 @@ test('Simulator can pull the current Control lineup, then time one isolated hero
     await page.goto('/tools/bp-simulator-control#token=e2e-control');
     await page.getByRole('button',{name:'3 角色交换',exact:true}).click();
     await page.getByRole('button',{name:'从 Control 同步模拟器数据',exact:true}).click();
-    await expect(page.getByRole('status')).toContainText('已从 Control 读取当前最终阵容');
+    await expect(page.locator('.sim-integration-message[role="status"]')).toContainText('已从 Control 读取当前最终阵容');
 
     const synced=await page.evaluate(()=>JSON.parse(localStorage.getItem('hok-bp-simulator-state-v3')||'null'));
     expect([1,2,3,4,5].map(index=>synced.slotHeroes[`bluePick${index}`])).toEqual(baselineBlue);
