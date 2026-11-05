@@ -1,15 +1,16 @@
+import { StrictVotePanel } from './StrictVotePanel';
 import { useEffect, useState } from 'react';
 import { DiscordWebhookPanel } from './DiscordWebhookPanel';
 import { apiURL } from '../shared/config';
 import { currentPostGameReport } from '../shared/postGame';
-import type { MatchState, Side } from '../shared/types';
+import type { Action, MatchState, Side } from '../shared/types';
 import {
   voteCandidates,
   type DiscordPublicConfig,
   type VoteCandidate,
 } from '../shared/audienceVote';
 import { AudienceVoteView, useAudienceVotes, voteStatusLabel } from '../shared/AudienceVoteView';
-export function DiscordVotePanel({ token, state }: { token: string; state: MatchState }) {
+export function DiscordVotePanel({ token, state, send, disabled }: { token: string; state: MatchState; send: (action: Action) => boolean; disabled: boolean }) {
   const { votes, error } = useAudienceVotes(token);
   const [config, setConfig] = useState<DiscordPublicConfig>();
   const [candidates, setCandidates] = useState<VoteCandidate[]>([]),
@@ -81,6 +82,7 @@ export function DiscordVotePanel({ token, state }: { token: string; state: Match
   );
   return (
     <>
+      <StrictVotePanel token={token} state={state} send={send} disabled={disabled} />
       <DiscordWebhookPanel token={token} state={state} />
       <details>
         <summary>可选增强：Discord Bot 自动投票（需要额外安装权限）</summary>

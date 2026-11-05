@@ -7,6 +7,13 @@ const prettier = resolve(dirname(require.resolve('prettier/package.json')), 'bin
 // Adopt formatting incrementally: keep recognition/OBS changes readable without
 // rewriting generated hero catalogs, screenshots or unrelated legacy modules.
 const core = [
+  'server/strictVoting.ts',
+  'server/strictVoting.test.ts',
+  'src/control/StrictVotePanel.tsx',
+  'src/shared/PublicVote.tsx',
+  'src/shared/VoteCountdown.tsx',
+  'src/shared/strictVote.ts',
+  'e2e/strict-voting.spec.ts',
   '.prettierrc.json',
   'package.json',
   'eslint.config.js',

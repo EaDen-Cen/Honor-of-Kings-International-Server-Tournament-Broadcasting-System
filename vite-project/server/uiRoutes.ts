@@ -11,4 +11,4 @@ const htmlRoutes=new Set([
   '/overlay/audience-mvp','/overlay/postgame-carousel',
   '/tools/bp-simulator','/tools/bp-simulator-control',
 ]);
-export const isBroadcastPageRoute=(path:string)=>htmlRoutes.has(path);
+export const isBroadcastPageRoute=(path:string)=>htmlRoutes.has(path)||/^\/vote\/[a-f0-9-]{36}$/.test(path);

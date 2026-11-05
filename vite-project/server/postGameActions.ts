@@ -41,8 +41,17 @@ export function preparePostGameReport(state: MatchState, game: GameDraftRecord) 
 }
 
 /** Mutates only the staged state; Store owns authorization, undo and atomic persistence. */
-export function applyPostGameAction(state: MatchState, action: Action): boolean {
+export function applyPostGameAction(state: MatchState, action: Action, now = Date.now()): boolean {
   switch (action.type) {
+    case 'confirm_game_end': {
+      const report = state.postGameReports.find(r => r.id === action.reportId);
+      if (!report || report.id !== state.committedGameId || !['blue', 'red'].includes(action.winner))
+        throw Error('Confirm the current committed game / 请确认当前已提交的本局');
+      if (report.endedAt && report.winner !== action.winner) throw Error('Winner already confirmed / 胜方已确认');
+      report.endedAt ??= now;
+      report.winner = action.winner;
+      break;
+    }
     case 'post_game_begin': {
       const gameId = action.gameId ?? state.committedGameId ?? state.draftHistory.at(-1)?.id;
       const game = state.draftHistory.find((record) => record.id === gameId);
@@ -239,7 +248,9 @@ export function applyPostGameAction(state: MatchState, action: Action): boolean 
         player = report?.players.find((p) => p.rowId === action.rowId);
       if (!report || (action.rowId !== null && !player))
         throw new Error('MVP 选手无效 / Invalid MVP player');
-      state.activePostGameReportId = report.id;
+      if (action.expectedPlayerId !== undefined && player?.playerId !== action.expectedPlayerId)
+        throw Error('Candidate identity changed; verify the post-game roster first');
+      if (action.activate !== false) state.activePostGameReportId = report.id;
       report.selectedMvpRowId = player?.rowId ?? null;
       report.selectedMvpPlayerId = player?.playerId ?? null;
       break;
