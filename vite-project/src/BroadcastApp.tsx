@@ -379,7 +379,7 @@ export default function BroadcastApp() {
           obs: <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} />,
           hud: <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />,
           postgame: <div id="postgame-tools"><PostGameCarouselPanel token={token}/><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,
-          voting: <DiscordVotePanel token={token} state={state}/>,
+          voting: <DiscordVotePanel token={token} state={state} send={send} disabled={disabled}/>,
           settings: <IntegrationSettings token={token} zh={lang==='zh'}/>,
           recovery: <RecoveryPanel token={token} zh={state.language==='zh'} />,
           analysis: <><DraftHistory state={state} /><Analysis state={state} lang={lang} /></>,

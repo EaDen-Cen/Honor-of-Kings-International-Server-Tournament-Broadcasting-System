@@ -1,5 +1,7 @@
 # 文档总索引
 
+无 Bot 严格三分钟投票：[操作与部署](guides/discord-mvp-voting.md)、[验证与限制](validation/strict-mvp-voting.md)。
+
 最新分支关系、功能覆盖与完整验证见 [2026-11-05 最终集成记录](validation/final-integration-2026-11-05.md)。
 
 ## 可靠性重构开发链（2026-11-03，尚未发布）

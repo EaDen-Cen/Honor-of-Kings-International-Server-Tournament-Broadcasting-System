@@ -130,6 +130,15 @@ export class DiscordWebhook {
   async send(state: MatchState, input: Record<string, unknown>) {
     const preview = this.preview(state, input);
     if (input.previewHash !== preview.hash) throw Error('Match or preview changed; preview again');
+    return this.deliver(preview, input);
+  }
+  /** Internal, frozen vote notices share the same delivery journal and secret storage. */
+  async publish(id: string, content: string, confirmUncertain = false) {
+    if (!content || content.length > 2000) throw Error('Invalid announcement content');
+    await this.deliver({ content, hash: hash(content) }, { id, kind: 'strict-vote', confirmUncertain });
+    return this.snapshot().notices.find(notice => notice.id === id)!;
+  }
+  private async deliver(preview: { content: string; hash: string }, input: Record<string, unknown>) {
     if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/.test(input.id))
       throw Error('Invalid announcement ID');
     const url = this.storage.get<{ webhookUrl?: string }>('discord')?.webhookUrl;

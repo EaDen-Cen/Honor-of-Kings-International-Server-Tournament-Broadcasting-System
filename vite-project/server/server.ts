@@ -1,3 +1,4 @@
+import { StrictVoting } from './strictVoting.js';
 import { invalidateHudCache } from './hudOcrCache.js';
 import { evaluateHero } from './aiEvaluation.js';
 import { fuseHud, fusePlayers, fusePostGame } from './aiFusion.js';
@@ -111,6 +112,22 @@ try {
 } catch {
   webhookError = 'Webhook log unavailable; preserve and repair webhook-notices.json';
 }
+let strictVoting: StrictVoting | undefined;
+let strictVoteError = '';
+try {
+  if (!webhook) throw Error(webhookError);
+  strictVoting = new StrictVoting(resolve(dirname(dataFile), 'strict-votes.json'), webhook);
+} catch {
+  strictVoteError =
+    'Vote archive unavailable; preserve strict-votes.json / 投票存档不可用，请保留原文件';
+}
+const strictVoteTimer = setInterval(() => {
+  void strictVoting
+    ?.tick(store.data.state)
+    .catch(() => diagnostics.record('strict_vote_sync_failed'));
+}, 500);
+strictVoteTimer.unref();
+const voteRequests = new Map<string, { until: number; count: number }>();
 const savedObs = secureSettings.get<{ address: string; password: string }>('obs');
 let obsBridge = new ObsBridge(
   savedObs?.address || process.env.OBS_WS_URL,
@@ -167,6 +184,50 @@ const server = createServer(async (req, res) => {
   }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname.startsWith('/api/v1/public-votes/')) {
+      const peer = req.socket.remoteAddress || 'unknown',
+        now = Date.now();
+      for (const [key, value] of voteRequests) if (value.until <= now) voteRequests.delete(key);
+      const rate = voteRequests.get(peer) ?? { until: now + 60000, count: 0 };
+      if ((voteRequests.size >= 4096 && !voteRequests.has(peer)) || ++rate.count > 600) {
+        json(429, { error: 'Too many requests / 请求过于频繁' });
+        req.resume();
+        return;
+      }
+      voteRequests.set(peer, rate);
+      if (!strictVoting) {
+        json(503, { error: strictVoteError });
+        req.resume();
+        return;
+      }
+      const id = url.pathname.slice('/api/v1/public-votes/'.length);
+      if (!/^[a-f0-9-]{36}$/.test(id)) {
+        json(404, { error: 'Vote not found' });
+        req.resume();
+        return;
+      }
+      try {
+        if (req.method === 'GET') json(200, strictVoting.publicVote(id));
+        else if (req.method === 'POST') {
+          if (!req.headers['content-type']?.startsWith('application/json'))
+            throw Error('JSON required');
+          let body = '';
+          for await (const chunk of req) {
+            body += chunk;
+            if (body.length > 2048) throw Error('Request too large');
+          }
+          const input = JSON.parse(body);
+          strictVoting.cast(id, input?.voter, input?.rowId);
+          json(200, { accepted: true, ...strictVoting.publicVote(id) });
+        } else {
+          json(405, { error: 'GET or POST required' });
+          req.resume();
+        }
+      } catch (error) {
+        json(400, { error: error instanceof Error ? error.message : 'Vote failed' });
+      }
+      return;
+    }
     if (url.pathname === '/api/v1/recognition/gold-curve') {
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
@@ -395,6 +456,23 @@ const server = createServer(async (req, res) => {
           else if (url.pathname === '/api/v1/discord/webhook-send' && req.method === 'POST')
             json(200, await webhook.send(store.data.state, input));
           else json(405, { error: 'Unsupported Webhook operation' });
+          return;
+        }
+        if (url.pathname === '/api/v1/discord/strict-vote') {
+          if (!strictVoting) throw Error(strictVoteError);
+          if (req.method === 'PUT') strictVoting.configure(input);
+          else if (req.method === 'POST') {
+            if (input.action === 'start') strictVoting.start(store.data.state, input.reportId);
+            else if (input.action === 'end' || input.action === 'cancel')
+              strictVoting.finish(input.id, input.action === 'cancel');
+            else if (input.action === 'retry')
+              await strictVoting.retry(input.id, input.confirmUncertain === true);
+            else throw Error('Unknown vote command');
+          } else if (req.method !== 'GET') {
+            json(405, { error: 'GET, PUT or POST required' });
+            return;
+          }
+          json(200, strictVoting.snapshot(store.data.state));
           return;
         }
         if (!discord) throw Error(discordLoadError);
@@ -1743,6 +1821,7 @@ wss.on('connection', (ws, req) => {
       if (c.role !== 'control') throw new Error('当前页面仅供查看，无法修改比赛');
       if (message.type !== 'action') throw new Error('不支持此消息类型');
       store.apply(message.id, message.revision, message.action);
+      strictVoting?.observe(store.data.state);
       // Authoritative mutations supersede in-flight cloud interpretations.
       aiRecognition.invalidate();
       if (

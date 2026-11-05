@@ -82,6 +82,7 @@ function validateStores(archive:RecoveryArchive,stage:string){
     if(normalized.activePostGameReportId!==null&&!normalized.postGameReports.some(report=>report.id===normalized.activePostGameReportId))throw new Error('Invalid active report');
     for(const report of normalized.postGameReports){
       if(!report||typeof report.id!=='string'||report.players?.length!==10||new Set(report.players.map(player=>player.rowId)).size!==10||!['BO1','BO3','BO5'].includes(report.seriesFormat)||!Number.isInteger(report.gameNumber)||report.gameNumber<1||report.gameNumber>5||typeof report.stage!=='string')throw new Error('Invalid post-game report');
+      if (report.endedAt !== undefined && (!Number.isSafeInteger(report.endedAt) || report.endedAt < 0 || !['blue','red'].includes(report.winner!))) throw Error('Invalid game-end confirmation');
       // Run stored observations through the same validators as live updates. This
       // keeps imports compatible with every supported page and field constraint.
       const fieldVerifier=new Store();fieldVerifier.data.state.postGameReports=[structuredClone(report)];

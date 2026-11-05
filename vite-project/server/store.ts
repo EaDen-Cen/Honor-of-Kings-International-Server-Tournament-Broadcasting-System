@@ -230,7 +230,7 @@ export class Store {
     if (!action || typeof action !== 'object') throw new Error('操作无效');
     const next = copy(this.data);
     const state = next.state;
-    if (applyPostGameAction(state, action)) next.history.push(copy(this.data.state));
+    if (applyPostGameAction(state, action, this.clock())) next.history.push(copy(this.data.state));
     else switch (action.type) {
     case 'live_game_freeze': {
       if(!liveCaptureKeys.includes(action.key)||typeof action.frozen!=='boolean')throw new Error('Invalid HUD field');

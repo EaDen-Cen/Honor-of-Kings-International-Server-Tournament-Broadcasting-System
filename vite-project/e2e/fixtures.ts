@@ -1,11 +1,11 @@
 import { test as base } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
 
 export { expect } from '@playwright/test';
@@ -44,17 +44,30 @@ async function stopOwnedServer(child:ChildProcess,closed:Promise<void>) {
 // A new process and data directory isolate delayed caster events, access data,
 // uploads and team presets as well as settings. Product reset semantics stay intact.
 // Teardown only closes clients: resetting live state here can race automatic OCR.
-export const test=base.extend<{ isolatedServer:void }>({
-  isolatedServer:[async({baseURL},use)=>{
+export const test=base.extend<{ isolatedServer:void; mockDiscord:boolean }>({
+  mockDiscord: [false, { option: true }],
+  isolatedServer:[async({baseURL, mockDiscord},use)=>{
     if(baseURL!==`http://${host}:${port}`)throw new Error('E2E baseURL must point to its disposable local server.');
     await requireUnusedPort();
     await mkdir(join(project,'artifacts'),{recursive:true});
     const directory=await mkdtemp(join(project,'artifacts','e2e-'));
+    const mockPath = join(directory, 'mock-discord.mjs');
+    if (mockDiscord) await writeFile(mockPath, `
+      const originalFetch = globalThis.fetch;
+      let messages = 0;
+      globalThis.fetch = async (url, options) => {
+        if (String(url).startsWith('https://discord.com/api/webhooks/')) {
+          if (options.headers.Authorization) throw Error('Webhook must not use Bot authorization');
+          return new Response(JSON.stringify({ id: String(123456789012345678n + BigInt(++messages)) }));
+        }
+        return originalFetch(url, options);
+      };
+    `);
     const logPath=join(directory,'server.log');
     const log=openSync(logPath,'w');
     let child:ChildProcess;
     try{
-      child=spawn(process.execPath,['--import','tsx','server/server.ts'],{
+      child=spawn(process.execPath,['--import','tsx',...(mockDiscord ? ['--import',pathToFileURL(mockPath).href] : []),'server/server.ts'],{
         cwd:project,
         env:{...process.env,PORT:String(port),HOST:host,NODE_ENV:'development',HOK_CONFIG_KEY:randomBytes(32).toString('base64'),
           DATA_FILE:join(directory,'match.json'),UPLOAD_DIR:join(directory,'uploads','player-portraits'),

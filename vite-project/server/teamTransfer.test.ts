@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { createServer } from 'node:http';
+import { createServer, request } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -86,8 +86,19 @@ test('JPEG upload accepts valid progressive JPEG and stores a normalized decodab
     if (!addr || typeof addr==='string') throw new Error('Missing TCP port');
     const jpeg = await sharp({create:{width:1080,height:1080,channels:3,background:'#ffffff'}})
       .jpeg({progressive:true}).toBuffer();
-    const response = await fetch(`http://127.0.0.1:${addr.port}/upload`,{
-      method:'POST',headers:{'Content-Type':'image/jpeg','X-File-Name':encodeURIComponent('测试头像.jpeg')},body:jpeg,
+    // OS-assigned test ports can be on fetch's browser forbidden-port list.
+    const response = await new Promise<Response>((resolve, reject) => {
+      const upload = request(`http://127.0.0.1:${addr.port}/upload`, {
+        method:'POST', headers:{'Content-Type':'image/jpeg','X-File-Name':encodeURIComponent('测试头像.jpeg')},
+      }, incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: incoming.statusCode })));
+        incoming.on('error', reject);
+      });
+      upload.on('error', reject);
+      upload.setTimeout(10000, () => upload.destroy(new Error('Test upload timed out')));
+      upload.end(jpeg);
     });
     assert.equal(response.status,201);
     const data = await response.json() as {url:string};

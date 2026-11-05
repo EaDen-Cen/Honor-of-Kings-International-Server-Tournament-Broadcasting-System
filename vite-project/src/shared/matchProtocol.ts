@@ -33,6 +33,7 @@ const history = object({
   bluePlayerSlotOrder: optional(playerOrder), redPlayerSlotOrder: optional(playerOrder),
 });
 const report = object({
+  endedAt: optional(integer), winner: optional(side),
   id: text, gameNumber: integer, seriesFormat: choices('BO1', 'BO3', 'BO5'), stage: text,
   selectedMvpPlayerId: nullable(text), selectedMvpRowId: nullable(text),
   teamFields: optional(record(record(field))), goldTimeline: optional(timeline),goldDifference:optional(difference),mvpArtScale:optional(number),

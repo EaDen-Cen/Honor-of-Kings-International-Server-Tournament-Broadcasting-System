@@ -166,12 +166,13 @@ export type MatchSettings = Pick<
 >;
 
 export type Action =
+  | { type: 'confirm_game_end'; reportId:string; winner:Side }
   | { type: 'post_game_begin'; gameId?: string }
   | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}>; grades?:Array<{rowId:string;field:PostGameGradeField}> }
   | { type: 'post_game_grades'; reportId:string; updates:Array<{rowId:string;field:PostGameGradeField}> }
   | { type: 'post_game_mvp_art_scale'; reportId:string; scale:number }
   | { type: 'post_game_team_fields'; reportId:string; updates:Array<{side:Side;metric:PostGameTeamMetric;field:PostGameField}>; goldDifference?:GoldDifferenceTimeline }
-  | { type: 'select_mvp'; reportId:string; rowId:string|null }
+  | { type: 'select_mvp'; reportId:string; rowId:string|null; activate?:boolean; expectedPlayerId?:string }
   | { type: 'post_game_gold_timeline'; reportId:string; points:GoldTimelinePoint[] }
   | { type: 'live_game_stats'; stats: LiveGameStats }
   | { type: 'live_game_ocr'; context:string; previous:LiveHudSample; sample:LiveHudSample }
