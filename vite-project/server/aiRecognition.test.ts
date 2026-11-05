@@ -25,6 +25,27 @@ const local = () =>
   Promise.resolve({ preview: 'lock-evidence', candidates: [{ heroId: 7, confidence: 0.4 }] });
 afterEach(() => setAiConfig({ ...config, enabled: false, apiKey: '' }));
 
+test('connection tests share concurrency and rate limits with paid recognition', async () => {
+  let calls = 0;
+  let finish!: (value: Awaited<ReturnType<VisionTransport>>) => void;
+  const service = new AiRecognitionService(() => {
+    calls++;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  service.configure(config);
+  const first = service.testConnection();
+  const second = service.testConnection();
+  const secondRejected = assert.rejects(second, /busy|rate|cooldown/i);
+  assert.equal(calls, 1);
+  finish(reply('test'));
+  await first;
+  await secondRejected;
+  await assert.rejects(service.testConnection(), /busy|rate|cooldown/i);
+  assert.equal(calls, 1);
+});
+
 test('credentials never cross a provider/origin change and explicit empty clears them', () => {
   const service = new AiRecognitionService();
   assert.equal(service.configure(config).configured, true);

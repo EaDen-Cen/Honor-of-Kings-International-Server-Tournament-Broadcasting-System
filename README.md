@@ -1,5 +1,7 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
+> **2026-11-03 可靠性重构开发链（PR #100–#105，待合并/实机验收）**：已完成逐局报告隔离、锁定英雄人工纠错集成、核心赛后操作提取、真实预检、单字段空白遮挡保护、持久化 AI 预算及无需 Bot 的 Webhook 通知。main 和已发布版本没有被本任务直接替换。当前结论以 [完成度与验收清单](docs/validation/reliability-status.md)、[操作指南](docs/guides/operator-guide.md) 和 [CI 修复报告](docs/validation/ci-repair-report.md) 为准；下方按日期保留的历史说明不代表这些开发改动已经发布。
+
 > **2026-10-25 盾山补录（开发分支）**：国际服 10 月 21 日上线盾山，新增本地稳定英雄 ID 120（Roaming），添加本地图标并沿用国服盾山身份映射，不重排历史英雄。详见 [英雄名单](docs/research/hero-roster.md)。真实比赛中的 BP 头像识别/OBS 实测仍待验收。
 
 > **2026-10-25 开发分支（尚未实机验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](docs/guides/team-library-migration.md)。\n\n## 2026-10-23 综合升级（开发分支，真实服务联调待配置）
@@ -356,3 +358,5 @@ Control → 比赛设置 → AI 识别，可配置 OpenAI、Claude、Gemini 以�
 ### PR #91（已合并）：后台 AI 辅助、可停靠工作区与启动准备
 
 AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识别；Control 支持真实停靠、分割、标签组、预设和布局恢复。Windows 启动前默认校验/补齐全部已知高清立绘，准备独立密钥后可自动同步 Cloudflare 地址至现有 Sites 接口。见 [AI 指南](docs/guides/ai-recognition.md)、[工作区指南](docs/guides/dock-workspace.md)、[启动器指南](docs/guides/windows-launcher.md)、[本轮验证与限制](docs/validation/pr91-validation.md)。相关 AI / HUD 能力仍属于实验性功能；**代码已经合并 `main`，但不代表真实直播已验收**。Sites 网站端 API 不在此 PR 内，自动同步完成配对前可继续手动填写地址。
+
+本局分路与 BP 直接编辑正在独立分支开发。支持锁定头像纠错、最终英雄交换和选手临时换路，使用同一 Store 权威状态。操作方式见 [导播指南](docs/guides/operator-guide.md)，映射与兼容说明见 [本局阵容架构](docs/architecture/game-lineup.md)。

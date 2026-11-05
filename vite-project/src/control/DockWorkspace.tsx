@@ -75,6 +75,24 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
     }
   });
   const [small, setSmall] = useState(() => window.innerWidth <= 900);
+  const workspace = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const element = workspace.current;
+    if (!element) return;
+    const fit = () => {
+      const layout = element.querySelector<HTMLElement>('.dock-layout');
+      if (layout)
+        layout.style.height = `${Math.max(320, window.innerHeight - layout.getBoundingClientRect().top - 12)}px`;
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(element.parentElement!);
+    window.addEventListener('resize', fit);
+    fit();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  }, [small]);
   useEffect(() => {
     const media = window.matchMedia('(max-width: 900px)');
     const update = () => setSmall(media.matches);
@@ -152,7 +170,11 @@ export function DockWorkspace({ panels, zh }: { panels: Record<PanelId, ReactNod
     <DockSlot host={hosts[node.getComponent() as PanelId]} parking={parking} />
   );
   return (
-    <section className="dock-workspace" aria-label={zh ? '可停靠工作区' : 'Dockable workspace'}>
+    <section
+      ref={workspace}
+      className="dock-workspace"
+      aria-label={zh ? '可停靠工作区' : 'Dockable workspace'}
+    >
       <div className="dock-toolbar">
         <label>
           {zh ? '工作区' : 'Workspace'}{' '}

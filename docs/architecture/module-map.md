@@ -7,9 +7,11 @@
 | BP 识别 | `server/capture.ts`, `recognitionProvider.ts`, `src/control/ScreenInput.tsx` | 模板、槽位、锁定、连续采样；输出候选 |
 | 画面采集 | `sharedWindowCapture.ts`, `useGameDataCapture.ts`, `hudCapture.ts` | source generation、ROI、取消过期请求；窗口和静态截图分开 |
 | 局内数据 | `gameDataRecognition.ts`, `src/shared/liveGame.ts`, `LiveHudCapturePanel.tsx` | 多帧、计时递进、人工冻结；仍 Experimental |
-| 赛后 | `PostGamePanel.tsx`, `SettlementCapturePanel.tsx`, `postGame*.ts` | 报告 ID 绑定归档局；人工字段保护与证据；跨局 UI 草稿隔离 |
+| 赛后 | `server/postGameActions.ts`, `PostGamePanel.tsx`, `SettlementCapturePanel.tsx`, `postGame*.ts` | 报告 ID 绑定归档局；人工字段保护与证据；只操作 Store 的事务副本，不另存比赛状态 |
 | OBS | `obsBridge.ts`, `ObsDirectorPanel.tsx`, `postGameCarousel.ts` | 独立远程服务，必须读回确认；失败保留人工操作 |
-| Discord | `discordVoting.ts`, `DiscordVotePanel.tsx` | 当前以 Bot 原生投票为主；Webhook 尚不是完整独立工作流 |
+| Discord | `discordWebhook.ts`, `DiscordWebhookPanel.tsx`; 可选 `discordVoting.ts` | Webhook 独立预览/显式发送/投递记录；Bot 投票不作为前置条件；MVP 复用报告确认值 |
+| AI 费用 | `aiRecognition.ts`, `aiBudget.ts`, `AiBudgetSettings.tsx` | 每个实际请求前持久化预留每日预算；不拥有比赛状态；费用估算不是账单 |
+| 开播预检 | `StartupPreflight.tsx`, `PreflightStatus.tsx` | 复用只读健康/OBS/恢复接口，实际观测与人工勾选分开 |
 | 安全配置 | `secureSettings.ts`, `aiProfiles.ts` | Windows DPAPI / 非 Windows AES-GCM；不得导出密钥 |
 | 恢复 | `recovery.ts`, `teamTransfer.ts`, `teamPresets.ts` | 校验、校验和、原子替换、独占锁；与赛事状态分别备份 |
 | 操作台 | `BroadcastApp.tsx`, `DockWorkspace.tsx`, `workspaceLayout.ts` | 复用面板与预设；不重新实现布局框架 |

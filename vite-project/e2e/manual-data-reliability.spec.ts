@@ -58,10 +58,12 @@ test('backup controls recover from failures, reject broken exports and time out 
     await page.route('**/api/match-export',route=>route.fulfill({json:{format:'invalid',entries:[]}}));
     await page.goto('/control');await openDockPanel(page,'recovery');await page.getByText('Backup and recovery',{exact:true}).click();
     const panel=page.getByText('Backup and recovery',{exact:true}).locator('..');
+    await expect.poll(()=>calls).toBe(1);
+    const preflightCalls=calls; // The startup checklist independently reads backup status once.
     await panel.getByRole('button',{name:'Backup status',exact:true}).click();await expect(panel.getByRole('alert')).toHaveText('Storage temporarily unavailable');
-    mode='backup';await panel.getByRole('button',{name:'Back up now',exact:true}).evaluate(button=>{(button as HTMLButtonElement).click();(button as HTMLButtonElement).click();});await expect(panel.getByRole('status')).toHaveText('Backup saved.');expect(calls).toBe(2);
+    mode='backup';await panel.getByRole('button',{name:'Back up now',exact:true}).evaluate(button=>{(button as HTMLButtonElement).click();(button as HTMLButtonElement).click();});await expect(panel.getByRole('status')).toHaveText('Backup saved.');expect(calls-preflightCalls).toBe(2);
     mode='invalid-export';await panel.getByRole('button',{name:'Export match',exact:true}).click();await expect(panel.getByRole('alert')).toHaveText('The export is incomplete. Please retry.');
     mode='hang';await page.clock.install();await panel.getByRole('button',{name:'Backup status',exact:true}).click();await expect(panel.getByRole('button',{name:'Checking…',exact:true})).toBeDisabled();await expect(panel.getByRole('button',{name:'Back up now',exact:true})).toBeDisabled();
-    await expect.poll(()=>!!held).toBe(true);await page.clock.fastForward(30001);await expect(panel.getByRole('alert')).toContainText('Request timed out');await expect(panel.getByRole('button',{name:'Backup status',exact:true})).toBeEnabled();expect(calls).toBe(3);
+    await expect.poll(()=>!!held).toBe(true);await page.clock.fastForward(30001);await expect(panel.getByRole('alert')).toContainText('Request timed out');await expect(panel.getByRole('button',{name:'Backup status',exact:true})).toBeEnabled();expect(calls-preflightCalls).toBe(3);
   }finally{if(held)await held.abort().catch(()=>{});h.close();}
 });

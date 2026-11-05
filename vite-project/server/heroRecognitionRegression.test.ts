@@ -5,6 +5,20 @@ import {readFile} from 'node:fs/promises';
 import heroes from '../src/components/HeroList.js';
 import {recognizeImage,recognizeClientFrame} from './capture.js';
 
+test('synthetic Flowborn forms and Lady Sun remain distinct under compression and tint', async () => {
+  const group = heroes.filter(hero => hero.variantGroup === 'flowborn' || hero.englishName === 'Lady Sun');
+  assert.equal(group.length, 6);
+  for (const hero of group) {
+    const source = await readFile(new URL(`../public${hero.recognitionImageLink || hero.imageLink}`, import.meta.url));
+    for (const shape of ['square', 'circle'] as const) {
+      const frame = await sharp(source).resize(64, 64).modulate({ brightness: .8, saturation: .85 }).jpeg({ quality: 60 }).toBuffer();
+      const result = await recognizeImage(frame, undefined, shape);
+      assert.equal(result[0]?.heroId, hero.id, `${hero.englishName} ${shape}`);
+      assert.ok(result[0].confidence - (result[1]?.confidence || 0) >= .06, `${hero.englishName} has ambiguous templates`);
+    }
+  }
+});
+
 // Zoom, tint, compression and an overlaid Ban lock are absent from the clean
 // self-template test. Exercise each reported hero and its mistaken counterpart.
 test('zoomed compressed Ban portraits retain identity with lock artwork excluded',async()=>{

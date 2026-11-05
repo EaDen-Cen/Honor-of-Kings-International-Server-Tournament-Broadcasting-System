@@ -29,7 +29,7 @@
 .dock-layout {
   position: relative;
   height: calc(100vh - 340px);
-  min-height: 620px;
+  min-height: 320px;
   border: 1px solid #34445f;
   border-radius: 6px;
   overflow: hidden;
@@ -64,6 +64,46 @@
 .dock-panel .control-hero-picker {
   position: static;
   max-height: none;
+}
+.dock-layout #draft-workspace {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.dock-layout #draft-workspace > .control-hero-picker {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+@media (min-width: 901px) {
+  .workspace.control-workspace {
+    padding: 12px;
+  }
+  .control-workspace .topbar {
+    padding: 8px 14px;
+    margin-bottom: 10px;
+  }
+  .control-workspace .operator-guide {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  .control-workspace .operator-guide p {
+    margin: 6px 0;
+  }
+  .control-workspace .preflight-checklist {
+    padding: 6px;
+    margin-bottom: 8px;
+  }
+  .dock-toolbar label {
+    flex-direction: row;
+  }
+  .dock-layout .control-hero-picker .current-phase {
+    margin-bottom: 6px;
+  }
+  .dock-layout .control-hero-picker .current-phase h2 {
+    font-size: 18px;
+    margin: 0;
+  }
 }
 .dock-panel .control-monitor {
   position: static;
@@ -316,6 +356,33 @@
 .discord-vote-panel > a {
   display: block;
   margin: 14px 0 8px;
+}
+@media (min-width: 901px) {
+  .workspace.control-workspace .topbar {
+    padding: 6px 12px;
+  }
+  .workspace.control-workspace .topbar h1 {
+    font-size: 24px;
+  }
+  .dock-layout #draft-workspace > details.panel {
+    margin: 0;
+    padding: 8px;
+    flex: none;
+  }
+  .dock-layout .control-hero-picker.panel {
+    padding: 10px;
+  }
+  .dock-layout .control-hero-picker .record-feedback {
+    height: 18px;
+    padding-top: 2px;
+  }
+  .dock-layout .control-hero-picker .empty-ban-control {
+    margin: 4px 0;
+    padding: 6px;
+  }
+  .dock-layout .control-hero-picker .quick-input-hint {
+    margin-top: 3px;
+  }
 }
 .postgame-carousel-panel p {
   line-height: 1.55;

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { allPoolHeroes } from '../src/shared/heroPool.js';
 import { publicAiAddress, visionTransport, type VisionTransport } from './aiTransport.js';
+import type { AiBudget } from './aiBudget.js';
 export type AiVendor =
   | 'openai'
   | 'anthropic'
@@ -61,19 +62,49 @@ export class AiRecognitionService {
     apiKey: '',
   };
   private backup?: Settings;
+  private budget?: AiBudget;
+  setBudget(budget: AiBudget) {
+    this.budget = budget;
+  }
   savedConfig() {
     return { ...this.settings };
   }
   async testConnection() {
     if (!this.settings.apiKey || !this.settings.model)
       throw Error('AI credentials or model missing');
-    const result = await this.ask(
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-      'Describe this test image in one word.',
-      AbortSignal.timeout(5000),
-    );
-    if (!result) throw Error('AI returned no usable response');
-    return { ok: true };
+    if (this.active || this.now() < this.cooldownUntil || this.now() - this.lastDispatch < 1200)
+      throw Error('AI busy, rate limit or cooldown; retry later');
+    const job = {
+      controller: new AbortController(),
+      epoch: this.epoch,
+      scope: 'connection-test',
+      key: 'connection-test',
+    };
+    this.active = job;
+    this.lastDispatch = this.now();
+    this.stats.dispatched++;
+    const timer = setTimeout(() => job.controller.abort(), 5000);
+    try {
+      const result = await Promise.race([
+        this.ask(
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          'Describe this test image in one word.',
+          job.controller.signal,
+        ),
+        new Promise<undefined>((resolve) =>
+          job.controller.signal.addEventListener('abort', () => resolve(undefined), { once: true }),
+        ),
+      ]);
+      if (!result) throw Error('AI returned no usable response');
+      this.stats.completed++;
+      return { ok: true };
+    } catch (error) {
+      this.stats.failed++;
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      if (this.active === job) this.active = undefined;
+    }
   }
   configureBackup(input: unknown) {
     if (!input) {
@@ -89,7 +120,18 @@ export class AiRecognitionService {
   private lastDispatch = -Infinity;
   private cooldownUntil = 0;
   private cache = new Map<string, { until: number; raw: string }>();
-  private stats = { dispatched: 0, hits: 0, skipped: 0, failed: 0, cancelled: 0, completed: 0 };
+  private stats = {
+    dispatched: 0,
+    requests: 0,
+    imageBytes: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    hits: 0,
+    skipped: 0,
+    failed: 0,
+    cancelled: 0,
+    completed: 0,
+  };
   constructor(
     private transport: VisionTransport = visionTransport,
     private now = Date.now,
@@ -215,7 +257,33 @@ export class AiRecognitionService {
         ],
       };
     }
+    if (signal.aborted) return;
+    const imageBytes = Buffer.from(data, 'base64').length;
+    this.budget?.reserve(imageBytes);
+    this.stats.requests++;
+    this.stats.imageBytes += imageBytes;
     const response = await this.transport(target, headers, body, signal);
+    const usage = response.data as {
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        input_tokens?: number;
+        output_tokens?: number;
+      };
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    };
+    const inputTokens =
+      usage?.usage?.prompt_tokens ??
+      usage?.usage?.input_tokens ??
+      usage?.usageMetadata?.promptTokenCount;
+    const outputTokens =
+      usage?.usage?.completion_tokens ??
+      usage?.usage?.output_tokens ??
+      usage?.usageMetadata?.candidatesTokenCount;
+    if (Number.isSafeInteger(inputTokens) && inputTokens! >= 0)
+      this.stats.inputTokens += inputTokens!;
+    if (Number.isSafeInteger(outputTokens) && outputTokens! >= 0)
+      this.stats.outputTokens += outputTokens!;
     if (signal.aborted || requestEpoch !== this.epoch) return;
     if (response.status === 429 || response.status >= 500) this.cooldownUntil = this.now() + 10_000;
     if (response.status < 200 || response.status >= 300) throw Error('AI request failed');

@@ -69,14 +69,18 @@ test('director can scale the GHUD width while OBS stays 1920×1080 and setting p
     const slider=page.getByRole('slider',{name:'HUD width'});
     await expect(slider).toHaveValue('80');
     await expect(page.getByText('HUD width · 80% (1536px)')).toBeVisible();
+    await slider.scrollIntoViewIfNeeded();
     await slider.focus();
+    await expect(slider).toBeFocused();
     await slider.press('Home');
     await expect.poll(()=>h.state().liveGameStats.widthPercent).toBe(50);
     await page.getByRole('button',{name:'Reset to 65%'}).click();
     await expect.poll(()=>h.state().liveGameStats.widthPercent).toBe(65);
     const heightSlider=page.getByRole('slider',{name:'HUD height'});
     await expect(heightSlider).toHaveValue('132');
+    await heightSlider.scrollIntoViewIfNeeded();
     await heightSlider.focus();
+    await expect(heightSlider).toBeFocused();
     await heightSlider.press('Home');
     await expect.poll(()=>h.state().liveGameStats.heightPx).toBe(64);
     await page.getByRole('button',{name:'Reset height to 132px'}).click();

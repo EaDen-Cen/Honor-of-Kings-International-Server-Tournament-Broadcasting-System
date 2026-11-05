@@ -3,10 +3,10 @@ import {reliableField,type PostGameMetric,type PostGamePlayer,type PostGameRepor
 
 export const playerRoleLabel=(role:PlayerRole,zh:boolean)=>({clash:['对抗路','Clash'],jungle:['打野','Jungle'],mid:['中路','Mid'],farm:['发育路','Farm'],roam:['游走','Roam']}[role][zh?0:1]);
 
-/** Resolve roster identity, never the screen row or P1–P5's default lane. */
+/** Report identity is the game snapshot, including historical role corrections. */
 export function postGamePlayerIdentity(state:MatchState,player:PostGamePlayer):PostGamePlayer {
   const team=[state.blueTeam,state.redTeam].find(team=>player.rowId===`${team.id}:${player.rosterIndex}`&&team.players[player.rosterIndex]===player.playerId);
-  return team?{...player,role:team.playerRoles[player.rosterIndex]??player.role,portrait:team.playerPortraits[player.rosterIndex]??player.portrait}:player;
+  return team?{...player,portrait:team.playerPortraits[player.rosterIndex]??player.portrait}:player;
 }
 export const mvpPrimaryMetrics:Record<PlayerRole,readonly PostGameMetric[]>={
   clash:['damageTaken','participation','totalDamage'],

@@ -8,7 +8,7 @@ export const panelNames = {
   postgame: ['赛后数据', 'Post-game'],
   recovery: ['备份与恢复', 'Backup & recovery'],
   analysis: ['英雄与历史', 'Heroes & history'],
-  voting: ['MVP 投票', 'MVP voting'],
+  voting: ['Discord 通知 / 投票', 'Discord notices / voting'],
   settings: ['设置中心', 'Settings'],
 } as const;
 export type PanelId = keyof typeof panelNames;
