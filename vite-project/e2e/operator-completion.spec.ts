@@ -35,6 +35,7 @@ test('emergency bypass retains failed observations across sessions and never mar
   try {
     await h.send({ type: 'settings', settings: { ...h.state(), language: 'eng' } });
     await page.goto('/control#token=e2e-control');
+    await openDockPanel(page, 'preparation');
     const checklist = page.getByLabel('Broadcast startup checklist', { exact: true });
     await checklist.locator(':scope > summary').click();
     await expect(checklist.locator('[data-check="Node"]')).toHaveAttribute('data-passed', 'true');

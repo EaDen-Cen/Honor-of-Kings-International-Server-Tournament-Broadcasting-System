@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 
@@ -13,6 +14,7 @@ test('operator guide follows the actual draft and exposes reachable workspaces o
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/control#token=e2e-control');
     await expect(page.locator('.status')).toHaveText('已连接');
+    await openDockPanel(page, 'preparation');
     const guide = page.getByRole('region', { name: '导播操作指引' });
     await expect(guide.locator('[aria-current="step"]')).toContainText('赛前准备');
     await guide.getByRole('link', { name: '比分与下一局' }).click();
@@ -90,6 +92,7 @@ test('guide follows lineup, commit and next-game transitions in both languages',
     await match.send({ type: 'next_game' });
     await expect(page.locator('.operator-guide [aria-current="step"]')).toContainText('赛前准备');
     await match.send({ type: 'settings', settings: { ...match.state(), language: 'eng' } });
+    await openDockPanel(page, 'preparation');
     await expect(page.getByRole('region', { name: 'Operator guide' })).toContainText('Preparation');
     await page.screenshot({ path: 'artifacts/operator-guide-desktop.png' });
   } finally { match.close(); }

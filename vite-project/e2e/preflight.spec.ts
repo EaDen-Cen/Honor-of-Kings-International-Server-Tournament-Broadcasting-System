@@ -1,3 +1,4 @@
+import { openDockPanel } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 
@@ -16,6 +17,7 @@ test('manual confirmation never turns unavailable OBS or disk checks into a pass
   try {
     await h.send({ type: 'settings', settings: { ...h.state(), language: 'eng' } });
     await page.goto('/control#token=e2e-control');
+    await openDockPanel(page, 'preparation');
     const checklist = page.getByLabel('Broadcast startup checklist', { exact: true });
     await checklist.locator(':scope > summary').click();
     const status = checklist.getByRole('region', { name: 'Automatic preflight status' });

@@ -1,3 +1,4 @@
+import { openWindowMenu } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
@@ -33,6 +34,7 @@ test('active capture survives docking presets, dragging and responsive reparenti
     await page.getByRole('button', { name: 'Choose game window', exact: true }).click();
     const connected = page.locator('.screen-input .window-capture-status');
     await expect(connected).toHaveClass(/connected/);
+    await openWindowMenu(page);
     for (const preset of ['live', 'postgame', 'bp', 'default']) {
       await page.getByLabel('Workspace preset', { exact: true }).selectOption(preset);
     }
@@ -43,6 +45,7 @@ test('active capture survives docking presets, dragging and responsive reparenti
     await page.setViewportSize({ width: 760, height: 1000 });
     await expect(connected).toHaveClass(/connected/);
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await openWindowMenu(page);
     await page.getByRole('button', { name: 'Restore default', exact: true }).click();
     await expect(connected).toHaveClass(/connected/);
     expect(

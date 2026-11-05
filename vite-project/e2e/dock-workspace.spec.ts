@@ -1,3 +1,4 @@
+import { openWindowMenu } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
@@ -12,6 +13,7 @@ test('dock presets, saved layout and drag preserve mounted business state', asyn
     const search = page.getByRole('textbox', { name: 'Search heroes' });
     await search.fill('test-draft');
     await search.evaluate((el) => el.setAttribute('data-lifetime-probe', 'same-node'));
+    await openWindowMenu(page);
     for (const preset of ['live', 'postgame', 'bp', 'default'])
       await page.getByLabel('Workspace preset', { exact: true }).selectOption(preset);
     await expect(search).toHaveValue('test-draft');
@@ -34,6 +36,7 @@ test('dock presets, saved layout and drag preserve mounted business state', asyn
       .not.toBe(before);
     await expect(search).toHaveValue('test-draft');
     await expect(search).toHaveAttribute('data-lifetime-probe', 'same-node');
+    await openWindowMenu(page);
     await page.getByRole('button', { name: 'Restore default', exact: true }).click();
     await page.getByLabel('Workspace preset', { exact: true }).selectOption('saved:My broadcast');
     await page.reload();

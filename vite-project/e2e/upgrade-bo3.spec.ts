@@ -1,3 +1,4 @@
+import { openWindowMenu } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 import { openDockPanel } from './dockNavigation';
@@ -99,6 +100,7 @@ test('BO3 rehearsal recommends game before commit and rotates six verified postg
     expect(h.state().draftHistory).toHaveLength(3);
     expect(h.state().blueScore).toBe(2);
     expect(h.state().redScore).toBe(1);
+    await openWindowMenu(page);
     await page.getByLabel('Workspace preset', { exact: true }).selectOption('postgame');
     await page.screenshot({ path: 'artifacts/upgrade-postgame-1440.png', fullPage: true });
     await openDockPanel(page, 'settings');
