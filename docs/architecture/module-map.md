@@ -7,7 +7,7 @@
 | BP 识别 | `server/capture.ts`, `recognitionProvider.ts`, `src/control/ScreenInput.tsx` | 模板、槽位、锁定、连续采样；输出候选 |
 | 画面采集 | `sharedWindowCapture.ts`, `useGameDataCapture.ts`, `hudCapture.ts` | source generation、ROI、取消过期请求；窗口和静态截图分开 |
 | 局内数据 | `gameDataRecognition.ts`, `src/shared/liveGame.ts`, `LiveHudCapturePanel.tsx` | 多帧、计时递进、人工冻结；仍 Experimental |
-| 赛后 | `PostGamePanel.tsx`, `SettlementCapturePanel.tsx`, `postGame*.ts` | 报告 ID 绑定归档局；人工字段保护与证据；跨局 UI 草稿隔离 |
+| 赛后 | `server/postGameActions.ts`, `PostGamePanel.tsx`, `SettlementCapturePanel.tsx`, `postGame*.ts` | 报告 ID 绑定归档局；人工字段保护与证据；只操作 Store 的事务副本，不另存比赛状态 |
 | OBS | `obsBridge.ts`, `ObsDirectorPanel.tsx`, `postGameCarousel.ts` | 独立远程服务，必须读回确认；失败保留人工操作 |
 | Discord | `discordVoting.ts`, `DiscordVotePanel.tsx` | 当前以 Bot 原生投票为主；Webhook 尚不是完整独立工作流 |
 | 安全配置 | `secureSettings.ts`, `aiProfiles.ts` | Windows DPAPI / 非 Windows AES-GCM；不得导出密钥 |
