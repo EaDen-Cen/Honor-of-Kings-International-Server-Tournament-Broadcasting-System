@@ -1,8 +1,10 @@
 # HOK Broadcast 项目里程碑
 
-## 2026-11-03 可靠性开发链（待合并，不宣称已发布）
+## 2026-11-05 · #99–#108 最终集成
 
-PR #100–#105 提供基线审计、BO3/BO5 报告隔离、#99 纠错整合、赛后核心边界提取、真实预检、逐字段空白遮挡保护、AI 预算和 Webhook 独立通知。真实复杂遮挡/元流之子误判样本、OBS/平板/Discord 联调、耐久赛前审计与重赛/无效局流程仍有待验收或待实现部分。详见 [当前完成度](docs/validation/reliability-status.md)，不要把按钮存在或自动测试通过当作实机完成。
+本分支汇总可靠性修复、逐局报告隔离、真实预检、Webhook-only、AI 预算、圆形头像性能优化、BP 直接纠错及本局实际阵容。核对时 main 为 e19717d，包含 #99/#100；#101–#108 已合并到各自链式基分支，功能链末端为 727d443。最终集成从 main 建立分支并正常 merge，保留两端提交历史，待最终 PR 审查。
+
+完整测试结果及各 PR 实际合并目标见 [最终集成记录](docs/validation/final-integration-2026-11-05.md)。正式发布、真实 OBS 音视频、实体平板、复杂遮挡和元流之子比赛样本仍需另行验收。以下较早日期段落保留当时记录。
 
 > **状态核对（2026-10-21）**：PR #67–#91 的相关变更均已合并 `main`；GitHub 已发布的 `v1.0.0-rc.1` 仍是 2026-10-10 的旧候选版，不包含其后提交。以下将**已合并的软件功能**和**未完成的真实 HOK / OBS / Sites 实机验收**分开记录；历史段落中的原型或旧界面应以较新 PR 为准。最新证据见 [PR #90](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/90)、[PR #91](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/91) 和 [PR #91 验证记录](docs/validation/pr91-validation.md)。
 

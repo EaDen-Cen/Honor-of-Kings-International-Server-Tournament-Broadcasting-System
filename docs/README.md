@@ -1,5 +1,7 @@
 # 文档总索引
 
+最新分支关系、功能覆盖与完整验证见 [2026-11-05 最终集成记录](validation/final-integration-2026-11-05.md)。
+
 ## 可靠性重构开发链（2026-11-03，尚未发布）
 
 - 现场操作：[完整比赛操作](guides/operator-guide.md)、[AI 费用保护](guides/ai-recognition.md)、[Webhook 优先 / 可选 Bot](guides/discord-mvp-voting.md)。

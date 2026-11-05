@@ -1,5 +1,7 @@
 # CI 修复与验证记录
 
+2026-11-05 最终集成的完整本机结果及分支关系见 [最终集成记录](final-integration-2026-11-05.md)。以下为此前分阶段 CI 修复历史。
+
 原始 Broadcast 工作流 41163028740 的浏览器测试通过 90 项、失败 9 项。修复涉及 Linux 测试密钥、窗口布局、操作入口、HUD 采样同步及赛后报告隔离。英雄同步验证另修正了资源内容哈希路径和清单。
 
 阶段一提交 6b18b8e 的 [Broadcast 验证](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions/runs/41774514759) 通过 Linux 验证与 Windows 启动检查，英雄资源 PR 验证 41774514738 也已通过。
