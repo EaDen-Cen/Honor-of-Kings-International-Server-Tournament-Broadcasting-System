@@ -46,6 +46,7 @@ import { Store } from './store.js';
 import { ObsBridge } from './obsBridge.js';
 import { SecureSettings } from './secureSettings.js';
 import { AiProfiles } from './aiProfiles.js';
+import { AiBudget } from './aiBudget.js';
 import { DiscordVoting } from './discordVoting.js';
 import { PostGameCarousel } from './postGameCarousel.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
@@ -100,6 +101,8 @@ const uploadDirectory = resolve(
 const diagnostics = new Diagnostics(resolve(dirname(dataFile), 'logs'));
 const secureSettings = new SecureSettings(resolve(dirname(dataFile), 'secure-settings.json'));
 const aiProfiles = new AiProfiles(secureSettings);
+const aiBudget = new AiBudget(resolve(dirname(dataFile), 'ai-budget.json'));
+aiRecognition.setBudget(aiBudget);
 const savedObs = secureSettings.get<{ address: string; password: string }>('obs');
 let obsBridge = new ObsBridge(
   savedObs?.address || process.env.OBS_WS_URL,
@@ -258,7 +261,8 @@ const server = createServer(async (req, res) => {
       url.pathname === '/api/v1/obs/config' ||
       url.pathname === '/api/v1/operator-preferences' ||
       url.pathname.startsWith('/api/v1/ai-recognition/profiles') ||
-      url.pathname === '/api/v1/ai-recognition/test'
+      url.pathname === '/api/v1/ai-recognition/test' ||
+      url.pathname === '/api/v1/ai-recognition/budget'
     ) {
       if (
         roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
@@ -279,6 +283,17 @@ const server = createServer(async (req, res) => {
         const input = body ? JSON.parse(body) : {};
         if (!input || typeof input !== 'object' || Array.isArray(input))
           throw Error('Invalid input');
+        if (url.pathname === '/api/v1/ai-recognition/budget') {
+          if (req.method === 'GET')
+            json(200, {
+              ...aiBudget.snapshot(),
+              diagnostics: aiRecognition.diagnostics(),
+              model: aiRecognition.publicConfig().model,
+            });
+          else if (req.method === 'PUT') json(200, aiBudget.configure(input));
+          else json(405, { error: 'GET or PUT required' });
+          return;
+        }
         if (url.pathname === '/api/v1/operator-preferences') {
           if (req.method === 'GET') {
             json(200, secureSettings.get('preferences') ?? {});

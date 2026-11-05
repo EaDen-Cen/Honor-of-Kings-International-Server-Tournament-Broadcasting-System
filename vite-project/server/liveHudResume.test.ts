@@ -2,10 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Store} from './store.js';
-import {liveGameContext,type LiveHudSample} from '../src/shared/liveGame.js';
+import {liveGameContext,liveFieldHealth,type LiveHudSample} from '../src/shared/liveGame.js';
 import {liveCaptureKeys} from '../src/shared/gameCapture.js';
 
 const sample=(capturedAt:number,time:number,kills:number,gold:number):LiveHudSample=>({capturedAt,profile:'same calibrated source',candidates:liveCaptureKeys.map(key=>({key,value:key==='gameTimeSeconds'?time:key.endsWith('Gold')?gold:key.endsWith('Kills')?kills:0,confidence:.96,text:''}))});
+test('field health preserves manual authority and marks lost or expired OCR without changing values', () => {
+  const source = { source: 'ocr' as const, capturedAt: 1000, confidence: .96 };
+  assert.equal(liveFieldHealth(source, 16000, false), 'automatic');
+  assert.equal(liveFieldHealth(source, 16001, false), 'stale');
+  assert.equal(liveFieldHealth(source, 999, false), 'stale');
+  assert.equal(liveFieldHealth(source, 2000, true), 'capture-failed');
+  assert.equal(liveFieldHealth({ ...source, source: 'manual' }, 99999, true), 'manual');
+  assert.equal(liveFieldHealth(undefined, 2000, false), 'unverified');
+});
 test('two fresh HUD reads recover after a capture interruption while protecting manual fields and plausible trends',()=>{
   let now=100000;
   const store=new Store(undefined,()=>now),context=liveGameContext(store.data.state);
