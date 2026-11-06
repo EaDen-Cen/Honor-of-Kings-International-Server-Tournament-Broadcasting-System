@@ -55,7 +55,10 @@ export function GameHud({ state }: { state: MatchState }) {
     );
   };
   const cell = (side: Side, kind: string, value: string | number, label: string) => (
-    <div className={`game-hud-cell ${side}`} data-testid={`game-hud-${side}-${kind}`}>
+    <div
+      className={`game-hud-cell game-hud-${kind} ${side}`}
+      data-testid={`game-hud-${side}-${kind}`}
+    >
       <span className="game-hud-cell-value">{value}</span>
       <small>{label}</small>
     </div>
@@ -91,22 +94,22 @@ export function GameHud({ state }: { state: MatchState }) {
     <div className={`game-hud ${stats.density}`} data-testid="game-hud">
       <div className="game-hud-scoreboard" style={ribbonStyle} data-testid="game-hud-ribbon">
         <header className="game-hud-main" data-testid="game-hud-single-row">
+          {score('blue')}
           {team('blue')}
           {objectiveCount('blue')}
           {towers('blue')}
           {economy('blue')}
           {kills('blue')}
-          {score('blue')}
           <div className="game-hud-time" data-testid="game-hud-clock">
             <strong className="game-hud-clock">{time}</strong>
             <small>{zh ? '游戏时间' : 'GAME TIME'}</small>
           </div>
-          {score('red')}
           {kills('red')}
           {economy('red')}
           {towers('red')}
           {objectiveCount('red')}
           {team('red')}
+          {score('red')}
         </header>
         {stats.density === 'full' && (
           <div className="game-hud-objective-status" data-testid="game-hud-objective-status">

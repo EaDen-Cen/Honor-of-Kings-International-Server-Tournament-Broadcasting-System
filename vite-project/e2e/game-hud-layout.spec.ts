@@ -24,6 +24,10 @@ test('GHUD is a transparent KPL-inspired top ribbon and never masks the minimap 
     await expect(hud.getByTestId('game-hud-blue-gold')).toContainText('15.3k');
     await expect(hud.getByTestId('game-hud-red-gold')).toContainText('14.1k');
     await expect(hud.getByTestId('game-hud-single-row').locator(':scope > *')).toHaveCount(13);
+    expect(await hud.getByTestId('game-hud-single-row').locator(':scope > *').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-testid')))).toEqual([
+      'game-hud-blue-score','game-hud-blue-team','game-hud-blue-objectives','game-hud-blue-towers','game-hud-blue-gold','game-hud-blue-kills','game-hud-clock',
+      'game-hud-red-kills','game-hud-red-gold','game-hud-red-towers','game-hud-red-objectives','game-hud-red-team','game-hud-red-score',
+    ]);
     await expect(hud.locator('.game-hud-rosters')).toHaveCount(0);
     await expect(hud.locator('[class*="opaque"],.game-hud-map-cover,.game-hud-lineup')).toHaveCount(0);
     const geometry=await hud.evaluate(node=>{
@@ -39,6 +43,7 @@ test('GHUD is a transparent KPL-inspired top ribbon and never masks the minimap 
     await expect(hud.locator('.game-hud-rosters')).toHaveCount(0);
     const height=await hud.locator('.game-hud-scoreboard').evaluate(node=>node.getBoundingClientRect().height);
     expect(height).toBeLessThanOrEqual(133);
+    await hud.getByTestId('game-hud-ribbon').screenshot({path:'artifacts/ghud-layout-final.png',omitBackground:true});
   }finally{h.close();}
 });
 
