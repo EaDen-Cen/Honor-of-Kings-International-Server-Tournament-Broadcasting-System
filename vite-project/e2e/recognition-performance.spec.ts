@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures';
 import { harness } from './harness';
+import { openDockPanel } from './dockNavigation';
 import { initialState, phases } from '../src/shared/types';
 import heroes from '../src/components/HeroList';
 import { broadcastArtwork } from '../src/shared/broadcastArtwork';
@@ -12,9 +13,11 @@ test('workspace links open nested HUD tools and the OBS workspace without losing
   try {
     await h.send({ type: 'settings', settings: { ...initialState(), language: 'eng' } });
     await page.goto('/control');
+    await openDockPanel(page, 'help');
     await page.getByRole('link', { name: 'Live capture & HUD', exact: true }).click();
     await expect(page.locator('#live-hud-workspace')).toHaveAttribute('open', '');
     await expect(page.getByRole('button', { name: 'Sample GHUD', exact: true })).toBeVisible();
+    await openDockPanel(page, 'help');
     await page.getByRole('link', { name: 'OBS scenes & audio', exact: true }).click();
     await expect(page.locator('#obs-workspace')).toHaveAttribute('open', '');
   } finally {

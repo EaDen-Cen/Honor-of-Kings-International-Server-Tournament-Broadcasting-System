@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { currentGame } from '../shared/draftRules';
 import { PreflightStatus, type Check } from './PreflightStatus';
@@ -62,10 +62,12 @@ export function StartupPreflight({
   state,
   token,
   connected,
+  onSummary,
 }: {
   state: MatchState;
   token: string;
   connected: boolean;
+  onSummary?: (value: string) => void;
 }) {
   const zh = state.language === 'zh';
   const game = currentGame(state);
@@ -100,6 +102,8 @@ export function StartupPreflight({
         'Check OBS scenes, Browser Source content, audio, recording and actual disk space',
         'Check backup, overlays and remote connectivity',
       ];
+  const outstanding = labels.filter((_, i) => !(progress.flags & (1 << i))).length + warnings;
+  useEffect(() => { onSummary?.(`${outstanding}${zh ? ' 项待检查' : ' checks pending'}${progress.bypassed ? (zh ? ' · 已跳过/未验证' : ' · bypassed/unverified') : ''}`); }, [outstanding, progress.bypassed, zh, onSummary]);
   const change = (next: Progress) => {
     const updated = {
       ...saved,

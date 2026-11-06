@@ -1,5 +1,7 @@
 import { Model, type IJsonModel, type IJsonTabSetNode } from 'flexlayout-react';
 export const panelNames = {
+  preparation: ['赛前准备', 'Preparation'],
+  help: ['操作指南与诊断', 'Guide & diagnostics'],
   monitor: ['比赛控制 / BP 预览', 'Match / BP preview'],
   draft: ['BP 与识别', 'Draft & recognition'],
   players: ['玩家管理', 'Players'],
@@ -30,6 +32,8 @@ export function presetLayout(preset: Preset): IJsonModel {
     'settings',
     'recovery',
     'analysis',
+    'preparation',
+    'help',
   ];
   return {
     global: {
@@ -52,7 +56,15 @@ export function presetLayout(preset: Preset): IJsonModel {
                 type: 'row',
                 children: [
                   group('right', ['monitor', 'draft', 'players', 'hud']),
-                  group('lower', ['voting', 'postgame', 'settings', 'recovery', 'analysis']),
+                  group('lower', [
+                    'voting',
+                    'postgame',
+                    'settings',
+                    'recovery',
+                    'analysis',
+                    'preparation',
+                    'help',
+                  ]),
                 ],
               },
             ]
@@ -63,7 +75,14 @@ export function presetLayout(preset: Preset): IJsonModel {
                   type: 'row',
                   children: [
                     group('right', ['obs', 'voting', 'settings', 'recovery']),
-                    group('lower', ['monitor', 'draft', 'players', 'analysis']),
+                    group('lower', [
+                      'monitor',
+                      'draft',
+                      'players',
+                      'analysis',
+                      'preparation',
+                      'help',
+                    ]),
                   ],
                 },
               ]
@@ -74,7 +93,14 @@ export function presetLayout(preset: Preset): IJsonModel {
                     type: 'row',
                     children: [
                       group('right', ['voting', 'obs', 'settings', 'recovery']),
-                      group('lower', ['analysis', 'monitor', 'draft', 'players']),
+                      group('lower', [
+                        'analysis',
+                        'monitor',
+                        'draft',
+                        'players',
+                        'preparation',
+                        'help',
+                      ]),
                     ],
                   },
                 ]

@@ -1,3 +1,4 @@
+import { openWindowMenu } from './dockNavigation';
 import { test, expect } from './fixtures';
 import { harness } from './harness';
 import { openDockPanel } from './dockNavigation';
@@ -99,6 +100,7 @@ test('BO3 rehearsal recommends game before commit and rotates six verified postg
     expect(h.state().draftHistory).toHaveLength(3);
     expect(h.state().blueScore).toBe(2);
     expect(h.state().redScore).toBe(1);
+    await openWindowMenu(page);
     await page.getByLabel('Workspace preset', { exact: true }).selectOption('postgame');
     await page.screenshot({ path: 'artifacts/upgrade-postgame-1440.png', fullPage: true });
     await openDockPanel(page, 'settings');
@@ -191,10 +193,10 @@ test('connection settings are masked, reject remote control, and preserve keys w
   });
   expect(remote.status()).toBe(403);
   await page.goto('/control#token=e2e-control');
-  await page.getByRole('button', { name: '设置中心', exact: true }).click();
+  await openDockPanel(page, 'settings');
   await expect(page.getByLabel('视觉模型 ID')).toHaveValue('test-vision-2');
   await page.reload();
-  await page.getByRole('button', { name: '设置中心', exact: true }).click();
+  await openDockPanel(page, 'settings');
   await expect(page.getByLabel('视觉模型 ID')).toHaveValue('test-vision-2');
 });
 test('audience overlay shows unknown data, then reveals ties without replacing tournament MVP', async ({

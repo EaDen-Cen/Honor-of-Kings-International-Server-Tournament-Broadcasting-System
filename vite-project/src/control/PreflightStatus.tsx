@@ -153,7 +153,7 @@ export function PreflightStatus({
       setCheckedAt(new Date().toLocaleTimeString());
     });
     return () => controller.abort();
-  }, [token, revision, zh]);
+  }, [token, revision, zh, state.gameNumber, state.draftGameNumber]);
   const live = capture?.getVideoTracks().some((track) => track.readyState === 'live') === true;
   const rows: Check[] = useMemo(
     () => [

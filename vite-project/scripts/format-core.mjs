@@ -7,6 +7,9 @@ const prettier = resolve(dirname(require.resolve('prettier/package.json')), 'bin
 // Adopt formatting incrementally: keep recognition/OBS changes readable without
 // rewriting generated hero catalogs, screenshots or unrelated legacy modules.
 const core = [
+  'server/discordWebhook.ts',
+  'e2e/native-voting.spec.ts',
+  'e2e/desktop-workspace.spec.ts',
   'server/strictVoting.ts',
   'server/strictVoting.test.ts',
   'src/control/StrictVotePanel.tsx',

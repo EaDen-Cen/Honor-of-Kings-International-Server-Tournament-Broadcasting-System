@@ -19,6 +19,7 @@ test('sharing links validate the website address and follow website edits', asyn
   const match = await startMatch(baseURL);
   try {
     await page.goto('/control#token=e2e-control');
+    await page.locator('.desktop-menu > details').first().locator(':scope > summary').click();
     await page.getByRole('button', { name: 'Access and website settings', exact: true }).click();
     const panel = page.locator('#access-settings');
     const website = panel.getByLabel('Public website URL (leave blank to use this website)', { exact: true });
@@ -61,6 +62,7 @@ test('access requests block repeat submissions and preserve input after malforme
         else await route.fulfill({ json: { configured: true, token: 'e2e-control' } });
       }
     });
+    await page.locator('.desktop-menu > details').first().locator(':scope > summary').click();
     await page.getByRole('button', { name: 'Access and website settings', exact: true }).click();
     const panel = page.locator('#access-settings');
     await panel.getByRole('button', { name: 'Generate read-only sharing links', exact: true }).click();

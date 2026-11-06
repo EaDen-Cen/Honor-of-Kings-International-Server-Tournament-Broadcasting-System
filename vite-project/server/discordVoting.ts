@@ -493,7 +493,7 @@ export class DiscordVoting {
   }
   async autoStart(state: MatchState) {
     const report = currentPostGameReport(state);
-    if (!this.config.autoStart || !report || this.busy) return;
+    if (!this.config.autoStart || !report?.endedAt || this.busy) return;
     if (this.votes.some((v) => v.reportId === report.id || v.gameKey === state.committedGameId))
       return;
     try {

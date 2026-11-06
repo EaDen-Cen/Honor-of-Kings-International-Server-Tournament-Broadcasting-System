@@ -1,6 +1,8 @@
 # HOK Broadcast 项目里程碑
 
-- **2026-11-05 / 待审查开发分支**：Webhook + 独立页面的严格 180 秒 MVP 投票。明确本局结束确认、十人/胜方五人、持久化恢复、候选快照、人工最终 MVP；无 Bot/OAuth，匿名身份限制见 [操作指南](docs/guides/discord-mvp-voting.md)。尚未真实 Discord 联调或发布。
+- **2026-11-05 / 本轮待审查**：基于已合并 #110 的 main c4c4a74；桌面菜单与独立预检/指南面板，复用 FlexLayout Portal 浮动；新增无需 Bot 的原生 Poll 与三分钟软截止，保留严格网页模式。真实测试频道 API 已联调，客户端显示已由用户确认通过；完整测试结果见 [验证记录](docs/validation/desktop-native-poll.md)。
+
+- **2026-11-05 / #110 已合并 main（c4c4a74）**：Webhook + 独立页面的严格 180 秒 MVP 投票。明确本局结束确认、十人/胜方五人、持久化恢复、候选快照、人工最终 MVP；无 Bot/OAuth，匿名身份限制见 [操作指南](docs/guides/discord-mvp-voting.md)。该模式的外部 HTTPS 页面真实部署尚未验收；未发布正式版本。
 
 ## 2026-11-05 · #99–#108 最终集成
 
