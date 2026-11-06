@@ -1,4 +1,6 @@
 import { StrictVoting } from './strictVoting.js';
+import { AdbCapture } from './adbCapture.js';
+import { recognizeNeutralCounters } from './neutralRecognition.js';
 import { invalidateHudCache } from './hudOcrCache.js';
 import { evaluateHero } from './aiEvaluation.js';
 import { fuseHud, fusePlayers, fusePostGame } from './aiFusion.js';
@@ -167,6 +169,7 @@ const recoveryTimer = setInterval(() => {
 }, 60000);
 recoveryTimer.unref();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+const adbCapture = new AdbCapture();
 const server = createServer(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -902,6 +905,60 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (
+      url.pathname === '/api/v1/capture/adb/devices' ||
+      url.pathname === '/api/v1/capture/adb/frame'
+    ) {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localOperatorRequest(req)
+      ) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      if (req.method !== 'GET') {
+        json(405, { error: 'GET required' });
+        return;
+      }
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      res.once('close', cancel);
+      const timeout = setTimeout(cancel, 15000);
+      try {
+        if (url.pathname.endsWith('/devices')) {
+          const devices = await adbCapture.discover(controller.signal);
+          if (!controller.signal.aborted)
+            json(200, {
+              devices: devices.map(({ id, name, connected }) => ({ id, name, connected })),
+            });
+        } else {
+          const id = url.searchParams.get('device') ?? '';
+          if (!/^\d{1,4}$/.test(id)) {
+            json(400, { error: 'Choose a discovered LDPlayer instance' });
+            return;
+          }
+          const frame = await adbCapture.capture(id, controller.signal);
+          if (!controller.signal.aborted) {
+            res.writeHead(200, {
+              'Content-Type': 'image/png',
+              'Content-Length': frame.image.length,
+              'Server-Timing': `capture;dur=${frame.captureMs.toFixed(1)}, decode;dur=${frame.decodeMs.toFixed(1)}`,
+            });
+            res.end(frame.image);
+          }
+        }
+        if (controller.signal.aborted && !res.destroyed && !res.headersSent)
+          json(504, { error: 'ADB request timed out' });
+      } catch (error) {
+        if (!res.destroyed && !res.headersSent)
+          json(503, { error: error instanceof Error ? error.message : 'ADB capture failed' });
+      } finally {
+        clearTimeout(timeout);
+        res.off('close', cancel);
+      }
+      return;
+    }
+    if (
       url.pathname === '/api/v1/recognition/settlement' ||
       url.pathname === '/api/v1/recognition/live-hud'
     ) {
@@ -930,6 +987,13 @@ const server = createServer(async (req, res) => {
         const capturedAt = Date.now(),
           context = liveGameContext(store.data.state);
         if (url.pathname.endsWith('live-hud')) {
+          if (
+            input.source !== undefined &&
+            (typeof input.source !== 'string' || input.source.length > 1024)
+          ) {
+            json(400, { error: 'Invalid HUD capture source' });
+            return;
+          }
           if (input.context !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
@@ -954,25 +1018,41 @@ const server = createServer(async (req, res) => {
         }
         if (url.pathname.endsWith('live-hud') && input.images !== undefined) {
           const regions = input.regions ?? liveCaptureRects;
+          const profile =
+            input.source === undefined
+              ? liveCaptureProfile(regions)
+              : JSON.stringify([input.source, liveCaptureProfile(regions)]);
           const result = await recognizeLiveHudCrops(
             input.images,
             playerRecognition,
             regions,
-            JSON.stringify([context, liveCaptureProfile(regions)]),
+            JSON.stringify([context, profile]),
           );
+          const neutral =
+            input.neutral === undefined
+              ? undefined
+              : await recognizeNeutralCounters(
+                  input.neutral,
+                  playerRecognition,
+                  result.candidates.find((c) => c.key === 'gameTimeSeconds')!,
+                  capturedAt,
+                  profile,
+                  input.images[6],
+                );
           if (liveGameContext(store.data.state) !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
           }
           json(200, {
             ...result,
+            neutral,
             capturedAt,
             context,
-            profile: liveCaptureProfile(regions),
+            profile,
             candidates: fuseHud(
               input.images,
               result.candidates,
-              JSON.stringify([context, store.data.revision, liveCaptureProfile(regions)]),
+              JSON.stringify([context, store.data.revision, profile]),
             ),
           });
           return;
@@ -995,7 +1075,12 @@ const server = createServer(async (req, res) => {
             frame,
             playerRecognition,
             regions,
-            JSON.stringify([context, store.data.revision, liveCaptureProfile(regions)]),
+            JSON.stringify([
+              context,
+              store.data.revision,
+              input.source,
+              liveCaptureProfile(regions),
+            ]),
           );
           if (liveGameContext(store.data.state) !== context) {
             json(409, { error: 'Game changed; capture again' });
@@ -1005,7 +1090,10 @@ const server = createServer(async (req, res) => {
             ...result,
             capturedAt,
             context,
-            profile: liveCaptureProfile(regions),
+            profile:
+              input.source === undefined
+                ? liveCaptureProfile(regions)
+                : JSON.stringify([input.source, liveCaptureProfile(regions)]),
           });
         } else {
           const report = store.data.state.postGameReports.find((r) => r.id === input.reportId);

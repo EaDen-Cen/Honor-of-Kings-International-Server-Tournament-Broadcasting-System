@@ -295,7 +295,19 @@ export function useGameDataCapture(zh: boolean) {
       {error && <p role="alert">{error}</p>}
     </div>
   );
-  return { frame, ready, generation, sourceVersion, controls, isStill: !!fileName };
+  let calibrationKey = 'window-unavailable';
+  try {
+    const { width, height } = sourceFrame();
+    calibrationKey = JSON.stringify([
+      fileName ? 'still' : 'window',
+      width,
+      height,
+      getSharedCaptureContent() ?? fullGameRect,
+    ]);
+  } catch {
+    /* A disconnected source has no usable calibration. */
+  }
+  return { frame, ready, generation, sourceVersion, controls, isStill: !!fileName, calibrationKey };
 }
 
 export function frameFingerprint(canvas: HTMLCanvasElement) {

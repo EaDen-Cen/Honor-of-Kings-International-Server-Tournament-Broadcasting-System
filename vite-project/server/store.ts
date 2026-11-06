@@ -11,6 +11,7 @@ import { migrateLegacyHeroId, migrateLegacyHeroIdRecord } from '../src/data/hero
 import { initialState, phases, type Action, type MatchState, type Role, type Snapshot } from '../src/shared/types.js';
 import { currentGame, draftHeroGroupKey, draftHeroUsed, draftRestriction, normalizeState, pickRestriction, playerIdentity, ruleLocked, seriesFinished } from '../src/shared/draftRules.js';
 import { draftTurnAtPhase } from '../src/shared/draftTurns.js';
+import {manualNeutralObjectives, trustedNeutralUpdates, validateNeutralSample} from '../src/shared/neutralRecognition.js';
 
 interface Event { id: string; timestamp: number; type: string; resultingState: MatchState; revision: number }
 interface Data { version: 2; state: MatchState; events: Event[]; history: MatchState[]; revision: number; delay: number; ids: string[] }
@@ -170,7 +171,9 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
 }
 export class Store {
   data: Data;
+  private neutralResetAt: number;
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
+    this.neutralResetAt = this.clock();
     let loaded: Data | LegacyData | undefined;
     if (file && existsSync(file)) {
       let parsed: unknown;
@@ -232,6 +235,37 @@ export class Store {
     const state = next.state;
     if (applyPostGameAction(state, action, this.clock())) next.history.push(copy(this.data.state));
     else switch (action.type) {
+    case 'live_objective_count':
+    case 'live_objective_freeze': {
+      if(action.context!==liveGameContext(state))throw Error('Game changed; capture again');
+      if(!['blue','red'].includes(action.side))throw Error('Invalid objective side');
+      const objective=state.liveGameStats.neutralObjectives.find(item=>item.id===action.id);
+      if(!objective)throw Error('Unknown objective');
+      if(action.type==='live_objective_count')integer(action.value,0,999);
+      else if(typeof action.frozen!=='boolean')throw Error('Invalid objective freeze');
+      next.history.push(copy(state));
+      objective.countEpoch={...objective.countEpoch,[action.side]:this.clock()};
+      objective.countFrozen={...objective.countFrozen,[action.side]:action.type==='live_objective_count'||action.frozen};
+      if(action.type==='live_objective_count'){
+        objective[action.side]=action.value;
+        objective.countSources={...objective.countSources,[action.side]:{source:'manual',confidence:1,capturedAt:this.clock()}};
+      }
+      break;
+    }
+    case 'live_objective_ocr': {
+      if(action.context!==liveGameContext(state))throw Error('Game changed; capture again');
+      validateNeutralSample(action.previous,this.clock());validateNeutralSample(action.sample,this.clock());
+      if(action.previous.capturedAt<=this.neutralResetAt)throw Error('Capture again after restart or Undo');
+      const updates=trustedNeutralUpdates(state.liveGameStats,action.previous,action.sample);
+      if(!updates.length)throw Error('No fresh consistent unfrozen objective counters');
+      next.history.push(copy(state));next.history=next.history.slice(-200);
+      for(const update of updates){
+        const objective=state.liveGameStats.neutralObjectives.find(item=>item.id===update.id)!;
+        objective[update.side]=update.value!;
+        objective.countSources={...objective.countSources,[update.side]:{source:'ocr',confidence:update.confidence,capturedAt:action.sample.capturedAt}};
+      }
+      break;
+    }
     case 'live_game_freeze': {
       if(!liveCaptureKeys.includes(action.key)||typeof action.frozen!=='boolean')throw new Error('Invalid HUD field');
       next.history.push(copy(state));
@@ -249,7 +283,12 @@ export class Store {
         for(const c of sample.candidates)if(!liveCaptureKeys.includes(c.key)||c.value!==null&&(typeof c.value!=='number'||!Number.isFinite(c.value))||typeof c.confidence!=='number'||!Number.isFinite(c.confidence)||c.confidence<0||c.confidence>1)throw new Error('Invalid HUD candidate');
       }
       const updates=trustedLiveUpdates(state.liveGameStats,action.previous,action.sample);
-      if(!Object.keys(updates).length)throw new Error('No consistent unfrozen HUD fields; capture again or use manual input');
+      let neutralUpdates:ReturnType<typeof trustedNeutralUpdates>=[];
+      if(action.previous.neutral&&action.sample.neutral){
+        validateNeutralSample(action.previous.neutral,this.clock());validateNeutralSample(action.sample.neutral,this.clock());
+        if(action.previous.neutral.capturedAt>this.neutralResetAt)neutralUpdates=trustedNeutralUpdates(state.liveGameStats,action.previous.neutral,action.sample.neutral);
+      }
+      if(!Object.keys(updates).length&&!neutralUpdates.length)throw new Error('No consistent unfrozen HUD fields; capture again or use manual input');
       next.history.push(copy(state));next.history=next.history.slice(-200);
       const stats=state.liveGameStats,sources={...stats.sources};
       for(const [key,value] of Object.entries(updates)){
@@ -257,6 +296,11 @@ export class Store {
         sources[key as LiveCaptureKey]={source:'ocr',capturedAt:action.sample.capturedAt,confidence:action.sample.candidates.find(c=>c.key===key)!.confidence};
       }
       stats.sources=sources;
+      for(const update of neutralUpdates){
+        const objective=stats.neutralObjectives.find(item=>item.id===update.id)!;
+        objective[update.side]=update.value!;
+        objective.countSources={...objective.countSources,[update.side]:{source:'ocr',confidence:update.confidence,capturedAt:action.sample.neutral!.capturedAt}};
+      }
       break;
     }
     case 'live_game_stats': {
@@ -271,7 +315,7 @@ export class Store {
       next.history.push(copy(state));
       const sources={...state.liveGameStats.sources};
       for(const key of liveCaptureKeys)if(stats[key]!==state.liveGameStats[key])sources[key]={source:'manual',capturedAt:this.clock(),confidence:1};
-      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,widthPercent:stats.widthPercent??65,heightPx:stats.heightPx??132,neutralObjectives:stats.neutralObjectives.map(item=>({id:item.id,name:item.name.trim(),icon:item.icon,blue:item.blue,red:item.red,status:item.status??'unknown'}))};
+      state.liveGameStats={blueKills:stats.blueKills,redKills:stats.redKills,blueTowers:stats.blueTowers,redTowers:stats.redTowers,blueGold:stats.blueGold,redGold:stats.redGold,gameTimeSeconds:stats.gameTimeSeconds,sources,density:stats.density,widthPercent:stats.widthPercent??65,heightPx:stats.heightPx??132,neutralObjectives:manualNeutralObjectives(state.liveGameStats.neutralObjectives,stats.neutralObjectives,this.clock())};
       break;
     }
 
@@ -816,13 +860,17 @@ export class Store {
     case 'delay': integer(action.seconds, 0, 3600); next.delay = action.seconds; break;
     default: throw new Error('不支持此操作');
     }
+    if(action.type.startsWith('live_')||action.type==='commit_game'){
+      const record=state.draftHistory.find(game=>game.id===state.committedGameId);
+      if(record)record.liveGameStats=copy(state.liveGameStats);
+    }
     next.revision++;
     if (action.type !== 'delay') next.events.push({ id, timestamp: Math.max(this.clock(), next.events.at(-1)?.timestamp ?? 0), type: action.type, resultingState: copy(next.state), revision: next.revision });
-    if(action.type==='live_game_ocr'){
+    if(action.type==='live_game_ocr'||action.type==='live_objective_ocr'){
       // Preserve the delayed baseline and every recent sample, without keeping
       // a full-match snapshot for each automatic HUD poll for hours.
       const cutoff=this.clock()-3600*1000,lastOld=next.events.findLastIndex(event=>event.timestamp<=cutoff);
-      next.events=next.events.filter((event,index)=>event.type!=='live_game_ocr'||event.timestamp>cutoff||index===lastOld);
+      next.events=next.events.filter((event,index)=>!['live_game_ocr','live_objective_ocr'].includes(event.type)||event.timestamp>cutoff||index===lastOld);
     }
     next.ids = [...next.ids.slice(-999), id];
     // Commit durable state before acknowledging or broadcasting. Failure leaves memory unchanged.
@@ -838,5 +886,6 @@ export class Store {
       }
     }
     this.data = next;
+    if(['undo','reset','reset_match','next_game'].includes(action.type))this.neutralResetAt=this.clock();
   }
 }

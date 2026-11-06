@@ -5,6 +5,9 @@ export interface NeutralObjective {
   blue: number;
   red: number;
   status?: 'alive' | 'down' | 'unknown';
+  countSources?: Partial<Record<'blue' | 'red', LiveFieldSource>>;
+  countFrozen?: Partial<Record<'blue' | 'red', boolean>>;
+  countEpoch?: Partial<Record<'blue' | 'red', number>>;
 }
 import type { MatchState } from './types.js';
 import {
@@ -23,6 +26,7 @@ export interface LiveHudSample {
   capturedAt: number;
   candidates: LiveCandidate[];
   profile?: string;
+  neutral?: import('./neutralRecognition.js').NeutralSample;
 }
 export function liveFieldHealth(
   source: LiveFieldSource | undefined,
@@ -209,7 +213,9 @@ export function nextLiveGameStats(previous: LiveGameStats): LiveGameStats {
     widthPercent: previous.widthPercent ?? 65,
     heightPx: previous.heightPx ?? 132,
     neutralObjectives: previous.neutralObjectives.map((item) => ({
-      ...item,
+      id: item.id,
+      name: item.name,
+      icon: item.icon,
       blue: 0,
       red: 0,
       status: 'unknown',
