@@ -1,3 +1,4 @@
+import { StartupPreflight } from './control/StartupPreflight';
 import { gameRoles } from './shared/gameLineup';
 import { playerAtSlot } from './shared/playerSlots';
 import { DirectLineup } from './control/DirectLineup';
@@ -336,12 +337,12 @@ export default function BroadcastApp() {
       {role === 'control' && <>
         <OperatorPreferences token={token}/>
         <DockWorkspace zh={lang==='zh'}
-          status={<><span>G{currentGame(state)} · {phaseName(state, lang)}</span><b>{connectionLabel(status, lang)}</b><span>{obsSummary}</span><span aria-label="Preflight summary">{preflightSummary}</span></>}
+          status={<><span>G{currentGame(state)} · {phaseName(state, lang)}</span><b className={connected ? "status live" : "status"}>{connectionLabel(status, lang)}</b><span>{obsSummary}</span><span aria-label="Preflight summary">{preflightSummary}</span></>}
           fileTools={<><button onClick={()=>setShowAccess(true)}>{lang==='zh'?'访问与网站设置':'Access and website settings'}</button><button onClick={()=>document.dispatchEvent(new CustomEvent('hok-open-panel',{detail:'integration-settings'}))}>{lang==='zh'?'设置中心':'Settings'}</button>{!local && <button onClick={()=>setToken('')}>{t('logout')}</button>}</>}
           editTools={<><button disabled={disabled || !snapshot?.canUndo} onClick={()=>send({type:'undo'})}>{t('undo')}</button><button onClick={()=>setShowTeamSettings(true)}>{t('teamSettings')}</button></>}
           panels={{
-          preparation: <div id="preparation-tools"><OperatorGuide state={state} token={token} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} onSummary={setPreflightSummary} /></div>,
-          help: <section className="panel"><h2>HOK Broadcast · 1.0.0</h2><p>{lang==='zh'?'快捷键与自定义按键位于设置中心；开播诊断位于赛前准备。拖动标签停靠，标签上的浮动按钮可在网页内悬浮，关闭面板不会停止后台采集。':'Shortcuts are in Settings; diagnostics in Preparation. Drag tabs to dock. Float stays inside this page; closing a panel keeps capture running.'}</p><a href="https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/main/docs/guides/operator-guide.md" target="_blank" rel="noreferrer">{lang==='zh'?'操作指南':'Operator guide'}</a></section>,
+          preparation: <div id="preparation-tools"><StartupPreflight state={state} token={token} connected={connected} onSummary={setPreflightSummary}/></div>,
+          help: <><OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} /><section className="panel"><h2>HOK Broadcast · 1.0.0</h2><p>{lang==='zh'?'快捷键与自定义按键位于设置中心；开播诊断位于赛前准备。拖动标签停靠，标签上的浮动按钮可在网页内悬浮，关闭面板不会停止后台采集。':'Shortcuts are in Settings; diagnostics in Preparation. Drag tabs to dock. Float stays inside this page; closing a panel keeps capture running.'}</p><a href="https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/main/docs/guides/operator-guide.md" target="_blank" rel="noreferrer">{lang==='zh'?'操作指南':'Operator guide'}</a></section></>,
           monitor: <div className="control-monitor">
           <DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="draft" renderBoard={onCorrect=><Board state={state} lang={lang} compact onCorrect={onCorrect}/>} />
           <section className="operator-bar panel">

@@ -12,6 +12,7 @@ import {
 } from './workspaceLayout';
 import 'flexlayout-react/style/dark.css';
 import './control.css';
+import { ControlDraftWorkspace } from './ControlDraftWorkspace';
 import './dockWorkspace.css';
 
 function DockSlot({ host, parking }: { host: HTMLDivElement; parking: HTMLDivElement }) {
@@ -177,8 +178,25 @@ export function DockWorkspace({
       const target = model.getActiveTabset() ?? model.getFirstTabSet();
       model.doAction(Actions.addNode(tab(id), target.getId(), DockLocation.CENTER, -1));
     }
+    const maximized = model.getMaximizedTabset();
+    if (maximized && maximized !== model.getNodeById(id)?.getParent())
+      model.doAction(Actions.maximizeToggle(maximized.getId()));
     model.doAction(Actions.selectTab(id));
     persist(model);
+  }
+  function float(id: PanelId) {
+    const node = model.getNodeById(id),
+      parent = node?.getParent();
+    const next = [...floating.filter((item) => item !== id), id];
+    setFloating(next);
+    if (node) model.doAction(Actions.deleteTab(id));
+    let groups = 0;
+    model.visitNodes((item) => {
+      if (item.getType() === 'tabset') groups++;
+    });
+    if (parent && parent.getChildren().length === 0 && groups > 1)
+      model.doAction(Actions.deleteTabset(parent.getId()));
+    persist(model, selected, next);
   }
   useEffect(() => {
     function reveal(event: Event) {
@@ -342,7 +360,8 @@ export function DockWorkspace({
               disabled={!previousLayout}
               onClick={() => {
                 if (!previousLayout) return;
-                const old = model.toJson();
+                setFloating([]);
+                const old = saveable(model);
                 const next = Model.fromJson(previousLayout);
                 setModel(next);
                 setPreviousLayout(old);
@@ -351,6 +370,28 @@ export function DockWorkspace({
             >
               {zh ? '恢复上一次布局' : 'Restore previous layout'}
             </button>
+            <button
+              type="button"
+              disabled={!selected.startsWith('saved:')}
+              onClick={() => {
+                const next = { ...presets };
+                delete next[selected.slice(6)];
+                try {
+                  localStorage.setItem(workspaceKey + '-presets', JSON.stringify(next));
+                  setPresets(next);
+                  select('default');
+                } catch {
+                  setMessage(zh ? '删除布局失败' : 'Could not delete layout');
+                }
+              }}
+            >
+              {zh ? '删除当前自定义布局' : 'Delete selected custom layout'}
+            </button>
+            {small && (
+              <button type="button" onClick={() => float(mobilePanel)}>
+                {zh ? '浮动当前面板' : 'Float active panel'}
+              </button>
+            )}
             <details className="dock-panel-menu">
               <summary>{zh ? '面板列表' : 'Panels'}</summary>
               <div>
@@ -395,8 +436,20 @@ export function DockWorkspace({
                 </option>
               ))}
             </select>
-            {!floating.includes(mobilePanel) && (
-              <DockSlot host={hosts[mobilePanel]} parking={parking} />
+            {mobilePanel === 'draft' || mobilePanel === 'monitor' ? (
+              <ControlDraftWorkspace
+                monitor={
+                  !floating.includes('monitor') && (
+                    <DockSlot host={hosts.monitor} parking={parking} />
+                  )
+                }
+              >
+                {!floating.includes('draft') && <DockSlot host={hosts.draft} parking={parking} />}
+              </ControlDraftWorkspace>
+            ) : (
+              !floating.includes(mobilePanel) && (
+                <DockSlot host={hosts[mobilePanel]} parking={parking} />
+              )
             )}
           </div>
         ) : (
@@ -416,11 +469,7 @@ export function DockWorkspace({
                     aria-label={`${zh ? '浮动' : 'Float'} ${panelNames[node.getComponent() as PanelId][zh ? 0 : 1]}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      const id = node.getComponent() as PanelId;
-                      const nextFloats = [...floating.filter((item) => item !== id), id];
-                      setFloating(nextFloats);
-                      model.doAction(Actions.deleteTab(id));
-                      persist(model, selected, nextFloats);
+                      float(node.getComponent() as PanelId);
                     }}
                   >
                     {zh ? '浮' : 'Float'}
@@ -438,7 +487,11 @@ export function DockWorkspace({
           key={id}
           label={panelNames[id][zh ? 0 : 1]}
           dock={() => open(id)}
-          close={() => setFloating((old) => old.filter((item) => item !== id))}
+          close={() => {
+            const next = floating.filter((item) => item !== id);
+            setFloating(next);
+            persist(model, selected, next);
+          }}
         >
           <DockSlot host={hosts[id]} parking={parking} />
         </FloatingPanel>
@@ -461,6 +514,17 @@ function FloatingPanel({
   children: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const fit = () => {
+      const el = box.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      el.style.left = `${Math.max(0, Math.min(innerWidth - 100, r.left))}px`;
+      el.style.top = `${Math.max(0, Math.min(innerHeight - 40, r.top))}px`;
+    };
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
   return (
     <div ref={box} className="desktop-floating" role="dialog" aria-label={label}>
       <header

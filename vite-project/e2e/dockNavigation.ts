@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 const labels = {
+  help: /^(Guide & diagnostics|操作指南与诊断)$/,
   preparation: /^(Preparation|赛前准备)$/,
   hud: /^(Live GHUD|局内 GHUD)$/,
   postgame: /^(Post-game|赛后数据)$/,
@@ -16,6 +17,7 @@ export async function openDockPanel(page: Page, id: keyof typeof labels) {
   if ((await menu.getAttribute('open')) === null) await menu.locator('summary').click();
   await menu.getByRole('button', { name: labels[id] }).click();
   await menu.locator('summary').click();
+  await page.locator('.window-menu > summary').click();
 }
 
 export async function openWindowMenu(page: Page) {

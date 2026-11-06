@@ -14,12 +14,13 @@ test('operator guide follows the actual draft and exposes reachable workspaces o
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/control#token=e2e-control');
     await expect(page.locator('.status')).toHaveText('已连接');
-    await openDockPanel(page, 'preparation');
+    await openDockPanel(page, 'help');
     const guide = page.getByRole('region', { name: '导播操作指引' });
     await expect(guide.locator('[aria-current="step"]')).toContainText('赛前准备');
     await guide.getByRole('link', { name: '比分与下一局' }).click();
     await expect(page.locator('#game-lifecycle')).toBeInViewport();
     await match.send({ type: 'skip_ban', team: 'blue' });
+    await openDockPanel(page, 'help');
     await expect(guide.locator('[aria-current="step"]')).toContainText('选禁操作');
     await guide.getByRole('button', { name: '设置队伍' }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -92,7 +93,7 @@ test('guide follows lineup, commit and next-game transitions in both languages',
     await match.send({ type: 'next_game' });
     await expect(page.locator('.operator-guide [aria-current="step"]')).toContainText('赛前准备');
     await match.send({ type: 'settings', settings: { ...match.state(), language: 'eng' } });
-    await openDockPanel(page, 'preparation');
+    await openDockPanel(page, 'help');
     await expect(page.getByRole('region', { name: 'Operator guide' })).toContainText('Preparation');
     await page.screenshot({ path: 'artifacts/operator-guide-desktop.png' });
   } finally { match.close(); }
@@ -109,6 +110,7 @@ test('P1–P5 human preflight shows authoritative rosters, survives BP and refre
     state.redTeam.players=['Fox','Golf','Hotel','India','Juliet'];
     await match.send({type:'settings',settings:state});
     await page.goto('/control#token=e2e-control');
+    await openDockPanel(page,'help');
     const preflight=page.locator('.operator-id-preflight');
     const checkbox=preflight.locator('input[type=checkbox]');
     await expect(preflight).toContainText('P1 Alpha');
@@ -116,6 +118,7 @@ test('P1–P5 human preflight shows authoritative rosters, survives BP and refre
     await expect(checkbox).toBeEnabled();
     await preflight.getByRole('link',{name:'Go to P1–P5 recognition / manual adjustment'}).click();
     await expect(page.locator('#player-slot-alignment')).toBeInViewport();
+    await openDockPanel(page,'help');
     await checkbox.check();
     await expect(preflight).toContainText('P1–P5 manually checked');
     await match.send({type:'skip_ban',team:'blue'});
@@ -125,6 +128,7 @@ test('P1–P5 human preflight shows authoritative rosters, survives BP and refre
     await match.send({type:'set_player_slot_order',side:'blue',order:[1,0,2,3,4],expectedPlayers:state.blueTeam.players});
     await expect(preflight).toContainText('P1 Bravo');
     await expect(checkbox).not.toBeChecked();
+    await openDockPanel(page,'help');
     await checkbox.check();
     const updated=match.state();
     updated.redTeam.players[0]='Replacement';

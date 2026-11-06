@@ -2,26 +2,21 @@ import { useState } from 'react';
 import type { MatchState } from '../shared/types';
 import { phaseName } from '../shared/display';
 import { seriesFinished } from '../shared/draftRules';
-import { StartupPreflight } from './StartupPreflight';
 import { canVerifyPlayerOrder, playerOrderCheckKey } from '../shared/playerOrderPreflight';
 import { openWorkspace } from './workspaceNavigation';
 
 export function OperatorGuide({
   state,
-  token,
   connected,
   pending,
   onTeams,
   onSettings,
-  onSummary,
 }: {
   state: MatchState;
-  token: string;
   connected: boolean;
   pending: boolean;
   onTeams: () => void;
   onSettings: () => void;
-  onSummary?: (value: string) => void;
 }) {
   const zh = state.language === 'zh';
   const checkKey = playerOrderCheckKey(state);
@@ -78,7 +73,6 @@ export function OperatorGuide({
                 : 'Check the result and update the series score before starting the next game.';
   return (
     <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
-      <StartupPreflight state={state} token={token} connected={connected} onSummary={onSummary} />
       <ol className="operator-steps">
         {labels.map((label, index) => (
           <li key={label} aria-current={step === index ? 'step' : undefined}>

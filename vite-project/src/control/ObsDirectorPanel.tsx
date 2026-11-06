@@ -101,7 +101,11 @@ export function ObsDirectorPanel({
     }
   }, [cueMap]);
   const [status, setStatus] = useState<ObsStatus>();
-  useEffect(() => { onSummary?.(`OBS ${status?.connected ? '●' : '○'} · REC ${status?.recording === true ? '●' : status?.recording === false ? '○' : '?'}`); }, [status?.connected, status?.recording, onSummary]);
+  useEffect(() => {
+    onSummary?.(
+      `OBS ${status?.connected ? '●' : '○'} · REC ${status?.recording === true ? '●' : status?.recording === false ? '○' : '?'}`,
+    );
+  }, [status?.connected, status?.recording, onSummary]);
   const [storage, setStorage] = useState<RecordingStorageStatus>();
   const [selected, setSelected] = useState('');
   const [sceneOrder, setSceneOrder] = useState<string[]>(readSceneOrder);

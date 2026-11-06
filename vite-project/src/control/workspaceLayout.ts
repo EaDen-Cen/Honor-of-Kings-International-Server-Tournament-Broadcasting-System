@@ -56,7 +56,15 @@ export function presetLayout(preset: Preset): IJsonModel {
                 type: 'row',
                 children: [
                   group('right', ['monitor', 'draft', 'players', 'hud']),
-                  group('lower', ['voting', 'postgame', 'settings', 'recovery', 'analysis', 'preparation', 'help']),
+                  group('lower', [
+                    'voting',
+                    'postgame',
+                    'settings',
+                    'recovery',
+                    'analysis',
+                    'preparation',
+                    'help',
+                  ]),
                 ],
               },
             ]
@@ -67,7 +75,14 @@ export function presetLayout(preset: Preset): IJsonModel {
                   type: 'row',
                   children: [
                     group('right', ['obs', 'voting', 'settings', 'recovery']),
-                    group('lower', ['monitor', 'draft', 'players', 'analysis', 'preparation', 'help']),
+                    group('lower', [
+                      'monitor',
+                      'draft',
+                      'players',
+                      'analysis',
+                      'preparation',
+                      'help',
+                    ]),
                   ],
                 },
               ]
@@ -78,7 +93,14 @@ export function presetLayout(preset: Preset): IJsonModel {
                     type: 'row',
                     children: [
                       group('right', ['voting', 'obs', 'settings', 'recovery']),
-                      group('lower', ['analysis', 'monitor', 'draft', 'players', 'preparation', 'help']),
+                      group('lower', [
+                        'analysis',
+                        'monitor',
+                        'draft',
+                        'players',
+                        'preparation',
+                        'help',
+                      ]),
                     ],
                   },
                 ]
