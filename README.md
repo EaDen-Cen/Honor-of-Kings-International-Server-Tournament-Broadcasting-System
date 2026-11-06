@@ -1,10 +1,12 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
-> **桌面工作区与 Discord 原生 Poll（待审查）**：文件/编辑/视图/窗口/帮助菜单，独立赛前准备与操作指南、稳定 Portal 浮动/停靠；原生 Webhook Poll 默认优先，发布成功后 180 秒软截止，明确仍可能继续收票。保留 #110 严格网页投票。详见 [工作区](docs/guides/dock-workspace.md) 与 [投票模式](docs/guides/discord-mvp-voting.md)。
+> **GHUD 采集与资源计数（待审查开发分支）**：新增本机 Control 雷电 ADB 采集，保留 Windows/截图；资源累计数独立校准、人工冻结、跨局历史保留；比分移到顶栏两端。真实短样本发现并修复 10k 以上经济裁剪问题，采图+OCR 中位数约 1.55–1.57 秒，尚不满足 1Hz。分类资源与真实 OBS 长时间联动未验收。见 [操作](docs/guides/ghud-adb-objectives.md)、[验证](docs/validation/ghud-adb-objectives.md)。本轮基于已合并 #111 的 main `8175270`，不自动合并或发布。下方较早段落保留历史状态。
+
+> **桌面工作区与 Discord 原生 Poll（#111 已合并 main）**：文件/编辑/视图/窗口/帮助菜单，独立赛前准备与操作指南、稳定 Portal 浮动/停靠；原生 Webhook Poll 默认优先，发布成功后 180 秒软截止，明确仍可能继续收票。保留 #110 严格网页投票。详见 [工作区](docs/guides/dock-workspace.md) 与 [投票模式](docs/guides/discord-mvp-voting.md)。
 
 > **无 Bot 的严格网页 MVP 投票（#110 已合并 main）**：通过现有 Webhook 发布本系统 HTTPS 投票链接；只有明确确认比赛结束才自动发起，服务器严格限制 180 秒，支持提前截止、取消、重启恢复、冻结候选名单及人工确认赛事 MVP。匿名浏览器防重复不等于一人一票。配置与真实联调限制见 [投票指南](docs/guides/discord-mvp-voting.md)。
 
-> **2026-11-05 最终集成内容**：本分支汇总 #99–#108，包含逐局报告隔离、真实预检、Discord Webhook-only、持久化 AI 预算、BP 头像直接纠错、鼠标与触屏英雄交换、本局实际分路及历史报告同步。#101–#108 此前合并到了各自的链式基分支，最终集成 PR #109 已于 2026-11-05 合并到 main（b143729）；严格投票 PR #110 也已合入 main（c4c4a74）；本轮桌面菜单与 Webhook 原生软截止仍待审查。提交关系、完整验证与发布边界见 [最终集成记录](docs/validation/final-integration-2026-11-05.md)。正式标签、发布与真实赛事验收另行跟踪。
+> **2026-11-05 最终集成内容**：本分支汇总 #99–#108，包含逐局报告隔离、真实预检、Discord Webhook-only、持久化 AI 预算、BP 头像直接纠错、鼠标与触屏英雄交换、本局实际分路及历史报告同步。#101–#108 此前合并到了各自的链式基分支，最终集成 PR #109 已于 2026-11-05 合并到 main（b143729）；严格投票 PR #110 也已合入 main（c4c4a74）；桌面菜单与 Webhook 原生软截止 PR #111 已合并 main（8175270）。提交关系、完整验证与发布边界见 [最终集成记录](docs/validation/final-integration-2026-11-05.md)。正式标签、发布与真实赛事验收另行跟踪。
 
 > **2026-10-25 盾山补录（开发分支）**：国际服 10 月 21 日上线盾山，新增本地稳定英雄 ID 120（Roaming），添加本地图标并沿用国服盾山身份映射，不重排历史英雄。详见 [英雄名单](docs/research/hero-roster.md)。真实比赛中的 BP 头像识别/OBS 实测仍待验收。
 

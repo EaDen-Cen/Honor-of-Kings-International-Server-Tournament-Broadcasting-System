@@ -1,5 +1,7 @@
 # 文档总索引
 
+GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architecture/ghud-capture.md)、[验证](validation/ghud-adb-objectives.md)。
+
 桌面菜单与原生投票：[架构](architecture/desktop-workspace.md)、[验证](validation/desktop-native-poll.md)。
 
 无 Bot 严格三分钟投票：[操作与部署](guides/discord-mvp-voting.md)、[验证与限制](validation/strict-mvp-voting.md)。

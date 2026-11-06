@@ -1,5 +1,7 @@
 # PR #69 · 赛后图形、MVP 与 GHUD 修复彩排
 
+最新 GHUD 来源、独立校准、资源计数与比分排列以 [ADB / 资源操作指南](ghud-adb-objectives.md) 为准；下文保留较早版本记录。
+
 [文档索引](../README.md) / [导播操作指南](operator-guide.md) / [API 约束](../design/api.md)
 
 ## 赛后 Overlay 404 的根因与验证
