@@ -1,8 +1,37 @@
 # Discord 观众 MVP 投票
 
-## 无 Bot 的严格三分钟投票（开发分支）
+## 统一模式选择（本轮开发分支）
 
-采用 Webhook + 本系统投票页面。Discord 原生 Poll 的 `duration` 是整数小时，普通 Webhook 没有提前结束 Poll 的接口。三分钟后编辑文字仅是软截止，不能阻止新票，也不能将后续变化的结果当作三分钟最终票数。本功能不创建原生 Poll。依据：[Discord Poll](https://docs.discord.com/developers/resources/poll)、[Webhook API](https://docs.discord.com/developers/resources/webhook)（2026-11-05 核对）。
+在「窗口 → 面板列表 → Discord 通知 / 投票」选择并保存模式：
+
+| 模式 | 凭证 | 截止含义 |
+| --- | --- | --- |
+| Discord 原生投票（新配置默认） | 仅已有官方 Webhook | 原生 1 小时，发布成功后 180 秒软截止；Discord 可能继续收票 |
+| 独立网页投票 | Webhook + 可达公网 HTTPS 域名 | 服务器严格拒绝 180 秒后的提交 |
+| 可选 Bot 原生投票 | Bot 安装权限及已有 Bot 配置 | 保留原有 Bot 流程；不作为 Webhook 模式前置条件 |
+
+自动发布默认关闭。已有 #110 配置没有 mode 字段时按严格网页模式迁移，不静默改变原有比赛流程；新的配置优先原生模式。模式切换只影响尚未创建投票的下一局，同一报告不会因为换模式创建第二张 Webhook 投票。Bot 自动发起也必须有明确比赛结束确认。
+
+### 原生 Webhook 操作
+
+1. 只保存官方 Discord Webhook。原生模式隐藏公网 HTTPS 域名，不要求 Bot Token、服务器 ID 或频道 ID。选择十人或胜方五人，核对名单并保存自动发布设置。
+2. 本局明确确认结束后创建持久化发布意图。Execute Webhook 使用 `poll.question`、最多十个 `answers`、`duration:1`、`allow_multiselect:false`，并带 `wait=true` 获取消息 ID。选项包含序号、队伍和选手缩写，限制 55 字符；完整姓名保留在导播候选预览。
+3. 只有发送成功才记录发布时间和 180 秒规定截止时间；发送失败或 429 等待期间不开始计时。刷新和重启沿用已保存时间，不重开计时。
+4. 软截止后自动发公告，也可点「发送软截止公告」提前发出。公告明确：Discord 原生投票可能仍允许继续投票，请以导播核对的有效结果为准。不会删除消息，也不调用 Bot 的 Poll Expire 接口。
+5. 本系统不读取原生票数、不保存三分钟票数快照，不把一小时结束后的结果冒充三分钟精确结果。导播在 Discord 核对平票、零票和有效票，在面板选人、勾选人工核对并确认，才写入对应报告和 MVP Overlay。
+6. 候选发布后冻结；名单或分路变化会提示。历史局 MVP 修改保持当前展示不变，身份不匹配时需在赛后面板核对。
+
+### 原生失败与恢复
+
+发送意图与 Poll 请求保存在独立投票文件和 Webhook 日志中，不含 Webhook Token。成功消息、软截止公告各有独立 ID，重复 action 不重发。429 遵守 JSON `retry_after` 或 `Retry-After`，修复后人工重试同一条意图。
+
+如果 POST 超时且结果未知，**不能直接重发原生 Poll**。先在频道查找原消息，填消息 ID 点「核对并恢复，不重发」；服务通过已保存 Webhook 读取原消息，核验作者、问题、选项顺序及单选设置，再按原消息时间恢复截止。消息不匹配或找不到时保留未知状态，不自动创建另一张 Poll。取消只取消本地流程并通知作废，不表示 Discord Poll 真正关闭。
+
+真实测试频道 API 已验证接受原生 Poll 和软截止公告；客户端视觉验收单独记录，见 [本轮验证](../validation/desktop-native-poll.md)。正式频道权限、客户端版本与网络仍应在开播前彩排。
+
+## 严格网页模式（#110 保留能力）
+
+采用 Webhook + 本系统投票页面。Discord 原生 Poll 的 `duration` 是整数小时，普通 Webhook 没有提前结束 Poll 的接口。三分钟后编辑文字仅是软截止，不能阻止新票，也不能将后续变化的结果当作三分钟最终票数。严格网页模式不创建原生 Poll。依据：[Discord Poll](https://docs.discord.com/developers/resources/poll)、[Webhook API](https://docs.discord.com/developers/resources/webhook)（2026-11-05 核对）。
 
 ### 配置与操作
 
@@ -12,7 +41,7 @@
 4. 自动发布默认关闭。保存开启后，服务器在本局结束确认后自动创建投票并发布 HTTPS 链接；开启时当前局已经确认结束，也会处理该局。关闭自动发布时，可人工「发布三分钟投票」。不必保持 Control 页面打开。
 5. 180 秒从服务器创建投票时开始，开始时间与截止时间先持久化，再发送公告。Discord 网络耗时或重试不会延长窗口。页面按服务器时间及本地单调计时显示倒计时，最终是否收票由服务器决定；在截止时刻及之后拒绝提交。正常结束通知由后台定时发送，网络故障可能延迟公告，但不会延迟停止收票。
 6. 导播可提前截止或取消。取消后票数作废，但保留审计记录；同一局不重新创建第二张票。结束后查看每名选手票数，手工选择 MVP，勾选身份与结果已核对，再确认写入赛事 MVP。平票、零票不会自动选人。
-7. 确认后的 MVP 使用现有赛后报告和 `/overlay/mvp`。历史局确认只修改对应报告，不切换当前局展示。本功能不写旧 Bot 的 `/overlay/audience-mvp` 存档。
+7. 确认后的 MVP 使用现有赛后报告和 `/overlay/mvp`。历史局确认只修改对应报告，不切换当前局展示。两种 Webhook 模式都不写旧 Bot 的 `/overlay/audience-mvp` 存档。
 
 ### 防重复与名单变化
 
@@ -38,7 +67,7 @@
 
 在 Discord Developer Portal 创建应用和 Bot，在目标服务器授权 View Channel、Send Messages、Read Message History、Send Polls；先使用专用测试频道。无需为本功能开启读取所有消息的 Gateway privileged intent。复制服务器及频道 ID，在本机 Control 顶部「设置中心」填写 Bot Token 和 ID，保存后点击「测试 Bot 连接」。连接测试只验证身份和频道可读，发布权限仍须实际 Poll 彩排确认。
 
-Webhook 是可选公告通道，填写新建的 `https://discord.com/api/webhooks/.../...`，不要继续使用已暴露的旧地址。旧 Bot 模式由 Bot 创建或结束原生 Poll；上述无 Bot 模式使用独立页面严格截止。所有提及默认关闭，候选人文本不会触发 @everyone。
+Webhook 是可选公告通道，填写新建的 `https://discord.com/api/webhooks/.../...`，不要继续使用已暴露的旧地址。旧 Bot 模式由 Bot 创建或结束原生 Poll；上述无 Bot 模式可选 Discord 原生软截止或独立页面严格截止。所有提及默认关闭，候选人文本不会触发 @everyone。
 
 Bot Token、Webhook URL 由当前 Windows 用户 DPAPI 加密保存在 `data/secure-settings.json`，GET 仅返回配置标记与部分 Bot 掩码。留空沿用凭证，单独清除 Webhook 或删除凭证；进行中的投票完成前不能更换 Bot / 频道。该文件不进 Git、比赛导出、浏览器存储或日志。Linux/macOS 需按 [AI 配置](ai-recognition.md) 设置 `HOK_CONFIG_KEY`。加密文件应由同一 OS 用户保管，不具备跨机器可移植性。
 
