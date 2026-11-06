@@ -220,7 +220,7 @@ export function DockWorkspace({
     setPreviousLayout(saveable(model));
     setModel(next);
     setSelected(value);
-    persist(next, value);
+    persist(next, value, []);
   }
   const factory = (node: TabNode) => (
     <DockSlot host={hosts[node.getComponent() as PanelId]} parking={parking} />
@@ -365,7 +365,7 @@ export function DockWorkspace({
                 const next = Model.fromJson(previousLayout);
                 setModel(next);
                 setPreviousLayout(old);
-                persist(next);
+                persist(next, selected, []);
               }}
             >
               {zh ? '恢复上一次布局' : 'Restore previous layout'}

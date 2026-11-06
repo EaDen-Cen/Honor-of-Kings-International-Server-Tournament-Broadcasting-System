@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { openDockPanel } from './dockNavigation';
+import { openDockPanel, openWindowMenu } from './dockNavigation';
 test('desktop menus overlay a full-height workspace; floating preflight preserves checks and status', async ({
   page,
 }) => {
@@ -52,4 +52,22 @@ test('desktop menus overlay a full-height workspace; floating preflight preserve
   await openDockPanel(page, 'preparation');
   await expect(check).toBeChecked();
   await page.screenshot({ path: 'artifacts/desktop-workspace.png' });
+  // Restoring a saved layout must not resurrect a panel floated in another layout.
+  await page.getByRole('button', { name: '浮动 赛前准备', exact: true }).click();
+  await floating.getByRole('button', { name: '关闭 / Close', exact: true }).click();
+  await openWindowMenu(page);
+  await page.getByLabel('Workspace name').fill('Closed preparation');
+  await page.getByRole('button', { name: '保存布局', exact: true }).click();
+  await openDockPanel(page, 'preparation');
+  await page.getByRole('button', { name: '浮动 赛前准备', exact: true }).click();
+  await expect(floating).toBeVisible();
+  await openWindowMenu(page);
+  await page
+    .getByLabel('Workspace preset', { exact: true })
+    .selectOption('saved:Closed preparation');
+  await expect(floating).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('.flexlayout__tab_button').filter({ hasText: '赛前准备' })).toHaveCount(
+    0,
+  );
 });
