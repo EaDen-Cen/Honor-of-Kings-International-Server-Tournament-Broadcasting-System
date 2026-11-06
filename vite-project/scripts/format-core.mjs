@@ -7,6 +7,20 @@ const prettier = resolve(dirname(require.resolve('prettier/package.json')), 'bin
 // Adopt formatting incrementally: keep recognition/OBS changes readable without
 // rewriting generated hero catalogs, screenshots or unrelated legacy modules.
 const core = [
+  'server/adbCapture.ts',
+  'server/adbCapture.test.ts',
+  'server/neutralRecognition.ts',
+  'server/neutralRecognition.test.ts',
+  'server/neutralOcr.test.ts',
+  'server/neutralStore.test.ts',
+  'server/hudCalibrationProfiles.test.ts',
+  'server/hudGoldCrop.test.ts',
+  'scripts/benchmark-adb-capture.ts',
+  'src/shared/neutralRecognition.ts',
+  'src/control/useAdbHudCapture.tsx',
+  'src/control/hudCalibrationProfiles.ts',
+  'src/control/NeutralHudCalibration.tsx',
+  'e2e/ghud-adb.spec.ts',
   'server/discordWebhook.ts',
   'e2e/native-voting.spec.ts',
   'e2e/desktop-workspace.spec.ts',

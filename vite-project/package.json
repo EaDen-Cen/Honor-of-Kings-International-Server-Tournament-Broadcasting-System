@@ -27,6 +27,7 @@
     "format": "node scripts/format-core.mjs --write",
     "format:check": "node scripts/format-core.mjs --check",
     "benchmark:hud": "node --import tsx scripts/benchmark-hud-recognition.ts",
+    "benchmark:adb": "node --import tsx scripts/benchmark-adb-capture.ts",
     "benchmark:replay": "node --import tsx scripts/benchmark-replay.ts"
   },
   "dependencies": {

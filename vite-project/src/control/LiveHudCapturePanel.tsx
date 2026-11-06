@@ -21,6 +21,11 @@ import { LiveHudCalibration } from './LiveHudCalibration';
 import './liveHudCalibration.css';
 import { useGameDataCapture } from './useGameDataCapture';
 import { captureHudImages } from './hudCapture';
+import { useAdbHudCapture } from './useAdbHudCapture';
+import { loadHudCalibration, saveHudCalibration } from './hudCalibrationProfiles';
+import { NeutralHudCalibration } from './NeutralHudCalibration';
+import { trustedNeutralUpdates, type NeutralRegion } from '../shared/neutralRecognition';
+import { pixelRect } from '../shared/gameCapture';
 
 interface Result extends LiveHudSample {
   context: string;
@@ -39,7 +44,16 @@ export function LiveHudCapturePanel({
   disabled: boolean;
   send: (action: Action) => void;
 }) {
-  const capture = useGameDataCapture(zh);
+  const [captureMode, setCaptureMode] = useState<'window' | 'adb'>('window');
+  const windowCapture = useGameDataCapture(zh);
+  const adbCapture = useAdbHudCapture(zh, token, captureMode === 'adb');
+  const capture = captureMode === 'adb' ? adbCapture : windowCapture;
+  const sourceVersion = `${captureMode}:${capture.sourceVersion}`;
+  const [neutralRegions, setNeutralRegions] = useState<NeutralRegion[]>([]),
+    [neutralApproved, setNeutralApproved] = useState(false);
+  const objectiveIdentity = JSON.stringify(
+    state.liveGameStats.neutralObjectives.map((o) => [o.id, o.name]),
+  );
   const [regions, setRegions] = useState<Record<LiveCaptureKey, CaptureRect>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('hok-ghud-calibration-v1') || 'null');
@@ -78,7 +92,14 @@ export function LiveHudCapturePanel({
     setBusy(false);
   }, []);
   stateRef.current = state;
-  signature.current = JSON.stringify([context, capture.generation.current, disabled, token]);
+  signature.current = JSON.stringify([
+    context,
+    captureMode,
+    capture.calibrationKey,
+    capture.generation.current,
+    disabled,
+    token,
+  ]);
   useEffect(() => {
     cancelCapture();
     last.current = undefined;
@@ -94,11 +115,12 @@ export function LiveHudCapturePanel({
   useEffect(() => {
     if (disabled) cancelCapture();
   }, [disabled, cancelCapture]);
-  const manualSources = JSON.stringify(
+  const manualSources = JSON.stringify([
     Object.entries(state.liveGameStats.sources ?? {}).filter(
       ([, source]) => source.source === 'manual',
     ),
-  );
+    state.liveGameStats.neutralObjectives.map((o) => [o.id, o.countEpoch, o.countFrozen]),
+  ]);
   useEffect(() => {
     // An operator edit requires fresh evidence; ordinary OCR acknowledgements do not.
     cancelCapture();
@@ -124,7 +146,7 @@ export function LiveHudCapturePanel({
       return;
     }
     try {
-      localStorage.setItem('hok-ghud-calibration-v1', JSON.stringify(regions));
+      saveHudCalibration(localStorage, capture.calibrationKey, regions);
     } catch {
       /* Calibration remains valid for this source without browser storage. */
     }
@@ -157,14 +179,42 @@ export function LiveHudCapturePanel({
       request = pending.current.start(10000);
     const started = performance.now();
     try {
-      const canvas = capture.frame();
+      const canvas = await capture.frame(request.signal);
+      if (
+        !request.isCurrent() ||
+        version !== epoch.current ||
+        source !== capture.generation.current
+      )
+        return;
       const images = captureHudImages(canvas, regions);
+      const neutral =
+        neutralApproved && neutralRegions.length
+          ? {
+              regions: neutralRegions,
+              images: neutralRegions.map(({ region }) => {
+                const r = pixelRect(region, canvas.width, canvas.height),
+                  cropped = document.createElement('canvas');
+                cropped.width = r.width;
+                cropped.height = r.height;
+                cropped
+                  .getContext('2d')!
+                  .drawImage(canvas, r.left, r.top, r.width, r.height, 0, 0, r.width, r.height);
+                return cropped.toDataURL('image/png');
+              }),
+            }
+          : undefined;
       const response = await fetch(
         `${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api/v1/recognition/live-hud`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ images, context, regions }),
+          body: JSON.stringify({
+            images,
+            context,
+            regions,
+            source: capture.calibrationKey,
+            neutral,
+          }),
           signal: request.signal,
         },
       );
@@ -192,7 +242,17 @@ export function LiveHudCapturePanel({
       setResult(next);
       last.current = next;
       const updates = prior ? trustedLiveUpdates(stateRef.current.liveGameStats, prior, next) : {};
-      if (publish && calibrated && !capture.isStill && prior && Object.keys(updates).length)
+      const neutralUpdates =
+        prior?.neutral && next.neutral
+          ? trustedNeutralUpdates(stateRef.current.liveGameStats, prior.neutral, next.neutral)
+          : [];
+      if (
+        publish &&
+        calibrated &&
+        !capture.isStill &&
+        prior &&
+        (Object.keys(updates).length || neutralUpdates.length)
+      )
         send({ type: 'live_game_ocr', context, previous: prior, sample: next });
       setMessage(
         !prior
@@ -243,7 +303,20 @@ export function LiveHudCapturePanel({
     setPublish(false);
     setCalibrated(false);
     setPreview('');
-  }, [capture.sourceVersion, cancelCapture]);
+    try {
+      setRegions(loadHudCalibration(localStorage, capture.calibrationKey));
+    } catch {
+      setRegions(structuredClone(liveCaptureRects));
+    }
+  }, [sourceVersion, capture.calibrationKey, cancelCapture]);
+  useEffect(() => {
+    setNeutralApproved(false);
+    setNeutralRegions([]);
+    cancelCapture();
+    last.current = undefined;
+    setPrevious(undefined);
+    setResult(undefined);
+  }, [sourceVersion, capture.calibrationKey, objectiveIdentity, cancelCapture]);
   useEffect(() => {
     if (!auto || !calibrated || disabled || !capture.ready || capture.isStill) return;
     let active = true;
@@ -264,6 +337,10 @@ export function LiveHudCapturePanel({
   }, [auto, calibrated, disabled, capture.ready, capture.isStill]);
   const updates =
     result && previous ? trustedLiveUpdates(state.liveGameStats, previous, result) : {};
+  const neutralUpdates =
+    previous?.neutral && result?.neutral
+      ? trustedNeutralUpdates(state.liveGameStats, previous.neutral, result.neutral)
+      : [];
   const review = result ? liveHudReviewStates(state.liveGameStats, previous, result) : undefined;
   const reviewLabel: Record<LiveHudReviewState, string> = zh
     ? {
@@ -296,7 +373,24 @@ export function LiveHudCapturePanel({
           ? '每秒尝试读取游戏时间、双方人头、经济与推塔（识别未完成时跳过，不重叠请求）。先采样两次核验，再应用或开启自动播出。人工改值会冻结对应字段。断流时保留最后可信值；截图仅用于审核。'
           : 'Attempts to read time, kills, gold and towers once per second (skipping overlapping requests). Verify two reads before applying or enabling automatic output. Manual edits freeze fields. Lost capture retains trusted values; screenshots are for review.'}
       </p>
-      {capture.controls}
+      <label>
+        {zh ? 'GHUD 采集来源' : 'GHUD capture source'}
+        <select
+          aria-label="GHUD capture source"
+          value={captureMode}
+          onChange={(e) => {
+            cancelCapture();
+            setCaptureMode(e.target.value as 'window' | 'adb');
+          }}
+        >
+          <option value="window">
+            {zh ? 'Windows 窗口 / 静态截图' : 'Windows window / static screenshot'}
+          </option>
+          <option value="adb">Android ADB · LDPlayer</option>
+        </select>
+      </label>
+      <div hidden={captureMode !== 'window'}>{windowCapture.controls}</div>
+      <div hidden={captureMode !== 'adb'}>{adbCapture.controls}</div>
       <ul aria-label={zh ? '可信字段状态' : 'Trusted field status'}>
         {liveCaptureKeys.map((key) => {
           const source = state.liveGameStats.sources?.[key];
@@ -331,15 +425,30 @@ export function LiveHudCapturePanel({
         selected={calibrationField}
         onSelectedChange={setCalibrationField}
         preview={preview}
-        onPreview={() => {
+        onPreview={async () => {
+          if (running.current) return;
+          const version = epoch.current,
+            current = signature.current;
+          running.current = true;
+          setBusy(true);
+          const request = pending.current.start(15000);
           try {
-            setPreview(capture.frame().toDataURL('image/jpeg', 0.88));
+            const canvas = await capture.frame(request.signal);
+            if (!request.isCurrent() || version !== epoch.current || current !== signature.current)
+              return;
+            setPreview(canvas.toDataURL('image/jpeg', 0.88));
             setMessage('');
           } catch (e) {
-            setMessage(e instanceof Error ? e.message : 'Capture not ready');
+            if (request.isCurrent())
+              setMessage(e instanceof Error ? e.message : 'Capture not ready');
+          } finally {
+            if (request.finish()) {
+              running.current = false;
+              setBusy(false);
+            }
           }
         }}
-        ready={capture.ready}
+        ready={capture.ready && !busy}
         onConfirm={confirmRegions}
         calibrated={calibrated}
       />
@@ -384,7 +493,7 @@ export function LiveHudCapturePanel({
             capture.isStill ||
             !result ||
             now - result.capturedAt > 15000 ||
-            !Object.keys(updates).length
+            (!Object.keys(updates).length && !neutralUpdates.length)
           }
           onClick={() => {
             if (previous && result)
@@ -394,6 +503,46 @@ export function LiveHudCapturePanel({
           {zh ? '应用已核验字段' : 'Apply verified fields'}
         </button>
       </div>
+      <NeutralHudCalibration
+        zh={zh}
+        objectives={state.liveGameStats.neutralObjectives}
+        preview={preview}
+        regions={neutralRegions}
+        approved={neutralApproved}
+        onChange={(value) => {
+          cancelCapture();
+          last.current = undefined;
+          setPrevious(undefined);
+          setResult(undefined);
+          setNeutralApproved(false);
+          setNeutralRegions(value);
+        }}
+        onApprove={() => {
+          cancelCapture();
+          last.current = undefined;
+          setPrevious(undefined);
+          setResult(undefined);
+          setNeutralApproved(true);
+        }}
+      />
+      {result?.neutral && (
+        <ul aria-label="Objective OCR candidates">
+          {result.neutral.candidates.map((c) => (
+            <li key={`${c.id}:${c.side}`}>
+              {state.liveGameStats.neutralObjectives.find((o) => o.id === c.id)?.name} ·{' '}
+              {c.side === 'blue' ? (zh ? '蓝方' : 'Blue') : zh ? '红方' : 'Red'}: {c.value ?? '—'} ·{' '}
+              {Math.round(c.confidence * 100)}%{' · '}
+              {neutralUpdates.some((v) => v.id === c.id && v.side === c.side)
+                ? zh
+                  ? '两帧核验通过'
+                  : 'Verified in two reads'
+                : zh
+                  ? '待核验或已冻结 · 保留可信值'
+                  : 'Pending verification or frozen · trusted value retained'}
+            </li>
+          ))}
+        </ul>
+      )}
       {result && (
         <div className="post-game-table">
           {result.candidates.map((c) => (

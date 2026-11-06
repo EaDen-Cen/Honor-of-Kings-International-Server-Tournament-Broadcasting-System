@@ -39,7 +39,7 @@ export type LiveCaptureKey=typeof liveCaptureKeys[number];
 export const liveCaptureLabel=(key:LiveCaptureKey,zh:boolean)=>({blueKills:['蓝方人头','Blue kills'],redKills:['红方人头','Red kills'],blueGold:['蓝方经济','Blue gold'],redGold:['红方经济','Red gold'],blueTowers:['蓝方推塔','Blue towers'],redTowers:['红方推塔','Red towers'],gameTimeSeconds:['游戏时间（秒）','Game time (seconds)']}[key][zh?0:1]);
 export const liveCaptureRects:Record<LiveCaptureKey,CaptureRect>={
   blueKills:rect(884,22,39,43),redKills:rect(999,22,39,43),
-  blueGold:rect(726,19,70,38),redGold:rect(1145,19,70,38),
+  blueGold:rect(726,19,90,38),redGold:rect(1145,19,90,38),
   blueTowers:rect(650,19,26,38),redTowers:rect(1274,19,26,38),
   gameTimeSeconds:rect(931,1,59,27),
 };

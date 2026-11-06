@@ -2,7 +2,7 @@
 .game-hud{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none;color:#f4f7fd;background:transparent;font-family:Inter,'Segoe UI','Microsoft YaHei',sans-serif;--hud-blue:#55c4f5;--hud-red:#ff7782}
 .game-hud *{box-sizing:border-box}
 .game-hud-scoreboard{position:absolute;z-index:5;left:50%;top:0;width:1920px;transform:translateX(-50%) scale(var(--hud-scale,1));transform-origin:top center;background:linear-gradient(90deg,#101d31 0%,#0a1220 50%,#101b2c 100%);border-bottom:1px solid #a8c5d34d;box-shadow:0 4px 14px #0007}
-.game-hud-main{height:var(--hud-row-height,132px);display:grid;grid-template-columns:minmax(0,2.4fr) repeat(5,minmax(0,1fr)) minmax(0,1.2fr) repeat(5,minmax(0,1fr)) minmax(0,2.4fr);align-items:stretch;padding:0 18px}
+.game-hud-main{height:var(--hud-row-height,132px);display:grid;grid-template-columns:minmax(0,.65fr) minmax(0,2.4fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.3fr) minmax(0,1.25fr) minmax(0,1.5fr) minmax(0,1.25fr) minmax(0,1.3fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,2.4fr) minmax(0,.65fr);align-items:stretch;padding:0 18px}
 .game-hud-team{min-width:0;display:flex;align-items:center;gap:12px;padding:0 10px}
 .game-hud-team.red{justify-content:flex-end;flex-direction:row-reverse}
 .game-hud-team strong{min-width:0;font-size:27px;font-weight:750;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -13,7 +13,7 @@
 .game-hud-cell.red .game-hud-cell-value{color:var(--hud-red)}
 .game-hud-cell small,.game-hud-time small{font-size:12px;font-weight:750;letter-spacing:1px;color:#aebfd3;white-space:nowrap}
 .game-hud-time{background:#ffffff0b;border-left:1px solid #ffffff22;border-right:1px solid #ffffff22}
-.game-hud-clock{font-size:31px;line-height:1.05;font-weight:850;color:#f4e5c4;white-space:nowrap}
+.game-hud-clock{font-size:38px;line-height:1.05;font-weight:850;color:#f4e5c4;white-space:nowrap}
 .game-hud-objective-status{min-height:40px;display:flex;align-items:center;justify-content:center;gap:32px;padding:6px 25px;background:#080f1be8;border-top:1px solid #ffffff24}
 .game-hud-objective{display:flex;align-items:center;gap:9px;max-width:260px;font-size:14px;font-weight:650;white-space:nowrap}
 .game-hud-objective>span{overflow:hidden;text-overflow:ellipsis}
@@ -27,3 +27,9 @@
 .game-hud-indicator.verified{background:#54d5b0}
 .game-hud-indicator.stale{background:#ffba5c}
 .game-hud-accessible-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+.game-hud-kills .game-hud-cell-value{font-size:36px}
+.game-hud-gold .game-hud-cell-value{font-size:33px}
+.game-hud-objectives .game-hud-cell-value,.game-hud-towers .game-hud-cell-value{font-size:25px}
+.game-hud-score .game-hud-cell-value{font-size:20px;font-weight:650}
+.game-hud-score small{font-size:10px}

@@ -1,6 +1,7 @@
 import type { PostGameReport, PostGameMetric, PostGameField, PostGameTeamMetric, PostGameGradeField } from './postGame.js';
 import { initialLiveGameStats, type LiveGameStats, type LiveHudSample } from './liveGame.js';
 import type { LiveCaptureKey } from './gameCapture.js';
+import type { NeutralSample } from './neutralRecognition.js';
 import type { GoldTimelinePoint,GoldDifferenceTimeline } from './postGameTimeline.js';
 import { defaultBansForMode, type HeroPool, type BanCount } from './heroPool.js';
 export type Side = 'blue' | 'red';
@@ -59,6 +60,7 @@ export interface TeamPreset extends Team {
 }
 
 export interface GameDraftRecord {
+  liveGameStats?: LiveGameStats;
   blueGameRoles?: PlayerRole[];
   redGameRoles?: PlayerRole[];
   lineupConfirmed?: boolean;
@@ -177,6 +179,9 @@ export type Action =
   | { type: 'live_game_stats'; stats: LiveGameStats }
   | { type: 'live_game_ocr'; context:string; previous:LiveHudSample; sample:LiveHudSample }
   | { type: 'live_game_freeze'; key:LiveCaptureKey; frozen:boolean }
+  | { type: 'live_objective_count'; context:string; id:string; side:Side; value:number }
+  | { type: 'live_objective_freeze'; context:string; id:string; side:Side; frozen:boolean }
+  | { type: 'live_objective_ocr'; context:string; previous:NeutralSample; sample:NeutralSample }
   | { type: 'load_team_preset'; side: Side; presetId: string }
   | { type: 'draft_action'; team: Side; action: 'ban' | 'pick'; heroId: number }
   /** Explicit operator correction for an already locked slot. Historical games use gameId. */
