@@ -577,3 +577,28 @@ test('native Retry-After header delays retry and the clock starts only after suc
     h.cleanup();
   }
 });
+
+test('native message recovery persists the Discord cooldown across restart without reposting', async () => {
+  const h = setup(async (_url, options) => {
+    if (options?.method === 'POST') throw Error('Response lost');
+    return new Response('{}', { status: 429, headers: { 'Retry-After': '10' } });
+  });
+  try {
+    h.votes.configure({ autoStart: true, scope: 'all', publicOrigin: '', mode: 'native' });
+    h.end(h.commit());
+    await h.votes.tick(h.store.data.state);
+    const v = h.votes.snapshot(h.store.data.state).votes[0];
+    await assert.rejects(h.votes.recover(v.id, '123456789012345679'), /cooldown/);
+    assert.equal(h.calls(), 2);
+    const restored = h.restore();
+    await assert.rejects(restored.recover(v.id, '123456789012345679'), /cooldown/);
+    assert.equal(h.calls(), 2);
+    assert.equal(restored.snapshot(h.store.data.state).votes[0].opening.status, 'uncertain');
+    assert.equal(restored.snapshot(h.store.data.state).votes[0].startedAt, 0);
+    h.setNow(1010001);
+    await assert.rejects(restored.recover(v.id, '123456789012345679'), /cooldown/);
+    assert.equal(h.calls(), 3);
+  } finally {
+    h.cleanup();
+  }
+});

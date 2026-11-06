@@ -167,12 +167,24 @@ export class DiscordWebhook {
       this.busy
     )
       throw Error('Cannot recover this Poll');
+    if (this.notices.some((n) => (n.retryAt || 0) > this.now()))
+      throw Error('Discord rate limit; retry after the recorded cooldown');
     this.busy = true;
     try {
       const response = await this.fetcher(`${url}/messages/${messageId}`, {
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
+      if (response.status === 429) {
+        const data = (await response.json().catch(() => ({}))) as { retry_after?: unknown };
+        const seconds = Number(data.retry_after ?? response.headers.get('retry-after'));
+        notice.retryAt =
+          this.now() +
+          Math.ceil(
+            (Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 86400) : 60) * 1000,
+          );
+        this.save();
+      }
       if (!response.ok) throw Error('Message lookup failed; check ID and permissions');
       const data = (await response.json()) as {
         id: string;
@@ -201,6 +213,8 @@ export class DiscordWebhook {
       this.save();
       return this.snapshot().notices.find((n) => n.id === id)!;
     } catch {
+      if ((notice.retryAt || 0) > this.now())
+        throw Error('Discord rate limit; retry after the recorded cooldown');
       throw Error('Poll recovery failed; verify the original message in Discord');
     } finally {
       this.busy = false;
