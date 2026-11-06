@@ -40,7 +40,7 @@ test('Webhook-only automatic poll runs a real 180 seconds; public browser, exact
     await page.goto('/control#token=e2e-control');
     await openDockPanel(page, 'voting');
     const panel = page.getByRole('region', { name: '三分钟 MVP 投票 / Strict MVP voting' });
-    await panel.getByText('投票设置 / Vote settings', { exact: true }).click();
+    await panel.getByLabel('投票模式 / Voting mode').selectOption('web');
     await panel
       .getByLabel('公开 HTTPS 域名 / Public HTTPS origin')
       .fill('https://broadcast.example.com');

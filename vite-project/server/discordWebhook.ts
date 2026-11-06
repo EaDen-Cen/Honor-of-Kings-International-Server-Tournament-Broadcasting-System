@@ -1,3 +1,4 @@
+import type { NativePoll } from '../src/shared/strictVote.js';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -9,6 +10,8 @@ import type { SecureSettings } from './secureSettings.js';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const webhookPattern = /^https:\/\/discord\.com\/api\/webhooks\/\d{16,22}\/[A-Za-z0-9_-]{20,200}$/;
 interface Notice {
+  poll?: NativePoll;
+  sentAt?: number;
   id: string;
   hash: string;
   target: string;
@@ -133,12 +136,80 @@ export class DiscordWebhook {
     return this.deliver(preview, input);
   }
   /** Internal, frozen vote notices share the same delivery journal and secret storage. */
-  async publish(id: string, content: string, confirmUncertain = false) {
+  async publish(id: string, content: string, confirmUncertain = false, poll?: NativePoll) {
     if (!content || content.length > 2000) throw Error('Invalid announcement content');
-    await this.deliver({ content, hash: hash(content) }, { id, kind: 'strict-vote', confirmUncertain });
-    return this.snapshot().notices.find(notice => notice.id === id)!;
+    if (
+      poll &&
+      (poll.duration !== 1 ||
+        poll.allow_multiselect !== false ||
+        !poll.question.text ||
+        poll.question.text.length > 300 ||
+        ![5, 10].includes(poll.answers.length) ||
+        poll.answers.some((a) => !a.poll_media.text || a.poll_media.text.length > 55))
+    )
+      throw Error('Invalid native Poll');
+    await this.deliver(
+      { content, hash: hash(poll ? JSON.stringify([content, poll]) : content), poll },
+      { id, kind: 'strict-vote', confirmUncertain },
+    );
+    return this.snapshot().notices.find((notice) => notice.id === id)!;
   }
-  private async deliver(preview: { content: string; hash: string }, input: Record<string, unknown>) {
+  async recoverPublished(id: string, messageId: string) {
+    const notice = this.notices.find((n) => n.id === id);
+    const url = this.storage.get<{ webhookUrl?: string }>('discord')?.webhookUrl;
+    if (
+      !notice?.poll ||
+      notice.status !== 'uncertain' ||
+      !/^\d{16,22}$/.test(messageId) ||
+      !url ||
+      !webhookPattern.test(url) ||
+      notice.target !== hash(url) ||
+      this.busy
+    )
+      throw Error('Cannot recover this Poll');
+    this.busy = true;
+    try {
+      const response = await this.fetcher(`${url}/messages/${messageId}`, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw Error('Message lookup failed; check ID and permissions');
+      const data = (await response.json()) as {
+        id: string;
+        webhook_id: string;
+        timestamp: string;
+        poll?: NativePoll;
+      };
+      const sentAt = Date.parse(data.timestamp);
+      if (
+        data.id !== messageId ||
+        data.webhook_id !== url.split('/').at(-2) ||
+        !data.poll ||
+        data.poll.question.text !== notice.poll.question.text ||
+        data.poll.allow_multiselect !== false ||
+        JSON.stringify(data.poll.answers.map((a) => a.poll_media.text)) !==
+          JSON.stringify(notice.poll.answers.map((a) => a.poll_media.text)) ||
+        !Number.isSafeInteger(sentAt) ||
+        sentAt < notice.createdAt - 60000 ||
+        sentAt > this.now() + 60000
+      )
+        throw Error('Message does not match the original Poll');
+      notice.status = 'sent';
+      notice.messageId = messageId;
+      notice.sentAt = sentAt;
+      notice.error = undefined;
+      this.save();
+      return this.snapshot().notices.find((n) => n.id === id)!;
+    } catch {
+      throw Error('Poll recovery failed; verify the original message in Discord');
+    } finally {
+      this.busy = false;
+    }
+  }
+  private async deliver(
+    preview: { content: string; hash: string; poll?: NativePoll },
+    input: Record<string, unknown>,
+  ) {
     if (typeof input.id !== 'string' || !/^[a-f0-9-]{36}$/.test(input.id))
       throw Error('Invalid announcement ID');
     const url = this.storage.get<{ webhookUrl?: string }>('discord')?.webhookUrl;
@@ -158,6 +229,7 @@ export class DiscordWebhook {
       hash: preview.hash,
       target: hash(url),
       content: preview.content,
+      poll: preview.poll,
       kind: String(input.kind),
       ...(typeof input.pollUrl === 'string' ? { pollUrl: input.pollUrl } : {}),
       createdAt: this.now(),
@@ -172,7 +244,11 @@ export class DiscordWebhook {
       const response = await this.fetcher(url + '?wait=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: notice.content, allowed_mentions: { parse: [] } }),
+        body: JSON.stringify({
+          content: notice.content,
+          ...(notice.poll ? { poll: notice.poll } : {}),
+          allowed_mentions: { parse: [] },
+        }),
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
@@ -181,6 +257,7 @@ export class DiscordWebhook {
         retry_after?: unknown;
       };
       if (response.status === 429) {
+        data.retry_after ??= Number(response.headers.get('retry-after'));
         const seconds =
           typeof data.retry_after === 'number' &&
           Number.isFinite(data.retry_after) &&
@@ -193,6 +270,7 @@ export class DiscordWebhook {
       } else if (response.ok && typeof data.id === 'string' && /^\d{16,22}$/.test(data.id)) {
         notice.status = 'sent';
         notice.messageId = data.id;
+        notice.sentAt = this.now();
       } else if (response.status >= 400 && response.status < 500 && response.status !== 408) {
         notice.status = 'failed';
         notice.error = `Discord rejected announcement (HTTP ${response.status})`;

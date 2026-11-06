@@ -406,3 +406,174 @@ test('manual start respects saved scope and rejects invalid public destinations 
     h.cleanup();
   }
 });
+
+test('native Poll payload, confirmed publication clock, restart and soft-deadline notice', async () => {
+  const payloads: Array<{
+    poll?: {
+      answers: Array<{ poll_media: { text: string } }>;
+      duration: number;
+      allow_multiselect: boolean;
+    };
+    content: string;
+  }> = [];
+  const h = setup(async (_url, init) => {
+    payloads.push(JSON.parse(String(init?.body)));
+    assert.equal((init?.headers as Record<string, string>).Authorization, undefined);
+    if (payloads.length === 1) h.setNow(1012000);
+    return new Response(JSON.stringify({ id: '123456789012345679' }));
+  });
+  try {
+    h.votes.configure({ autoStart: true, scope: 'all', publicOrigin: '', mode: 'native' });
+    const game = h.commit();
+    await h.votes.tick(h.store.data.state);
+    assert.equal(payloads.length, 0);
+    h.end(game);
+    const id = h.votes.start(h.store.data.state, game);
+    assert.equal(h.votes.snapshot(h.store.data.state).votes[0].status, 'pending');
+    assert.equal(h.votes.snapshot(h.store.data.state).votes[0].deadline, 0);
+    await h.votes.tick(h.store.data.state);
+    const v = h.votes.snapshot(h.store.data.state).votes[0];
+    assert.equal(v.startedAt, 1012000);
+    assert.equal(v.deadline, 1192000);
+    assert.equal(v.opening.messageId, '123456789012345679');
+    const poll = payloads[0].poll!;
+    assert.equal(poll.duration, 1);
+    assert.equal(poll.allow_multiselect, false);
+    assert.equal(poll.answers.length, 10);
+    assert.ok(poll.answers.every((a) => a.poll_media.text.length <= 55));
+    assert.match(payloads[0].content, /soft deadline/);
+    assert.throws(() => h.votes.cast(id, randomUUID(), v.candidates[0].rowId), /closed/);
+    assert.throws(() => h.votes.publicVote(id), /no web ballot/);
+    const restored = h.restore();
+    h.setNow(1191999);
+    assert.equal(restored.snapshot(h.store.data.state).votes[0].status, 'active');
+    h.setNow(1192000);
+    await restored.tick(h.store.data.state);
+    assert.equal(payloads.length, 2);
+    assert.equal(payloads[1].poll, undefined);
+    assert.match(payloads[1].content, /Discord 原生投票可能仍允许继续投票/);
+    await h.restore().tick(h.store.data.state);
+    assert.equal(payloads.length, 2);
+    assert.equal(h.store.data.state.postGameReports[0].selectedMvpRowId, null);
+    assert.ok(!JSON.stringify(restored.snapshot(h.store.data.state)).includes('TEST_ONLY_WEBHOOK'));
+  } finally {
+    h.cleanup();
+  }
+});
+
+test('unknown native delivery recovers matching Discord message and original timestamp without reposting', async () => {
+  let poll: unknown;
+  let sends = 0;
+  const h = setup(async (_url, init) => {
+    if (!init?.method)
+      return new Response(
+        JSON.stringify({
+          id: '123456789012345679',
+          webhook_id: '123456789012345678',
+          timestamp: new Date(1001000).toISOString(),
+          poll,
+        }),
+      );
+    const body = JSON.parse(String(init.body));
+    if (body.poll) {
+      poll = body.poll;
+      sends++;
+      throw Error('Lost ack');
+    }
+    return new Response(JSON.stringify({ id: '123456789012345680' }));
+  });
+  try {
+    h.votes.configure({ autoStart: true, scope: 'winner', publicOrigin: '', mode: 'native' });
+    const game = h.commit();
+    h.end(game, 'red');
+    await h.votes.tick(h.store.data.state);
+    const v = h.votes.snapshot(h.store.data.state).votes[0];
+    assert.equal(v.candidates.length, 5);
+    assert.equal(v.opening.status, 'uncertain');
+    const restored = h.restore();
+    await restored.tick(h.store.data.state);
+    assert.equal(sends, 1);
+    await assert.rejects(restored.retry(v.id, true), /original Discord message/);
+    h.setNow(1182000);
+    await restored.recover(v.id, '123456789012345679');
+    const recovered = restored.snapshot(h.store.data.state).votes[0];
+    assert.equal(recovered.startedAt, 1001000);
+    assert.equal(recovered.deadline, 1181000);
+    assert.equal(recovered.status, 'closed');
+    await restored.tick(h.store.data.state);
+    assert.equal(sends, 1);
+    assert.equal(restored.snapshot(h.store.data.state).votes[0].closing.status, 'sent');
+  } finally {
+    h.cleanup();
+  }
+});
+for (const format of ['BO1', 'BO3', 'BO5'] as const)
+  test(`${format}: native cancellation, Undo and mode changes keep one ballot per game`, async () => {
+    const h = setup();
+    try {
+      h.apply({ type: 'settings', settings: { ...h.store.data.state, seriesFormat: format } });
+      h.votes.configure({ autoStart: true, scope: 'all', publicOrigin: '', mode: 'native' });
+      const game = h.commit();
+      h.end(game);
+      await h.votes.tick(h.store.data.state);
+      const v = h.votes.snapshot(h.store.data.state).votes[0];
+      h.votes.finish(v.id, true);
+      await h.votes.tick(h.store.data.state);
+      h.apply({ type: 'undo' });
+      h.end(game);
+      await h.votes.tick(h.store.data.state);
+      assert.equal(h.calls(), 2);
+      h.votes.configure({
+        autoStart: true,
+        scope: 'all',
+        publicOrigin: 'https://broadcast.example.com',
+        mode: 'web',
+      });
+      assert.equal(h.votes.start(h.store.data.state, game), v.id);
+      if (format !== 'BO1') {
+        h.apply({ type: 'score', team: 'blue', delta: 1 });
+        h.apply({ type: 'next_game' });
+        const next = h.commit();
+        h.end(next);
+        await h.votes.tick(h.store.data.state);
+        const votes = h.restore().snapshot(h.store.data.state).votes;
+        assert.equal(votes.length, 2);
+        assert.equal(votes[0].mode, 'native');
+        assert.equal(votes[1].mode, 'web');
+        assert.equal(votes[0].status, 'cancelled');
+        h.votes.cast(votes[1].id, randomUUID(), votes[1].candidates[0].rowId);
+        assert.equal(
+          h.votes.snapshot(h.store.data.state).votes[0].counts.reduce((a, b) => a + b, 0),
+          0,
+        );
+      }
+    } finally {
+      h.cleanup();
+    }
+  });
+test('native Retry-After header delays retry and the clock starts only after success', async () => {
+  let limited = true;
+  const h = setup(async () =>
+    limited
+      ? new Response('{}', { status: 429, headers: { 'Retry-After': '10' } })
+      : new Response(JSON.stringify({ id: '123456789012345679' })),
+  );
+  try {
+    h.votes.configure({ autoStart: true, scope: 'all', publicOrigin: '', mode: 'native' });
+    const game = h.commit();
+    h.end(game);
+    await h.votes.tick(h.store.data.state);
+    const v = h.votes.snapshot(h.store.data.state).votes[0];
+    assert.equal(v.opening.status, 'failed');
+    assert.equal(v.startedAt, 0);
+    await h.votes.retry(v.id, false);
+    assert.equal(h.calls(), 1);
+    limited = false;
+    h.setNow(1010001);
+    await h.votes.retry(v.id, false);
+    assert.equal(h.votes.snapshot(h.store.data.state).votes[0].startedAt, 1010001);
+    assert.equal(h.calls(), 2);
+  } finally {
+    h.cleanup();
+  }
+});

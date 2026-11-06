@@ -150,7 +150,11 @@ try {
 const discordTimer = setInterval(() => {
   void discord
     ?.tick()
-    .then(() => discord?.autoStart(store.data.state))
+    .then(() =>
+      strictVoting?.snapshot(store.data.state).config.mode === 'bot'
+        ? discord?.autoStart(store.data.state)
+        : undefined,
+    )
     .catch(() => diagnostics.record('discord_sync_failed'));
 }, 5000);
 discordTimer.unref();
@@ -465,6 +469,8 @@ const server = createServer(async (req, res) => {
             if (input.action === 'start') strictVoting.start(store.data.state, input.reportId);
             else if (input.action === 'end' || input.action === 'cancel')
               strictVoting.finish(input.id, input.action === 'cancel');
+            else if (input.action === 'recover')
+              await strictVoting.recover(input.id, input.messageId);
             else if (input.action === 'retry')
               await strictVoting.retry(input.id, input.confirmUncertain === true);
             else throw Error('Unknown vote command');

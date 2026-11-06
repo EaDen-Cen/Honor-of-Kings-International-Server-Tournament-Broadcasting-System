@@ -11,6 +11,7 @@ import {
 } from '../shared/audienceVote';
 import { AudienceVoteView, useAudienceVotes, voteStatusLabel } from '../shared/AudienceVoteView';
 export function DiscordVotePanel({ token, state, send, disabled }: { token: string; state: MatchState; send: (action: Action) => boolean; disabled: boolean }) {
+  const [mode, setMode] = useState('native');
   const { votes, error } = useAudienceVotes(token);
   const [config, setConfig] = useState<DiscordPublicConfig>();
   const [candidates, setCandidates] = useState<VoteCandidate[]>([]),
@@ -82,9 +83,9 @@ export function DiscordVotePanel({ token, state, send, disabled }: { token: stri
   );
   return (
     <>
-      <StrictVotePanel token={token} state={state} send={send} disabled={disabled} />
+      <StrictVotePanel token={token} state={state} send={send} disabled={disabled} onMode={setMode} />
       <DiscordWebhookPanel token={token} state={state} />
-      <details>
+      <details open={mode === 'bot'} hidden={mode !== 'bot'}>
         <summary>可选增强：Discord Bot 自动投票（需要额外安装权限）</summary>
         <section className="panel discord-vote-panel" aria-label="Discord MVP 投票">
           <h2>Discord · 观众 MVP 投票</h2>
