@@ -146,3 +146,51 @@ export function maintainGeneratedStorage(
   }
   return report;
 }
+
+
+export interface StorageFolderUsage {
+  bytes: number;
+  files: number;
+  directories: number;
+}
+export interface StorageInventory {
+  categories: Record<string, StorageFolderUsage>;
+  skippedLinks: number;
+  truncated: boolean;
+}
+
+/** Read-only local inventory. Returns aggregate sizes, never user filenames or secrets. */
+export function inspectLocalStorage(projectRoot: string, maxEntries = 200_000): StorageInventory {
+  const root = resolve(projectRoot);
+  assertProjectRoot(root);
+  const categories: Record<string, StorageFolderUsage> = {};
+  const report: StorageInventory = { categories, skippedLinks: 0, truncated: false };
+  const scopes = ['node_modules', 'dist', 'data', 'artifacts', 'public',
+    'test-results', 'playwright-report'];
+  let seen = 0;
+  const traverse = (path: string, usage: StorageFolderUsage, depth: number) => {
+    if (seen >= maxEntries || depth > 25) { report.truncated = true; return; }
+    const stats = safeFileType(path);
+    if (!stats) return;
+    if (stats.isSymbolicLink()) { report.skippedLinks++; return; }
+    seen++;
+    if (stats.isFile()) { usage.bytes += stats.size; usage.files++; return; }
+    if (!stats.isDirectory()) return;
+    usage.directories++;
+    let names: string[];
+    try { names = readdirSync(path); } catch { report.truncated = true; return; }
+    for (const name of names) {
+      if (seen >= maxEntries) { report.truncated = true; return; }
+      const child = resolve(path, name);
+      if (isInside(root, child)) traverse(child, usage, depth + 1);
+    }
+  };
+  for (const scope of scopes) {
+    const stats = safeFileType(resolve(root, scope));
+    const usage: StorageFolderUsage = { bytes: 0, files: 0, directories: 0 };
+    if (stats && !stats.isSymbolicLink())
+      traverse(resolve(root, scope), usage, 0);
+    categories[scope] = usage;
+  }
+  return report;
+}
