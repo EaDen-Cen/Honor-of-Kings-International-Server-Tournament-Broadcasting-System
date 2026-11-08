@@ -88,3 +88,7 @@ GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architec
 ## BO7 与逐局规则
 
 [操作指南](guides/game-rules-manager.md) · [规则/历史结构](design/game-rules.md) · [验证记录](validation/bo7-game-rules.md)。支持系列赛默认与逐局覆盖、无英雄盲选开局与正常报告；普通 0 Ban 与 Blind Pick 不混用。
+
+## 本地空间与 OCR 稳定性（2026-11-08）
+
+[磁盘目录体积、只读盘点与定时安全清理](guides/storage-maintenance.md) · [BetterGI 视觉识别源码研究与 HOK 下一阶段路线](research/bettergi-ocr-comparison.md)。当前只实现 CI/E2E 产物自动维护及弱 OCR 缓存重试；Tesseract→PP-OCRv6 的 A/B 和真实比赛截图准确率对比尚未执行。
