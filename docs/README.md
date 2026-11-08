@@ -1,5 +1,7 @@
 # 文档总索引
 
+本地维护与 OCR：[空间占用/安全清理](guides/storage-maintenance.md)、[同批遮挡回放](guides/hud-occlusion-replay.md)、[BetterGI 源码研究](research/bettergi-vision.md)、[架构](architecture/storage-ocr-reliability.md)、[验证](validation/storage-ocr-reliability.md)。
+
 GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architecture/ghud-capture.md)、[验证](validation/ghud-adb-objectives.md)。
 
 桌面菜单与原生投票：[架构](architecture/desktop-workspace.md)、[验证](validation/desktop-native-poll.md)。
