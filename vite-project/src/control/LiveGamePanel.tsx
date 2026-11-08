@@ -1,7 +1,7 @@
 import { createClientUUID } from '../shared/clientId';
 import { useEffect, useRef, useState } from 'react';
 import type { Action, MatchState } from '../shared/types';
-import { neutralObjectiveLabel, type LiveGameStats } from '../shared/liveGame';
+import { liveGameContext, neutralObjectiveLabel, type LiveGameStats } from '../shared/liveGame';
 import { liveCaptureKeys, liveCaptureLabel } from '../shared/gameCapture';
 import { LiveHudCapturePanel } from './LiveHudCapturePanel';
 import { ManualNumberInput } from './ManualNumberInput';
@@ -284,8 +284,23 @@ export function LiveGamePanel({
           ))}
           <b>{neutralObjectiveLabel(item, zh)}</b>
           {(['blue', 'red'] as const).map((side) => (
-            <label key={side}>
-              {state[`${side}Team`].name}
+            <div key={side}>
+              <span>{state[`${side}Team`].name}</span>
+              <button
+                aria-label={`${neutralObjectiveLabel(item, zh)} ${side} minus`}
+                disabled={disabled || item[side] === 0}
+                onClick={() =>
+                  send({
+                    type: 'live_objective_count',
+                    context: liveGameContext(state),
+                    id: item.id,
+                    side,
+                    value: item[side] - 1,
+                  })
+                }
+              >
+                −1
+              </button>
               <ManualNumberInput
                 key={`${gameKey}:${item.id}:${side}`}
                 label={`${neutralObjectiveLabel(item, zh)} ${side}`}
@@ -295,15 +310,56 @@ export function LiveGamePanel({
                 value={item[side]}
                 disabled={disabled}
                 onCommit={(value) =>
-                  update({
-                    ...stats,
-                    neutralObjectives: stats.neutralObjectives.map((v) =>
-                      v.id === item.id ? { ...v, [side]: value! } : v,
-                    ),
+                  send({
+                    type: 'live_objective_count',
+                    context: liveGameContext(state),
+                    id: item.id,
+                    side,
+                    value: value!,
                   })
                 }
               />
-            </label>
+              <button
+                aria-label={`${neutralObjectiveLabel(item, zh)} ${side} plus`}
+                disabled={disabled || item[side] >= 999}
+                onClick={() =>
+                  send({
+                    type: 'live_objective_count',
+                    context: liveGameContext(state),
+                    id: item.id,
+                    side,
+                    value: item[side] + 1,
+                  })
+                }
+              >
+                +1
+              </button>
+              <label>
+                <input
+                  type="checkbox"
+                  aria-label={`${neutralObjectiveLabel(item, zh)} ${side} frozen`}
+                  checked={item.countFrozen?.[side] !== false}
+                  disabled={disabled}
+                  onChange={(e) =>
+                    send({
+                      type: 'live_objective_freeze',
+                      context: liveGameContext(state),
+                      id: item.id,
+                      side,
+                      frozen: e.target.checked,
+                    })
+                  }
+                />
+                {zh ? '冻结自动计数' : 'Freeze automatic counter'}
+              </label>
+              <small>
+                {item.countSources?.[side]
+                  ? `${item.countSources[side]!.source === 'manual' ? (zh ? '人工确认' : 'Manual') : zh ? '自动识别' : 'OCR'} · ${new Date(item.countSources[side]!.capturedAt).toLocaleTimeString()}`
+                  : zh
+                    ? '累计数待核对'
+                    : 'Counter baseline unverified'}
+              </small>
+            </div>
           ))}
           <button
             disabled={disabled}

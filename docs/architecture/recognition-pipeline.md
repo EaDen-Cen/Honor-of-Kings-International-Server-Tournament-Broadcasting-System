@@ -1,5 +1,7 @@
 # 识别与人工保护
 
+GHUD 新增本机 ADB 来源及独立资源绝对计数校验，复用 Store/revision/ACK；模块与数据边界见 [GHUD 采集架构](ghud-capture.md)。
+
 本地识别入口为 `capture.ts`（英雄模板）和 `gameDataRecognition.ts` / `playerRecognition.ts`（数字与玩家 OCR）。`server.ts` 装配服务；AI 服务默认 `enabled:false`。
 
 ```mermaid

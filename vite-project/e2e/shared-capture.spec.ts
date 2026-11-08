@@ -74,7 +74,9 @@ test('player ID, GHUD and post-game regions use draw, move and resize with no co
     await openDockPanel(page,'hud');await page.getByText('Live HUD / kills, towers and objectives',{exact:true}).click();await page.getByText('GHUD top bar recognition · Experimental',{exact:true}).click();
     const hud=page.getByText('GHUD top bar recognition · Experimental',{exact:true}).locator('..');await hud.getByText('Calibrate the seven HUD digits (confirm for each source)',{exact:true}).click();await hud.getByRole('button',{name:'Preview captured frame',exact:true}).click();
     await draw(page,hud.getByLabel('GHUD digit selection',{exact:true}),{x:.8,y:.04},{x:.83,y:.075});await hud.getByRole('button',{name:'Save & confirm calibration',exact:true}).click();
-    expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('hok-ghud-calibration-v1')!).gameTimeSeconds.x)).toBeCloseTo(.8,2);await expect(hud.locator('input[type=number]')).toHaveCount(0);
+    const savedHud=await page.evaluate(()=>JSON.parse(localStorage.getItem('hok-ghud-calibration-v2')!) as {source:string;regions:{gameTimeSeconds:{x:number}}}[]);
+    expect(savedHud).toHaveLength(1);expect(JSON.parse(savedHud[0].source)[0]).toBe('window');
+    expect(savedHud[0].regions.gameTimeSeconds.x).toBeCloseTo(.8,2);await expect(hud.locator('input[type=number]')).toHaveCount(0);
     await page.screenshot({path:'artifacts/shared-capture-calibration.png',fullPage:true});
   }finally{h.close();}
 });
