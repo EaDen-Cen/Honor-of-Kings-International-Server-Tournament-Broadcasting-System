@@ -288,3 +288,9 @@ P0 `LineupAssignments` 过去要求两方完整解析且可信才能应用，导
 ## PR #91 已合并（2026-10-21）
 
 已合并结构化后台 AI 辅助、过期取消与密钥隔离；HUD 相同 ROI 短期复用；可停靠工作区与稳定采集生命周期；Windows Sites 同步客户端与进程 Job 清理；启动前默认准备 112 张已有来源的高清立绘。测试记录：单元/服务 304 通过、2 环境跳过；完整本机浏览器回归 91/91 通过；生产依赖审计 0 漏洞。**这些不是实际直播验收**：真实云端 API、完整录屏、长期 OBS 与 Sites 服务器端接口配对仍待验证。见 [验证记录](docs/validation/pr91-validation.md)。
+
+## BO7 / 逐局规则增量（2026-11-08）
+
+- 系列赛默认与单局覆盖、未来局临时变更、Blind Pick 稳定 Game ID / 赛后报告、跨局历史独立受限与贡献。
+- BO7 比分、Caster/Overlay、存档、Undo/Recovery、旧记录迁移一并验证；不是仅增加下拉选项。
+- 操作与验收边界：[逐局规则](docs/guides/game-rules-manager.md)、[测试记录](docs/validation/bo7-game-rules.md)。

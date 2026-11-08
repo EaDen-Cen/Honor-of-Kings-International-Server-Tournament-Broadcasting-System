@@ -24,10 +24,10 @@ export function DraftLifecycle({ state, disabled, send }: { state: MatchState; d
         <div className="toolbar">
           <button
             className="primary"
-            disabled={disabled || !state.draftComplete || !!state.committedGameId}
+            disabled={disabled || state.draftMode === 'blind' || !state.draftComplete || !!state.committedGameId}
             onClick={() => confirm(t('confirmCommit')) && send({ type: 'commit_game' })}
           >
-            {t(state.committedGameId ? 'gameCommitted' : 'commitGame')}
+            {state.draftMode === 'blind' ? (state.language==='zh'?'盲选在盲选面板开局':'Start from Blind Pick panel') : t(state.committedGameId ? 'gameCommitted' : 'commitGame')}
           </button>
 
           <button
@@ -45,7 +45,7 @@ export function DraftLifecycle({ state, disabled, send }: { state: MatchState; d
           </button>
         </div>
 
-        <p className="muted">{t('lifecycleHint')}</p>
+        <p className="muted">{state.draftMode === 'blind' ? (state.language==='zh'?'盲选局已跳过 BP；赛后确认胜负，再进入下一局。':'Blind games skip BP. Confirm the result after play, then advance.') : t('lifecycleHint')}</p>
       </div>
 
       <section className="lifecycle-score" aria-label={t('seriesScore')}>

@@ -138,7 +138,7 @@ function Competitor({
   state: MatchState;
   zh: boolean;
 }) {
-  const hero = player ? heroForState(state, player.heroId) : undefined;
+  const hero = player?.heroId != null ? heroForState(state, player.heroId) : undefined;
   const grade =
     player?.grade && (player.grade.manual || player.grade.confidence >= 0.85)
       ? player.grade.value
@@ -162,7 +162,8 @@ function Competitor({
           <small>{player?.teamName ?? '—'}</small>
           <strong>{player?.playerId || '—'}</strong>
           <span>
-            {zh ? hero?.chineseName : hero?.englishName}
+            {(zh ? hero?.chineseName : hero?.englishName) ||
+              (zh ? '英雄未记录' : 'Hero not recorded')}
             {grade && ' · ' + (zh ? '游戏评级' : 'Game grade') + ' ' + grade}
           </span>
         </div>

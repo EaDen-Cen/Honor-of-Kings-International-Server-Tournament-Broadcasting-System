@@ -1,3 +1,5 @@
+import { GameRulesManager } from './control/GameRulesManager';
+import { BlindGamePanel } from './control/BlindGamePanel';
 import { StartupPreflight } from './control/StartupPreflight';
 import { gameRoles } from './shared/gameLineup';
 import { playerAtSlot } from './shared/playerSlots';
@@ -36,7 +38,8 @@ import { portraitAssetURL } from './shared/config';
 import { connectionLabel, phaseName, seriesName, stageName, teamName, draftRuleName } from './shared/display';
 import { translator } from './shared/i18n';
 import { errorMessage } from './shared/errorMessages';
-import { currentGame, displaySides, normalizeState, ruleLocked } from './shared/draftRules';
+import { currentGame, displaySides, normalizeState } from './shared/draftRules';
+import { gameRulesLocked } from './shared/gameRules';
 import { TeamLibrary } from './control/TeamLibrary';
 import { PortraitField } from './control/PortraitField';
 import { ControlHeroPicker } from './control/ControlHeroPicker';
@@ -66,6 +69,11 @@ function HeroSlot({ state, id, ban = false, lang }: { state: MatchState; id?: nu
 function Board({ state, lang, compact = false, onCorrect }: { state: MatchState; lang: Language; compact?: boolean; onCorrect?: (slot:{side:Side;kind:'ban'|'pick';index:number})=>void }) {
   const t = translator(lang);
   const phase = phases(state.draftMode, state.firstPickSide,state.banCount)[state.currentPhase];
+  if (state.draftMode === 'blind') return <section className={`board ${compact ? 'compact-board' : ''}`}>
+    <div className="match-strip"><span>{t('gameTitle')}</span><span>{t('gameNumber',{number:currentGame(state)})} · {seriesName(state.seriesFormat,lang)} · {state.heroPool === 'cn' ? 'CN' : 'Global'}</span></div>
+    <div className="team-grid">{displaySides(state).map(side=><section key={side} className={`team ${side}`}><header><h2>{teamName(state,side)}</h2><Score state={state} side={side}/></header><p>{lang==='zh'?'盲选模式 · 无传统 BP':'Blind Pick · no traditional draft'}</p></section>)}</div>
+    <footer className="phase">{lang==='zh'?'盲选模式':'Blind Pick'}</footer>
+  </section>;
   return <section className={`board ${compact ? 'compact-board' : ''}`}><div className="match-strip"><span>{t('gameTitle')}</span><span>{stageName(state.stage, lang)} · {t('gameNumber', { number: currentGame(state) })} · {seriesName(state.seriesFormat, lang)} · {draftRuleName(state, lang)}</span></div>
     <div className="team-grid">{displaySides(state).map(side => <section key={side} className={`team ${side} ${phase?.team === side ? 'active' : ''}`}><header>{state[`${side}Team`].logo && <img className="logo" src={portraitAssetURL(state[`${side}Team`].logo)} alt="" />}<h2>{teamName(state, side)}</h2><Score state={state} side={side} /></header><div className="picks">{Array.from({ length: 5 }, (_, i) => onCorrect && i<state[`${side}Picks`].length ? <button key={i} data-draft-target={`${side}:pick:${i}`} aria-label={`Correct ${side} pick ${i+1}`} onClick={()=>onCorrect({side,kind:'pick',index:i})}><HeroSlot state={state} id={state[`${side}Picks`][i]} lang={lang} /></button> : <HeroSlot key={i} state={state} id={state[`${side}Picks`][i]} lang={lang} />)}</div><div className="bans"><small>{t('ban')}</small>{Array.from({ length: state.banCount }, (_, i) => onCorrect && i<state[`${side}Bans`].length ? <button key={i} data-draft-target={`${side}:ban:${i}`} aria-label={`Correct ${side} ban ${i+1}`} onClick={()=>onCorrect({side,kind:'ban',index:i})}><HeroSlot state={state} id={state[`${side}Bans`][i]} ban lang={lang} /></button> : <HeroSlot key={i} state={state} id={state[`${side}Bans`][i]} ban lang={lang} />)}</div></section>)}</div>
     {state.draftComplete && !onCorrect && <div className="team-grid">{displaySides(state).map(side=><div key={side}>{gameRoles.map(role=>{
@@ -145,7 +153,7 @@ const settingsFromState = (state: MatchState): MatchSettings => ({
 function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send: (a: Action) => void; disabled: boolean; token: string }) {
   const t = translator(state.language);
   const { form, setForm, dirty, conflicts, reset } = useSettingsDraft(settingsFromState(state));
-  const firstPickLocked = state.currentPhase > 0;
+  const currentRulesLocked = gameRulesLocked(state, currentGame(state));
   return <form data-unsaved={dirty} className="panel settings match-settings-panel" onSubmit={event => {
     event.preventDefault();
     if (disabled || conflicts.length) return;
@@ -161,34 +169,34 @@ function MatchSettingsPanel({ state, send, disabled }: { state: MatchState; send
     <div className="match-settings-grid">
       <section><h3>{t('matchDisplay')}</h3>
         <label>{t('stage')}<input maxLength={80} value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })} /></label>
-        <label>{t('seriesFormat')}<select disabled={state.draftHistory.length > 0} value={form.seriesFormat} onChange={e => setForm({ ...form, seriesFormat: e.target.value as MatchSettings['seriesFormat'] })}>
-          {(['BO1', 'BO3', 'BO5'] as const).map(format => <option key={format} value={format}>{seriesName(format, state.language)}</option>)}
+        <label>{t('seriesFormat')}<select value={form.seriesFormat} onChange={e => setForm({ ...form, seriesFormat: e.target.value as MatchSettings['seriesFormat'] })}>
+          {(['BO1', 'BO3', 'BO5', 'BO7'] as const).map(format => <option key={format} value={format}>{seriesName(format, state.language)}</option>)}
         </select></label>
         <label>{t('currentGame')}<div className="readonly-field">{t('gameNumber', { number: state.gameNumber })} · {t('automatic')}</div></label>
-        <label>{t('draftMode')}<select disabled={state.currentPhase > 0} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'],banCount:e.target.value==='normal'?2:4 })}>
-          <option value="match">{t('matchMode')}</option><option value="normal">{t('normalMode')}</option>
+        <label>{t('draftMode')}<select aria-label={t('draftMode')} disabled={currentRulesLocked} value={form.draftMode} onChange={e => setForm({ ...form, draftMode: e.target.value as MatchSettings['draftMode'],banCount:e.target.value==='blind'?0:e.target.value==='normal'?2:4 })}>
+          <option value="match">{t('matchMode')}</option><option value="normal">{t('normalMode')}</option><option value="blind">{state.language==='zh'?'盲选':'Blind Pick'}</option>
         </select></label>
-        <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={ruleLocked(state)} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool'],recognitionAutoAccept:false})}>
+        <label>{state.language==='zh'?'英雄池服务器':'Hero pool region'}<select aria-label="Hero pool" disabled={currentRulesLocked} value={form.heroPool} onChange={e=>setForm({...form,heroPool:e.target.value as MatchSettings['heroPool'],recognitionAutoAccept:false})}>
           <option value="global">{state.language==='zh'?'国际服 · Honor of Kings':'Global · Honor of Kings'}</option>
           <option value="cn">{state.language==='zh'?'国服 · 王者荣耀':'CN · 王者荣耀'}</option>
         </select><small>{state.language==='zh'?'国服英雄资料使用独立目录；若使用屏幕识别，请先校准国服头像模板。':'CN heroes use a separate catalog. Calibrate CN hero recognition before auto capture.'}</small></label>
-        <label>{state.language==='zh'?'每队 Ban 数量':'Bans per team'}<select aria-label="Bans per team" disabled={ruleLocked(state)} value={form.banCount} onChange={e=>setForm({...form,banCount:Number(e.target.value) as MatchSettings['banCount']})}>
+        <label>{state.language==='zh'?'每队 Ban 数量':'Bans per team'}<select aria-label="Bans per team" disabled={currentRulesLocked || form.draftMode === 'blind'} value={form.banCount} onChange={e=>setForm({...form,banCount:Number(e.target.value) as MatchSettings['banCount']})}>
           {([0,1,2,3,4,5] as const).map(count=><option key={count} value={count}>{count} Ban / {state.language==='zh'?'每队':'side'}</option>)}
         </select><small>{state.language==='zh'?'Match 模式先 Ban 最多两轮，余下 Ban 在第二次选人阶段后执行；Normal 模式先完成全部 Ban。':'Match mode bans up to two each before picks and the remainder mid-draft. Normal mode bans all first.'}</small></label>
-        <label>{t('draftRules')}<select aria-label={t('draftRules')} disabled={ruleLocked(state)} value={form.draftRuleMode} onChange={e => setForm({ ...form, draftRuleMode: e.target.value as MatchSettings['draftRuleMode'] })}>
+        <label>{t('draftRules')}<select aria-label={t('draftRules')} disabled={currentRulesLocked} value={form.draftRuleMode} onChange={e => setForm({ ...form, draftRuleMode: e.target.value as MatchSettings['draftRuleMode'] })}>
           <option value="normal">{t('ruleNormal')}</option><option value="player">{t('rulePlayer')}</option><option value="global">{t('ruleGlobal')}</option>
         </select></label>
-        <label>{t('flowbornRule')}<select aria-label={t('flowbornRule')} disabled={ruleLocked(state)} value={form.flowbornFormsIndependent ? 'independent' : 'shared'} onChange={e => setForm({ ...form, flowbornFormsIndependent: e.target.value === 'independent' })}>
+        <label>{t('flowbornRule')}<select aria-label={t('flowbornRule')} disabled={currentRulesLocked} value={form.flowbornFormsIndependent ? 'independent' : 'shared'} onChange={e => setForm({ ...form, flowbornFormsIndependent: e.target.value === 'independent' })}>
           <option value="independent">{t('flowbornIndependent')}</option>
           <option value="shared">{t('flowbornShared')}</option>
         </select><small>{t('flowbornRuleHint')}</small></label>
-        {ruleLocked(state) && <p className="muted">{t('rulesLocked')}</p>}
+        {currentRulesLocked && <p className="muted">{t('rulesLocked')}</p>}
       </section>
       <section><h3>{t('matchSettings')}</h3>
-        <label>{t('firstPickSide')}<select aria-label={t('firstPickSide')} disabled={firstPickLocked} value={form.firstPickSide} onChange={e => setForm({ ...form, firstPickSide: e.target.value as Side })}>
+        <label>{t('firstPickSide')}<select aria-label={t('firstPickSide')} disabled={currentRulesLocked} value={form.firstPickSide} onChange={e => setForm({ ...form, firstPickSide: e.target.value as Side })}>
           <option value="blue">{t('blueSide')}</option><option value="red">{t('redSide')}</option>
         </select></label>
-        <label>{t('sideSwapMode')}<select aria-label={t('sideSwapMode')} value={form.sideSwapMode} onChange={e => setForm({ ...form, sideSwapMode: e.target.value as MatchSettings['sideSwapMode'] })}>
+        <label>{t('sideSwapMode')}<select aria-label={t('sideSwapMode')} disabled={currentRulesLocked} value={form.sideSwapMode} onChange={e => setForm({ ...form, sideSwapMode: e.target.value as MatchSettings['sideSwapMode'] })}>
           <option value="moveTeams">{t('moveTeams')}</option><option value="colorsOnly">{t('colorsOnly')}</option>
         </select></label>
         <label>{t('language')}<select aria-label={t('language')} value={form.language} onChange={e => setForm({ ...form, language: e.target.value as Language })}>
@@ -281,6 +289,7 @@ export default function BroadcastApp() {
   const [showAccess,setShowAccess]=useState(false);
   const [tokenInput, setTokenInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [showTeamSettings, setShowTeamSettings] = useState(false);
   const [showHeroArtEditor, setShowHeroArtEditor] = useState(false);
   const [manualFallbackOpen, setManualFallbackOpen] = useState(false);
@@ -303,6 +312,7 @@ export default function BroadcastApp() {
   useEffect(() => {
     if (serverDelay !== undefined) setDelayInput(String(serverDelay));
   }, [serverDelay]);
+  function closeRules() { if (mayCloseSettings('game-rules-dialog', lang === 'zh')) setShowRules(false); }
   function closeMatchSettings() { if (mayCloseSettings('match-settings', lang === 'zh')) setShowSettings(false); }
   function closeTeamSettings() { if (mayCloseSettings('team-settings', lang === 'zh')) setShowTeamSettings(false); }
   if (checking) return <main className="login panel">{t('connectingServer')}</main>;
@@ -337,21 +347,21 @@ export default function BroadcastApp() {
       {role === 'control' && <>
         <OperatorPreferences token={token}/>
         <DockWorkspace zh={lang==='zh'}
-          status={<><span>G{currentGame(state)} · {phaseName(state, lang)}</span><b className={connected ? "status live" : "status"}>{connectionLabel(status, lang)}</b><span>{obsSummary}</span><span aria-label="Preflight summary">{preflightSummary}</span></>}
+          status={<><span aria-label="Current game rules">G{currentGame(state)} · {state.draftMode !== 'blind' && <>{state.draftMode === 'normal' ? (lang === 'zh' ? '普通 BP' : 'Normal BP') : (lang === 'zh' ? '常规 BP' : 'Match BP')} · {draftRuleName(state, lang)} · </>}{phaseName(state, lang)} · {state.heroPool === 'cn' ? 'CN' : 'Global'} · {state.banCount} Ban</span><b className={connected ? "status live" : "status"}>{connectionLabel(status, lang)}</b><span>{obsSummary}</span><span aria-label="Preflight summary">{preflightSummary}</span></>}
           fileTools={<><button onClick={()=>setShowAccess(true)}>{lang==='zh'?'访问与网站设置':'Access and website settings'}</button><button onClick={()=>document.dispatchEvent(new CustomEvent('hok-open-panel',{detail:'integration-settings'}))}>{lang==='zh'?'设置中心':'Settings'}</button>{!local && <button onClick={()=>setToken('')}>{t('logout')}</button>}</>}
           editTools={<><button disabled={disabled || !snapshot?.canUndo} onClick={()=>send({type:'undo'})}>{t('undo')}</button><button onClick={()=>setShowTeamSettings(true)}>{t('teamSettings')}</button></>}
           panels={{
-          preparation: <div id="preparation-tools"><StartupPreflight state={state} token={token} connected={connected} onSummary={setPreflightSummary}/></div>,
+          preparation: <div id="preparation-tools"><button onClick={()=>setShowRules(true)}>{lang==='zh'?'逐局规则':'Game Rules Manager'}</button><StartupPreflight state={state} token={token} connected={connected} onSummary={setPreflightSummary}/></div>,
           help: <><OperatorGuide state={state} connected={connected} pending={pending} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} /><section className="panel"><h2>HOK Broadcast · 1.0.0</h2><p>{lang==='zh'?'快捷键与自定义按键位于设置中心；开播诊断位于赛前准备。拖动标签停靠，标签上的浮动按钮可在网页内悬浮，关闭面板不会停止后台采集。':'Shortcuts are in Settings; diagnostics in Preparation. Drag tabs to dock. Float stays inside this page; closing a panel keeps capture running.'}</p><a href="https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/main/docs/guides/operator-guide.md" target="_blank" rel="noreferrer">{lang==='zh'?'操作指南':'Operator guide'}</a></section></>,
           monitor: <div className="control-monitor">
-          <DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="draft" renderBoard={onCorrect=><Board state={state} lang={lang} compact onCorrect={onCorrect}/>} />
+          {state.draftMode==='blind'?<Board state={state} lang={lang} compact/>:<DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="draft" renderBoard={onCorrect=><Board state={state} lang={lang} compact onCorrect={onCorrect}/>} />}
           <section className="operator-bar panel">
             <div className="toolbar">
               <button disabled={disabled || !snapshot?.canUndo} onClick={() => send({ type: 'undo' })}>{t('undo')}</button>
               <button disabled={disabled} onClick={() => confirm(t('confirmResetDraft')) && send({ type: 'reset_draft' })}>{t('resetDraft')}</button>
               <button className="danger" disabled={disabled} onClick={() => confirm(t('confirmResetMatch')) && send({ type: 'reset_match' })}>{t('resetMatch')}</button>
               <button aria-expanded={showSettings} aria-controls="match-settings" onClick={() => showSettings ? closeMatchSettings() : setShowSettings(true)}>{t('matchSettings')}</button>
-              <button onClick={() => setShowTeamSettings(true)}>{t('teamSettings')}</button>
+              <button onClick={()=>setShowRules(true)}>{lang==='zh'?'逐局规则':'Game Rules Manager'}</button><button onClick={() => setShowTeamSettings(true)}>{t('teamSettings')}</button>
               <button onClick={() => setShowHeroArtEditor(true)}>{t('heroImageSettings')}</button>
             </div>
             <div className="delay-controls">
@@ -369,19 +379,19 @@ export default function BroadcastApp() {
 
         </div>,
           draft: <div id="draft-workspace">
-           <DraftHeroCorrection state={state} disabled={disabled} send={send} />
-          {state.bpInputMode === 'screen'
+           {state.draftMode!=='blind'&&<DraftHeroCorrection state={state} disabled={disabled} send={send} />}
+          {state.draftMode==='blind' ? <BlindGamePanel state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error}/> : state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
               <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
               <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>
-                <ControlHeroPicker state={state} disabled={disabled} active={manualFallbackOpen && !showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />
+                <ControlHeroPicker state={state} disabled={disabled} active={manualFallbackOpen && !showRules && !showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />
               </details>
             </div>
-            : <ControlHeroPicker state={state} disabled={disabled} active={!showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
+            : <ControlHeroPicker state={state} disabled={disabled} active={!showRules && !showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />}
         </div>,
-          players: <><DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="lineup" /><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /><LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} /></>,
+          players: <>{state.draftMode==='blind'?<p className="panel">{lang==='zh'?'盲选无需确认十名英雄；可在盲选面板补充允许记录的实际阵容。':'Blind Pick does not require ten heroes. Add optional actual heroes from the Blind Pick panel.'}</p>:<><DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="lineup" /><PlayerSlotAlignment state={state} token={token} disabled={disabled} send={send} /></>}{state.draftMode!=='blind'&&<LineupAssignments state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} acknowledged={acknowledged} error={error} />}</>,
           obs: <ObsDirectorPanel token={token} zh={lang==='zh'} state={state} onSummary={setObsSummary} />,
           hud: <LiveGamePanel state={state} token={token} disabled={disabled} send={send} />,
           postgame: <div id="postgame-tools"><PostGameCarouselPanel token={token}/><PostGamePanel state={state} token={token} disabled={disabled} send={send} /></div>,
@@ -390,6 +400,7 @@ export default function BroadcastApp() {
           recovery: <RecoveryPanel token={token} zh={state.language==='zh'} />,
           analysis: <><DraftHistory state={state} /><Analysis state={state} lang={lang} /></>,
         }} />
+          {showRules && <SettingsDialog id="game-rules-dialog" label={lang==='zh'?'逐局规则':'Game Rules Manager'} closeLabel={lang==='zh'?'关闭逐局规则':'Close game rules'} onClose={closeRules}><GameRulesManager state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error}/></SettingsDialog>}
           {showSettings && <SettingsDialog label={t('matchSettings')} closeLabel={t('hideSettings')} onClose={closeMatchSettings}><MatchSettingsPanel state={state} send={send} disabled={disabled} token={token} /></SettingsDialog>}
         {showTeamSettings && <TeamSettingsDialog label={t('teamSettings')} closeLabel={t('closeTeamSettings')} onClose={closeTeamSettings}>
           <TeamSettingsPanel state={state} send={send} disabled={disabled} token={token} />

@@ -1,3 +1,4 @@
+import { validateGameRules, validateSeriesRules } from '../src/shared/gameRules.js';
 import { validGameRoles } from '../src/shared/gameLineup.js';
 import { allPoolHeroes, heroAllowed } from '../src/shared/heroPool.js';
 import { phases, type Side } from '../src/shared/types.js';
@@ -48,6 +49,10 @@ function validateStores(archive:RecoveryArchive,stage:string){
   if(![1,2].includes(raw.version)||!raw.state||!Array.isArray(raw.events)||!Array.isArray(raw.history)||!Array.isArray(raw.ids)||!Number.isSafeInteger(raw.revision)||raw.revision<0||!Number.isInteger(raw.delay)||raw.delay<0||raw.delay>3600)throw new Error('Invalid saved match');
   for(const state of [raw.state,...raw.history,...raw.events.map((event:{resultingState:unknown})=>event?.resultingState)]){
     if(!state||typeof state!=='object')throw new Error('Invalid saved match state');
+    if(state.seriesRules !== undefined)validateSeriesRules(state.seriesRules,state.seriesFormat);
+    if(state.currentGameRules !== undefined)validateGameRules(state.currentGameRules);
+    for(const game of state.draftHistory ?? [])if(game.rules !== undefined)validateGameRules(game.rules);
+    if(state.rulesCorrections !== undefined && (!Array.isArray(state.rulesCorrections) || state.rulesCorrections.some((entry: {gameId?:unknown;at?:unknown;reason?:unknown;previous?:unknown;next?:unknown}) => !entry || typeof entry.gameId !== 'string' || !Number.isSafeInteger(entry.at) || Number(entry.at)<0 || typeof entry.reason !== 'string' || !entry.reason.trim() || entry.reason.length>500 || typeof entry.previous !== 'boolean' || typeof entry.next !== 'boolean')))throw Error('Invalid game rule corrections');
     for(const game of [state,...(state.draftHistory??[])]) {
       for(const side of ['blue','red'] as const) if(game[`${side}GameRoles`]!==undefined&&!validGameRoles(game[`${side}GameRoles`])) throw new Error('Invalid game roles');
       for(const field of ['lineupConfirmed','lineupAutomationBlocked']) if(game[field]!==undefined&&typeof game[field]!=='boolean') throw new Error('Invalid lineup confirmation');
@@ -67,27 +72,33 @@ function validateStores(archive:RecoveryArchive,stage:string){
     for(const side of ['blue','red'] as const){
       const picks=state[`${side}Picks`],bans=state[`${side}Bans`],assignments=normalized[`${side}Assignments`];
       if(!Array.isArray(bans)||picks.length>5||bans.length>normalized.banCount||new Set(picks).size!==picks.length||[...picks,...bans.filter((value):value is number=>value!==null)].some(id=>!heroAllowed(normalized.heroPool,id)))throw new Error('Invalid draft heroes');
-      if(assignments.some(id=>id!==null&&!picks.includes(id)))throw new Error('Invalid hero assignments');
+      if(assignments.some(id=>id!==null&&(!heroAllowed(normalized.heroPool,id)||(normalized.draftMode!=='blind'&&!picks.includes(id)))))throw new Error('Invalid hero assignments');
       if(state[`${side}PlayerSlotOrder`]!==undefined&&!validPlayerSlotOrder(state[`${side}PlayerSlotOrder`]))throw new Error('Invalid player slot order');
     }
     for(const record of normalized.draftHistory){
-      if(!record||typeof record.id!=='string'||!Number.isInteger(record.gameNumber)||record.gameNumber<1||record.gameNumber>5)throw new Error('Invalid draft history');
+      if(!record||typeof record.id!=='string'||!Number.isInteger(record.gameNumber)||record.gameNumber<1||record.gameNumber>Number(normalized.seriesFormat.slice(2)))throw new Error('Invalid draft history');
       const check=new Store();check.apply(randomUUID(),0,{type:'settings',settings:{...normalized,blueScore:0,redScore:0,blueTeam:record.blueTeam,redTeam:record.redTeam}});
       for(const side of ['blue','red'] as const){
         const picks=record[`${side}Picks`],assignments=record[`${side}Assignments`];
-        if(!Array.isArray(picks)||picks.length!==5||!Array.isArray(assignments)||assignments.length!==5||new Set(assignments).size!==5||assignments.some(heroId=>!picks.includes(heroId)||!heroAllowed(record.heroPool,heroId)))throw new Error('Invalid committed lineup');
+        if(!Array.isArray(picks)||!Array.isArray(assignments))throw new Error('Invalid committed lineup');
+        const recorded = record.rules?.recordHeroes !== false, blind = record.rules?.mode === 'blind';
+        const assigned = assignments.filter((id):id is number=>id!==null);
+        if(!recorded ? picks.length!==0||assignments.length!==0 :
+          picks.length>5 || (!blind && picks.length!==5) || assignments.length!==5 || (!blind && assigned.length!==5) ||
+          new Set(picks).size!==picks.length || new Set(assigned).size!==assigned.length || assigned.some(heroId=>(!blind&&!picks.includes(heroId))||!heroAllowed(record.heroPool,heroId)))throw new Error('Invalid committed lineup');
       }
     }
     if(!Array.isArray(normalized.postGameReports)||normalized.postGameReports.length>20||new Set(normalized.postGameReports.map(report=>report.id)).size!==normalized.postGameReports.length)throw new Error('Invalid post-game reports');
     if(normalized.activePostGameReportId!==null&&!normalized.postGameReports.some(report=>report.id===normalized.activePostGameReportId))throw new Error('Invalid active report');
     for(const report of normalized.postGameReports){
-      if(!report||typeof report.id!=='string'||report.players?.length!==10||new Set(report.players.map(player=>player.rowId)).size!==10||!['BO1','BO3','BO5'].includes(report.seriesFormat)||!Number.isInteger(report.gameNumber)||report.gameNumber<1||report.gameNumber>5||typeof report.stage!=='string')throw new Error('Invalid post-game report');
+      if(!report||typeof report.id!=='string'||report.players?.length!==10||new Set(report.players.map(player=>player.rowId)).size!==10||!['BO1','BO3','BO5','BO7'].includes(report.seriesFormat)||!Number.isInteger(report.gameNumber)||report.gameNumber<1||report.gameNumber>Number(report.seriesFormat.slice(2))||typeof report.stage!=='string')throw new Error('Invalid post-game report');
       if (report.endedAt !== undefined && (!Number.isSafeInteger(report.endedAt) || report.endedAt < 0 || !['blue','red'].includes(report.winner!))) throw Error('Invalid game-end confirmation');
       // Run stored observations through the same validators as live updates. This
       // keeps imports compatible with every supported page and field constraint.
       const fieldVerifier=new Store();fieldVerifier.data.state.postGameReports=[structuredClone(report)];
+      const recordedGame=normalized.draftHistory.find(game=>game.id===report.id);
       for(const player of report.players){
-        if(typeof player.rowId!=='string'||!player.rowId||typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!allPoolHeroes.some(hero=>hero.id===player.heroId)||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||typeof player.fields!=='object'||Array.isArray(player.fields)||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as PostGameMetric)))throw new Error('Invalid post-game player');
+        if(typeof player.rowId!=='string'||!player.rowId||typeof player.playerId!=='string'||!['blue','red'].includes(player.side)||!(player.heroId === null ? recordedGame?.rules?.mode === 'blind' || recordedGame?.rules?.recordHeroes === false : allPoolHeroes.some(hero=>hero.id===player.heroId))||!Number.isInteger(player.slot)||player.slot<0||player.slot>4||!Number.isInteger(player.rosterIndex)||player.rosterIndex<0||player.rosterIndex>4||!['clash','jungle','mid','farm','roam'].includes(player.role)||!player.fields||typeof player.fields!=='object'||Array.isArray(player.fields)||Object.keys(player.fields).some(key=>!postGameMetrics.includes(key as PostGameMetric)))throw new Error('Invalid post-game player');
         portraitURL(player.portrait);
         const updates=Object.entries(player.fields).map(([metric,field])=>({rowId:player.rowId,metric:metric as PostGameMetric,field:field!}));
         if(updates.length)fieldVerifier.apply(randomUUID(),fieldVerifier.data.revision,{type:'post_game_fields',reportId:report.id,updates});

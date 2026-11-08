@@ -1919,9 +1919,15 @@ wss.on('connection', (ws, req) => {
       // Authoritative mutations supersede in-flight cloud interpretations.
       aiRecognition.invalidate();
       if (
-        ['reset_match', 'reset_draft', 'next_game', 'settings', 'restore'].includes(
-          message.action.type,
-        )
+        [
+          'reset_match',
+          'reset_draft',
+          'next_game',
+          'settings',
+          'restore',
+          'series_rules',
+          'start_blind_game',
+        ].includes(message.action.type)
       )
         invalidateHudCache();
       for (const client of clients.keys()) update(client);

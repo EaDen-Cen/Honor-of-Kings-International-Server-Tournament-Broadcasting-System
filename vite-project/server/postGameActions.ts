@@ -20,7 +20,8 @@ export function preparePostGameReport(state: MatchState, game: GameDraftRecord) 
       selectedMvpPlayerId: null,
       selectedMvpRowId: null,
       players: (['blue', 'red'] as const).flatMap((side) =>
-        game[`${side}Assignments`].map((heroId, slot) => {
+        Array.from({ length: 5 }, (_, slot) => {
+          const heroId = game.rules?.recordHeroes === false ? null : game[`${side}Assignments`][slot] ?? null;
           const team = game[`${side}Team`],
             rosterIndex = normalizePlayerSlotOrder(game[`${side}PlayerSlotOrder`])[slot];
           return {

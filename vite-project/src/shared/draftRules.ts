@@ -1,3 +1,4 @@
+import {applyGameRules,getEligibleHistoryGames,legacyGameRules,validateSeriesRules,validateGameRules} from './gameRules.js';
 import { rolesForGame } from './gameLineup.js';
 import { normalizePlayerSlotOrder, playerAtSlot } from './playerSlots.js';
 import { allPoolHeroes } from './heroPool.js';
@@ -13,13 +14,13 @@ export const displaySides = (state: MatchState): [Side, Side] => [state.displayL
 
 const heroById = new Map(allPoolHeroes.map(hero => [hero.id, hero]));
 
-export function draftHeroGroupKey(state: Pick<MatchState, 'flowbornFormsIndependent'>, heroId: number) {
-  const hero = heroById.get(heroId);
+export function draftHeroGroupKey(state: Pick<MatchState, 'flowbornFormsIndependent'>, heroId: number | null) {
+  const hero = heroId === null ? undefined : heroById.get(heroId);
   if (!state.flowbornFormsIndependent && hero?.variantGroup === 'flowborn') return 'variant:flowborn';
   return `hero:${heroId}`;
 }
 
-export function sameDraftHero(state: Pick<MatchState, 'flowbornFormsIndependent'>, leftId: number, rightId: number) {
+export function sameDraftHero(state: Pick<MatchState, 'flowbornFormsIndependent'>, leftId: number | null, rightId: number | null) {
   return draftHeroGroupKey(state, leftId) === draftHeroGroupKey(state, rightId);
 }
 
@@ -40,11 +41,11 @@ export function historyForTeam(record: GameDraftRecord, teamId: string) {
 
 /** Current-game bans/duplicates are checked separately. History never consumes ban slots. */
 export function pickRestriction(state: MatchState, side: Side, playerIndex: number, heroId: number): 'playerMissing' | 'usedByPlayer' | 'usedByTeam' | undefined {
-  if (state.draftRuleMode === 'normal') return;
+  if (state.draftRuleMode === 'normal' || state.currentGameRules?.enforcePreviousHistory === false) return;
   const team = state[`${side}Team`];
   if (state.draftRuleMode === 'global') {
-    if (state.draftHistory.some(record => {
-      const picks = historyForTeam(record, team.id)?.picks ?? [];
+    if (getEligibleHistoryGames(state).some(record => {
+      const picks = (historyForTeam(record, team.id)?.assignments ?? []).filter((id):id is number=>id!==null);
       return record.id !== state.committedGameId && historyIncludesHero(state, picks, heroId);
     })) return 'usedByTeam';
     return;
@@ -52,7 +53,7 @@ export function pickRestriction(state: MatchState, side: Side, playerIndex: numb
   const identity = playerIdentity(playerAtSlot(state, side, playerIndex).id);
   if (!identity) return 'playerMissing';
   // Identity follows the person when a substitute changes slots or a team changes sides.
-  if (state.draftHistory.some(record => record.id !== state.committedGameId && (['blue', 'red'] as const).some(recordSide =>
+  if (getEligibleHistoryGames(state).some(record => record.id !== state.committedGameId && (['blue', 'red'] as const).some(recordSide =>
     record[`${recordSide}Team`].players.some((player, index) => {
       const slot = normalizePlayerSlotOrder(record[`${recordSide}PlayerSlotOrder`]).indexOf(index);
       const assigned = record[`${recordSide}Assignments`][slot];
@@ -64,8 +65,8 @@ export function pickRestriction(state: MatchState, side: Side, playerIndex: numb
 export function banRestriction(state: MatchState, side: Side, heroId: number): 'opponentAlreadyUsed' | undefined {
   if (state.draftRuleMode !== 'global') return;
   const opponent = state[side === 'blue' ? 'redTeam' : 'blueTeam'];
-  if (state.draftHistory.some(record => {
-    const picks = historyForTeam(record, opponent.id)?.picks ?? [];
+  if (getEligibleHistoryGames(state).some(record => {
+    const picks = (historyForTeam(record, opponent.id)?.assignments ?? []).filter((id):id is number=>id!==null);
     return record.id !== state.committedGameId && historyIncludesHero(state, picks, heroId);
   })) return 'opponentAlreadyUsed';
 }
@@ -135,5 +136,17 @@ export function normalizeState(raw: MatchState): MatchState {
   state.draftGameNumber = raw.draftGameNumber ?? (raw.currentPhase > 0 ? raw.gameNumber : null);
   if (raw.blueGameRoles) state.blueGameRoles = [...rolesForGame(state,"blue")];
   if (raw.redGameRoles) state.redGameRoles = [...rolesForGame(state,"red")];
+  state.seriesRules = raw.seriesRules ?? { defaultGameRules: legacyGameRules(state), games: {} };
+  state.currentGameRules = raw.currentGameRules ?? legacyGameRules(state);
+  state.draftHistory = state.draftHistory.map(record => ({...record, rules:record.rules ?? legacyGameRules(state,record)}));
+  if(!raw.seriesRules) {
+    for(const record of state.draftHistory)state.seriesRules.games[String(record.gameNumber)]={...record.rules};
+    if(state.currentPhase>0)state.seriesRules.games[String(state.draftGameNumber??state.gameNumber)]={...state.currentGameRules};
+  }
+  if(raw.currentGameRules)applyGameRules(state,raw.currentGameRules);
+  state.draftHistory=state.draftHistory.map(record=>({...record,heroPool:record.rules!.heroPool,banCount:record.rules!.banCount,firstPickSide:record.rules!.firstPickSide}));
+  validateSeriesRules(state.seriesRules,state.seriesFormat);
+  validateGameRules(state.currentGameRules);
+  for(const record of state.draftHistory) validateGameRules(record.rules);
   return state;
 }

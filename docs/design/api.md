@@ -112,3 +112,18 @@ AI 配置 GET/PUT `/api/v1/ai-recognition/config` 仅本机授权 Control；GET 
 
 `post_game_begin` 可传可选 `gameId`，仅允许选择 `draftHistory` 中已确认的局；已有报告复用，不清空数据。不传时优先当前确认局，否则最近确认局，支持进入下一局后补建报告。显式无效 ID 拒绝整个操作，不回退到其他报告。
 Control 使用 GET /api/v1/preflight-status 查询 Node 版本、当前英雄池缺失模板数及 Caster/Overlay 在线连接数。导播仍需在实际屏幕确认画面内容。
+
+## BO7 / 逐局规则操作
+
+所有操作沿用 Control WebSocket 的 action、id、revision、ACK 和错误流程；没有直接写比赛快照的新 HTTP 入口。
+
+| action | 作用 |
+|---|---|
+| `series_rules` | 提交 `seriesFormat`（含 BO7）及 `rules:{defaultGameRules,games}`；可带 `expectedRules` 防止旧计划覆盖新计划 |
+| `start_blind_game` | 当前局为 Blind 时直接创建稳定 Game ID / 空英雄实际阵容及十人报告；重复开局拒绝 |
+| `blind_lineup` | 记录允许补英雄的盲选局实际阵容；`blue/red` 各五项可为 `null`，可指定 `gameId`；不创建虚假 BP Pick 顺序 |
+| `correct_history_rules` | 指定 `gameId`、`contributeToFutureHistory`、5–500 字符 `reason`，通过既有后续局合法性检查后才更正；附审计并可 Undo |
+
+`seriesRules`、`currentGameRules`、历史局的 `rules`、`rulesCorrections` 纳入 MatchState；历史贡献资格属于具体历史局。模式 `blind` 强制零 Ban、不要求阵容完成；普通 `normal` 零 Ban 仍需完成十个 Pick。
+
+`confirm_game_end` 沿用既有记录胜方行为，比分仍由独立 `score` 操作更新；客户端不要因收到确认再重复加分。BO7 比分限 0–4、最高局号 7，系列赛已达四胜不得新建第八局。

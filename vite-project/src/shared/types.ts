@@ -4,6 +4,14 @@ import type { LiveCaptureKey } from './gameCapture.js';
 import type { NeutralSample } from './neutralRecognition.js';
 import type { GoldTimelinePoint,GoldDifferenceTimeline } from './postGameTimeline.js';
 import { defaultBansForMode, type HeroPool, type BanCount } from './heroPool.js';
+export type SeriesFormat = 'BO1' | 'BO3' | 'BO5' | 'BO7';
+export type GameMode = 'match' | 'normal' | 'blind';
+export interface GameRules {
+  mode: GameMode; heroPool: HeroPool; banCount: BanCount; draftRuleMode: DraftRuleMode;
+  enforcePreviousHistory: boolean; contributeToFutureHistory: boolean; recordHeroes: boolean; requireLineupConfirmation: boolean;
+  firstPickSide: Side; sideSwapMode: SideSwapMode; flowbornFormsIndependent: boolean;
+}
+export interface SeriesRules { defaultGameRules: GameRules; games: Record<string, Partial<GameRules>> }
 export type Side = 'blue' | 'red';
 
 export type Language = 'zh' | 'eng';
@@ -60,6 +68,7 @@ export interface TeamPreset extends Team {
 }
 
 export interface GameDraftRecord {
+  rules?: GameRules;
   liveGameStats?: LiveGameStats;
   blueGameRoles?: PlayerRole[];
   redGameRoles?: PlayerRole[];
@@ -81,11 +90,14 @@ export interface GameDraftRecord {
   bluePicks: number[];
   redPicks: number[];
   /** Final hero ownership by player slot after help-picks / swaps. */
-  blueAssignments: number[];
-  redAssignments: number[];
+  blueAssignments: Array<number | null>;
+  redAssignments: Array<number | null>;
 }
 
 export interface MatchState {
+  seriesRules?: SeriesRules;
+  currentGameRules?: GameRules;
+  rulesCorrections?: Array<{gameId:string;at:number;reason:string;previous:boolean;next:boolean}>;
   blueGameRoles?: PlayerRole[];
   redGameRoles?: PlayerRole[];
   lineupConfirmed?: boolean;
@@ -100,7 +112,7 @@ export interface MatchState {
   redScore: number;
 
   gameNumber: number;
-  seriesFormat: 'BO1' | 'BO3' | 'BO5';
+  seriesFormat: SeriesFormat;
   stage: string;
 
   language: Language;
@@ -114,7 +126,7 @@ export interface MatchState {
   heroArtOverrides: Record<string, HeroArtOverride>;
   heroDataOverrides: Record<string, HeroDataOverride>;
 
-  draftMode: 'match' | 'normal';
+  draftMode: GameMode;
   heroPool:HeroPool;
   banCount:BanCount;
   displayLeftSide: Side;
@@ -168,6 +180,10 @@ export type MatchSettings = Pick<
 >;
 
 export type Action =
+  | {type:'series_rules'; rules:SeriesRules; seriesFormat:SeriesFormat; expectedRules?:SeriesRules}
+  | {type:'correct_history_rules';gameId:string;contributeToFutureHistory:boolean;reason:string}
+  | {type:'start_blind_game'}
+  | {type:'blind_lineup';blue:Array<number|null>;red:Array<number|null>;gameId?:string}
   | { type: 'confirm_game_end'; reportId:string; winner:Side }
   | { type: 'post_game_begin'; gameId?: string }
   | { type: 'post_game_fields'; reportId:string; updates:Array<{rowId:string;metric:PostGameMetric;field:PostGameField}>; grades?:Array<{rowId:string;field:PostGameGradeField}> }
@@ -284,6 +300,7 @@ export const initialState = (): MatchState => ({
  * Normal mode keeps the original all-bans-first order.
  */
 export function phases(mode:MatchState['draftMode'],firstPickSide:Side='blue',banCount:BanCount=defaultBansForMode(mode)){
+  if(mode==='blind') return [];
   const first: string[]=[];
   const second: string[]=[];
   if(mode==='match'){

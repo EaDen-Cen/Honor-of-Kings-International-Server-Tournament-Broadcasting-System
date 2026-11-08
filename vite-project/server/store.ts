@@ -1,3 +1,4 @@
+import {applyGameRules,gameRulesFor,gameRulesLocked,legacyGameRules,maximumGames,sameGameRules,validateSeriesRules} from '../src/shared/gameRules.js';
 import { rolesForGame, validGameRoles } from '../src/shared/gameLineup.js';
 import { applyPostGameAction, preparePostGameReport } from './postGameActions.js';
 import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.js';
@@ -121,7 +122,7 @@ function clearDraft(state: MatchState) {
   });
 }
 function validateScores(blue: number, red: number, format: MatchState['seriesFormat']) {
-  integer(blue, 0, 3); integer(red, 0, 3);
+  integer(blue, 0, 4); integer(red, 0, 4);
   const wins = (Number(format.slice(2)) + 1) / 2;
   if (blue > wins || red > wins || (blue === wins && red === wins)) throw new Error('比分或局数不符合当前赛制');
 }
@@ -143,18 +144,31 @@ function casterViewState(current: MatchState, delayed?: MatchState): MatchState 
   view.artSourceMode = current.artSourceMode;
   view.heroArtOverrides = copy(current.heroArtOverrides || {});
   view.heroDataOverrides = copy(current.heroDataOverrides || {});
+  if (!current.seriesRules) {
   view.draftMode = current.draftMode;
   view.firstPickSide = current.firstPickSide;
   view.sideSwapMode = current.sideSwapMode;
   view.draftRuleMode = current.draftRuleMode;
   view.flowbornFormsIndependent = current.flowbornFormsIndependent;
+  }
+  if(currentGame(view)===currentGame(current) && !view.currentPhase && !view.committedGameId) {
+    view.seriesRules=copy(current.seriesRules);
+    applyGameRules(view,current.currentGameRules??legacyGameRules(current));
+  }
   return view;
 }
 function validateLineup(state: MatchState, requireComplete = state.draftComplete) {
   for (const side of ['blue', 'red'] as const) {
     const picks = state[`${side}Picks`];
     const assignments = state[`${side}Assignments`];
+    if (state.draftMode==='blind' && state.currentGameRules?.recordHeroes===false && assignments.length===0)continue;
     if (!Array.isArray(assignments) || assignments.length !== 5) throw new Error('lineupInvalid');
+    if(state.draftMode==='blind') {
+      const assigned=assignments.filter((hero):hero is number=>hero!==null);
+      if(new Set(assigned.map(hero=>draftHeroGroupKey(state,hero))).size!==assigned.length || assigned.some(hero=>!heroAllowed(state.heroPool,hero))) throw Error('lineupInvalid');
+      assignments.forEach((hero,index)=>{if(hero!==null){const reason=pickRestriction(state,side,index,hero);if(reason)throw Error(reason);}});
+      continue;
+    }
     const assigned = assignments.filter((heroId): heroId is number => heroId !== null);
     if (new Set(assigned.map(heroId => draftHeroGroupKey(state, heroId))).size !== assigned.length || assigned.some(heroId => !picks.includes(heroId))) throw new Error('lineupInvalid');
     if (requireComplete) {
@@ -166,6 +180,39 @@ function validateLineup(state: MatchState, requireComplete = state.draftComplete
           if (reason) throw new Error(reason);
         });
       }
+    }
+  }
+}
+function validateSeriesResize(state: MatchState, format: MatchState['seriesFormat']) {
+  if(format!==state.seriesFormat && seriesFinished(state))throw Error('A finished series cannot change format');
+  validateScores(state.blueScore,state.redScore,format);
+  const max=maximumGames(format);
+  if(![1,3,5,7].includes(max) || currentGame(state)>max || state.draftHistory.some(game=>game.gameNumber>max) || state.postGameReports.some(report=>report.gameNumber>max)) throw Error('Series format would discard existing games');
+  const wins=(max+1)/2;
+  const results=new Map<string,number>();
+  for(const game of [...state.draftHistory].sort((a,b)=>a.gameNumber-b.gameNumber)) {
+    if([...results.values()].some(n=>n>=wins)) throw Error('Series format conflicts with existing results');
+    const report=state.postGameReports.find(r=>r.id===game.id);
+    if(report?.winner) { const id=game[`${report.winner}Team`].id;results.set(id,(results.get(id)??0)+1); }
+  }
+}
+function validateRecordedHistory(state: MatchState) {
+  for(const record of state.draftHistory) {
+    if(!record.rules?.recordHeroes)continue;
+    const view={...state,...record, draftGameNumber:record.gameNumber,committedGameId:record.id,
+      blueBans:record.blueBans??[],redBans:record.redBans??[],
+      bluePlayerSlotOrder:record.bluePlayerSlotOrder??[0,1,2,3,4],redPlayerSlotOrder:record.redPlayerSlotOrder??[0,1,2,3,4]};
+    applyGameRules(view,record.rules);
+    validateLineup(view,record.rules.mode!=='blind');
+    for(const side of ['blue','red'] as const) {
+      record[`${side}Assignments`].forEach((hero,index)=>{if(hero!==null){const reason=pickRestriction(view,side,index,hero);if(reason)throw Error(reason);}});
+      for(const hero of record[`${side}Bans`]??[])if(hero!==null){const reason=draftRestriction(view,side,'ban',hero);if(reason)throw Error(reason);}
+    }
+  }
+  if(!state.committedGameId && state.currentPhase>0) {
+    validateLineup(state);
+    for(const side of ['blue','red'] as const)for(const action of ['ban','pick'] as const) {
+      for(const hero of state[`${side}${action==='ban'?'Bans':'Picks'}`])if(hero!==null){const reason=draftRestriction(state,side,action,hero);if(reason)throw Error(reason);}
     }
   }
 }
@@ -235,6 +282,49 @@ export class Store {
     const state = next.state;
     if (applyPostGameAction(state, action, this.clock())) next.history.push(copy(this.data.state));
     else switch (action.type) {
+    case 'series_rules': {
+      validateSeriesRules(action.rules,action.seriesFormat);
+      validateSeriesResize(state,action.seriesFormat);
+      if(action.expectedRules && JSON.stringify(action.expectedRules)!==JSON.stringify(state.seriesRules))throw Error('Rules changed; reload the plan');
+      const proposed=copy(action.rules);
+      for(let number=1;number<=maximumGames(state.seriesFormat);number++) {
+        if(!gameRulesLocked(state,number))continue;
+        const original=state.draftHistory.find(game=>game.gameNumber===number)?.rules ?? (number===currentGame(state)?state.currentGameRules:undefined) ?? gameRulesFor(state,number);
+        if(proposed.games[String(number)] && !sameGameRules(original,{...proposed.defaultGameRules,...proposed.games[String(number)]}))throw Error('Started or completed games are locked');
+        proposed.games[String(number)]=copy(original);
+      }
+      next.history.push(copy(state));
+      state.seriesRules=proposed;
+      state.seriesFormat=action.seriesFormat;
+      if(!gameRulesLocked(state,currentGame(state)) && !sameGameRules(state.currentGameRules??legacyGameRules(state),gameRulesFor(state,currentGame(state)))) {clearDraft(state);applyGameRules(state);}
+      break;
+    }
+    case 'correct_history_rules': {
+      const record=state.draftHistory.find(game=>game.id===action.gameId);
+      if(!record?.rules || typeof action.contributeToFutureHistory!=='boolean' || typeof action.reason!=='string' || action.reason.trim().length<5 || action.reason.length>500)throw Error('Correction requires a recorded game and reason (5–500 characters)');
+      if(!record.rules.recordHeroes && action.contributeToFutureHistory)throw Error('Unrecorded heroes cannot contribute');
+      next.history.push(copy(state));
+      const previous=record.rules.contributeToFutureHistory;
+      record.rules.contributeToFutureHistory=action.contributeToFutureHistory;
+      state.seriesRules!.games[String(record.gameNumber)]={...record.rules};
+      if(record.id===state.committedGameId)state.currentGameRules=copy(record.rules);
+      validateRecordedHistory(state);
+      (state.rulesCorrections??=[]).push({gameId:record.id,at:this.clock(),reason:action.reason.trim(),previous,next:action.contributeToFutureHistory});
+      break;
+    }
+    case 'blind_lineup': {
+      const record=state.draftHistory.find(game=>game.id===(action.gameId??state.committedGameId));
+      if(!record?.rules || record.rules.mode!=='blind' || !record.rules.recordHeroes)throw Error('This game does not record blind lineups');
+      if(record.lineupConfirmed)throw Error('Unlock lineup first');
+      for(const lineup of [action.blue,action.red])if(!Array.isArray(lineup)||lineup.length!==5||lineup.some(hero=>hero!==null&&(!Number.isInteger(hero)||!heroAllowed(record.heroPool,hero))))throw Error('lineupInvalid');
+      next.history.push(copy(state));
+      record.blueAssignments=[...action.blue];record.redAssignments=[...action.red];
+      if(record.id===state.committedGameId){state.blueAssignments=[...action.blue];state.redAssignments=[...action.red];}
+      validateRecordedHistory(state);
+      const report=state.postGameReports.find(r=>r.id===record.id);
+      for(const row of report?.players??[])row.heroId=record[`${row.side}Assignments`][row.slot];
+      break;
+    }
     case 'live_objective_count':
     case 'live_objective_freeze': {
       if(action.context!==liveGameContext(state))throw Error('Game changed; capture again');
@@ -416,7 +506,7 @@ export class Store {
       if (record && action.action === 'pick') {
         const report = state.postGameReports.find(item => item.id === record.id);
         if (report) for (const player of report.players) {
-          if (player.side === action.team) player.heroId = record[`${action.team}Assignments`][player.slot];
+          if (player.side === action.team) player.heroId = record[`${action.team}Assignments`][player.slot] ?? null;
         }
       }
       break;
@@ -464,21 +554,28 @@ export class Store {
       state.draftComplete = state.currentPhase === phases(state.draftMode, state.firstPickSide,state.banCount).length;
       break;
     }
+    case 'start_blind_game':
     case 'commit_game': {
       if (state.committedGameId || state.draftHistory.some(game => game.gameNumber === currentGame(state))) throw new Error('gameAlreadyCommitted');
-      if (!state.draftComplete || state.bluePicks.length !== 5 || state.redPicks.length !== 5) throw new Error('completeDraftFirst');
-      validateLineup(state, true);
+      if (seriesFinished(state)) throw new Error('seriesHasEnded');
+      if (action.type === 'start_blind_game' && state.draftMode !== 'blind') throw Error('This game is not blind pick');
+      if (state.draftMode !== 'blind' && (!state.draftComplete || state.bluePicks.length !== 5 || state.redPicks.length !== 5)) throw new Error('completeDraftFirst');
+      if (state.currentGameRules?.requireLineupConfirmation && !state.lineupConfirmed) throw Error('Confirm lineup first');
+      validateLineup(state, state.draftMode !== 'blind');
       next.history.push(copy(state));
+      state.draftGameNumber ??= state.gameNumber;
+      if(state.draftMode === 'blind') state.draftComplete = true;
       state.draftHistory.push({
-        id, firstPickSide: state.firstPickSide, heroPool:state.heroPool,banCount:state.banCount,gameNumber: currentGame(state), committedAt: this.clock(),
+        id, rules:copy(state.currentGameRules ?? legacyGameRules(state)), firstPickSide: state.firstPickSide, heroPool:state.heroPool,banCount:state.banCount,gameNumber: currentGame(state), committedAt: this.clock(),
         blueTeam: copy(state.blueTeam), redTeam: copy(state.redTeam),
         blueGameRoles: [...rolesForGame(state, "blue")], redGameRoles: [...rolesForGame(state, "red")], lineupConfirmed: state.lineupConfirmed, lineupAutomationBlocked:state.lineupAutomationBlocked,
         bluePlayerSlotOrder: [...state.bluePlayerSlotOrder], redPlayerSlotOrder: [...state.redPlayerSlotOrder],
         blueBans: [...state.blueBans], redBans: [...state.redBans],
         bluePicks: [...state.bluePicks], redPicks: [...state.redPicks],
-        blueAssignments: [...state.blueAssignments] as number[],
-        redAssignments: [...state.redAssignments] as number[],
+        blueAssignments: state.currentGameRules?.recordHeroes===false?[]:[...state.blueAssignments],
+        redAssignments: state.currentGameRules?.recordHeroes===false?[]:[...state.redAssignments],
       });
+      state.seriesRules!.games[String(currentGame(state))]=copy(state.currentGameRules??legacyGameRules(state));
       state.committedGameId = id;
       // Make Game 2 active on commit, without deleting Game 1 fields.
       preparePostGameReport(state, state.draftHistory[state.draftHistory.length - 1]);
@@ -490,6 +587,7 @@ export class Store {
       if (seriesFinished(state)) throw new Error('seriesHasEnded');
       if (state.gameNumber !== currentGame(state) + 1) throw new Error('updateScoreBeforeNext');
       next.history.push(copy(state)); clearDraft(state);
+      applyGameRules(state);
       state.activePostGameReportId = null;
       break;
     }
@@ -515,6 +613,7 @@ export class Store {
       if (action.type === 'confirm_game_lineup' && typeof action.confirmed !== 'boolean') throw new Error('Invalid confirmation');
       if (action.type === 'set_game_roles' && (!['blue','red'].includes(action.side) || !validGameRoles(action.roles))) throw new Error('Invalid roles / 分路须包含五个不同位置');
       if (action.type === 'swap_assignments') {
+        if((live ? state.currentGameRules : record?.rules)?.recordHeroes===false)throw Error('This game does not record hero assignments');
         if (!['blue','red'].includes(action.team)) throw new Error('Invalid side');
         integer(action.from, 0, 4); integer(action.to, 0, 4);
       }
@@ -532,14 +631,14 @@ export class Store {
       update(target);
       if (live && record) update(record);
       if (live) validateLineup(state, true);
-      else if (record) validateLineup({...state, ...record, committedGameId:record.id,
+      else if (record) validateLineup({...state, ...record, draftMode:record.rules?.mode??state.draftMode,currentGameRules:record.rules,draftRuleMode:record.rules?.draftRuleMode??state.draftRuleMode,flowbornFormsIndependent:record.rules?.flowbornFormsIndependent??state.flowbornFormsIndependent,draftGameNumber:record.gameNumber,committedGameId:record.id,
         blueBans:record.blueBans??[], redBans:record.redBans??[],
         bluePlayerSlotOrder:record.bluePlayerSlotOrder??[0,1,2,3,4], redPlayerSlotOrder:record.redPlayerSlotOrder??[0,1,2,3,4]}, true);
       if (record) {
         const report = state.postGameReports.find(report => report.id === record.id);
         for (const row of report?.players ?? []) {
           row.role = rolesForGame(record, row.side)[row.rosterIndex];
-          row.heroId = record[`${row.side}Assignments`][row.slot];
+          row.heroId = record[`${row.side}Assignments`][row.slot] ?? null;
         }
       }
       break;
@@ -600,6 +699,7 @@ export class Store {
       state[`${action.team}Score`] += action.delta;
       validateScores(state.blueScore, state.redScore, state.seriesFormat);
       state.gameNumber = Math.min(state.blueScore + state.redScore + 1, Number(state.seriesFormat.slice(2)));
+      if(!state.currentPhase && !state.committedGameId)applyGameRules(state);
       break;
     }
     case 'undo': {
@@ -612,6 +712,7 @@ export class Store {
       if (state.committedGameId) throw new Error('committedDraftReset');
       next.history.push(copy(state));
       clearDraft(state);
+      applyGameRules(state);
       break;
     case 'reset_match': {
       next.history.push(copy(state));
@@ -641,6 +742,8 @@ export class Store {
       reset.heroDataOverrides = copy(state.heroDataOverrides || {});
       reset.showHeroName = state.showHeroName ?? true;
       reset.artSourceMode = state.artSourceMode ?? 'auto';
+      reset.seriesRules = copy(state.seriesRules);
+      applyGameRules(reset);
       next.state = reset;
       break;
     }
@@ -648,8 +751,8 @@ export class Store {
       const s = action.settings;
       if (
         !s ||
-        !['BO1', 'BO3', 'BO5'].includes(s.seriesFormat) ||
-        !['match', 'normal'].includes(s.draftMode) ||
+        !['BO1', 'BO3', 'BO5', 'BO7'].includes(s.seriesFormat) ||
+        !['match', 'normal', 'blind'].includes(s.draftMode) ||
         !['normal', 'player', 'global'].includes(s.draftRuleMode ?? state.draftRuleMode) ||
         !['blue', 'red'].includes(s.firstPickSide ?? state.firstPickSide) ||
         !['moveTeams', 'colorsOnly'].includes(s.sideSwapMode ?? state.sideSwapMode) ||
@@ -665,7 +768,7 @@ export class Store {
       }
       if (s.recognitionAutoAccept !== undefined && typeof s.recognitionAutoAccept !== 'boolean') throw new Error('Invalid automatic recognition setting');
       if (s.recognitionThreshold !== undefined) integer(s.recognitionThreshold, 50, 100);
-      integer(s.blueScore, 0, 3); integer(s.redScore, 0, 3); integer(s.gameNumber, 1, 5);
+      integer(s.blueScore, 0, 4); integer(s.redScore, 0, 4); integer(s.gameNumber, 1, 7);
       const wins = (Number(s.seriesFormat.slice(2)) + 1) / 2;
       if (s.blueScore > wins || s.redScore > wins || (s.blueScore === wins && s.redScore === wins) || s.gameNumber > Number(s.seriesFormat.slice(2))) throw new Error('比分或局数不符合当前赛制');
       shortText(s.stage, 80);
@@ -675,9 +778,11 @@ export class Store {
       if(!['cn','global'].includes(heroPool)||!isBanCount(banCount))throw new Error('Invalid hero pool or bans per team');
       const firstPickSide = s.firstPickSide ?? state.firstPickSide;
       const flowbornFormsIndependent = s.flowbornFormsIndependent ?? state.flowbornFormsIndependent;
+      const activeRules=state.currentGameRules??legacyGameRules(state);
       if (state.currentPhase > 0 && firstPickSide !== state.firstPickSide) throw new Error('firstPickLocked');
+      if(gameRulesLocked(state,currentGame(state)) && !sameGameRules(activeRules,{...activeRules,mode:s.draftMode,heroPool,banCount,draftRuleMode,flowbornFormsIndependent,firstPickSide,sideSwapMode:s.sideSwapMode??state.sideSwapMode}))throw Error('rulesLocked');
       if (ruleLocked(state) && (draftRuleMode !== state.draftRuleMode || flowbornFormsIndependent !== state.flowbornFormsIndependent || heroPool!==state.heroPool || banCount!==state.banCount)) throw new Error('rulesLocked');
-      if (state.draftHistory.length && s.seriesFormat !== state.seriesFormat) throw new Error('rulesLocked');
+      validateSeriesResize(state,s.seriesFormat);
       for (const team of [s.blueTeam, s.redTeam]) {
         if (!team) throw new Error('请填写队伍信息');
 
@@ -763,6 +868,24 @@ export class Store {
         firstPickSide,
         sideSwapMode: s.sideSwapMode ?? state.sideSwapMode,
       });
+      if (!state.currentPhase && !state.committedGameId) {
+        const rules = {...(state.currentGameRules ?? legacyGameRules(state)),mode:state.draftMode,heroPool:state.heroPool,banCount:state.banCount,draftRuleMode:state.draftRuleMode,flowbornFormsIndependent:state.flowbornFormsIndependent,firstPickSide:state.firstPickSide,sideSwapMode:state.sideSwapMode};
+        if(state.draftMode==='blind') {Object.assign(rules,{banCount:0,requireLineupConfirmation:false});if(this.data.state.draftMode!=='blind')Object.assign(rules,{recordHeroes:false,contributeToFutureHistory:false});}
+        else if(this.data.state.draftMode==='blind')Object.assign(rules,{recordHeroes:true,contributeToFutureHistory:true});
+        const prior = this.data.state;
+        const changed = ['draftMode','heroPool','banCount','draftRuleMode','flowbornFormsIndependent','firstPickSide','sideSwapMode'].some(key=>state[key as keyof MatchState]!==prior[key as keyof MatchState]);
+        if(changed || !state.seriesRules) {
+          state.seriesRules ??= {defaultGameRules:rules,games:{}};
+          if(!state.draftHistory.length) state.seriesRules.defaultGameRules=copy(rules);
+          else state.seriesRules.games[String(currentGame(state))]=copy(rules);
+          if(state.seriesRules.games[String(currentGame(state))])state.seriesRules.games[String(currentGame(state))]=copy(rules);
+        }
+        applyGameRules(state);
+      }
+      if(state.seriesRules) {
+        state.seriesRules.games=Object.fromEntries(Object.entries(state.seriesRules.games).filter(([number])=>Number(number)<=maximumGames(state.seriesFormat)));
+        validateSeriesRules(state.seriesRules,state.seriesFormat);
+      }
       // Live roster corrections must respect the incoming player’s previous picks.
       // Committed records remain immutable snapshots of the game already played.
       if (state.currentPhase > 0 && !state.committedGameId) {
@@ -860,7 +983,8 @@ export class Store {
     case 'delay': integer(action.seconds, 0, 3600); next.delay = action.seconds; break;
     default: throw new Error('不支持此操作');
     }
-    if(action.type.startsWith('live_')||action.type==='commit_game'){
+    if(['replace_draft_hero','swap_assignments','set_game_roles','confirm_game_lineup'].includes(action.type))validateRecordedHistory(state);
+    if(action.type.startsWith('live_')||action.type==='commit_game'||action.type==='start_blind_game'){
       const record=state.draftHistory.find(game=>game.id===state.committedGameId);
       if(record)record.liveGameStats=copy(state.liveGameStats);
     }

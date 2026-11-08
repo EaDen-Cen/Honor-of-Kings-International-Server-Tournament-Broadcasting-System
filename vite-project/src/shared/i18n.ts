@@ -268,7 +268,7 @@ const messages = {
   commitGame: { zh: '确认本局有效', eng: 'Commit game' },
   nextGame: { zh: '开始下一局', eng: 'Start next game' },
   swapSides: { zh: '交换蓝红方', eng: 'Swap sides' },
-  confirmCommit: { zh: '确认本局比赛有效、英雄归属正确？提交后将计入跨局历史；比分请单独更新。', eng: 'Confirm this game is valid and player assignments are correct? Its picks will enter history. Update the score separately.' },
+  confirmCommit: { zh: '确认本局比赛有效、英雄归属正确？英雄记录与跨局历史按本局规则保存；比分请单独更新。', eng: 'Confirm this game is valid and player assignments are correct? Hero records and history contribution follow this game’s rules. Update the score separately.' },
   confirmNext: { zh: '确认进入下一局？当前选禁画面将清空，已提交历史保留。', eng: 'Start the next game? Clear the current draft and retain committed history.' },
   confirmSwap: { zh: '交换两队、选手和比分的蓝红位置？历史将继续跟随原队伍。', eng: 'Swap teams, players and scores between blue and red? History will follow each team.' },
   gameCommitted: { zh: '本局已提交', eng: 'Game committed' },
@@ -541,6 +541,14 @@ const messages = {
   "bo3": {
     "zh": "三局两胜",
     "eng": "Best of 3"
+  },
+  "bo7": {
+    "zh": "七局四胜",
+    "eng": "Best of 7"
+  },
+  "blindPick": {
+    "zh": "盲选模式",
+    "eng": "Blind Pick"
   },
   "bo5": {
     "zh": "五局三胜",

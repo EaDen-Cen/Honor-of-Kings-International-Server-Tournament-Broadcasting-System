@@ -1,3 +1,4 @@
+import { BlindGamePanel } from './BlindGamePanel';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Action, MatchState, Side } from '../shared/types';
 import { gameRoles, rolesForGame } from '../shared/gameLineup';
@@ -236,6 +237,22 @@ export function DirectLineup({
     const hero = id ? heroForState(state, id) : undefined;
     return hero ? (zh ? hero.chineseName : hero.englishName) : '—';
   };
+  if (record?.rules?.mode === 'blind')
+    return (
+      <section>
+        <button onClick={() => setGameId('')}>
+          {zh ? '返回当前局' : 'Return to current game'}
+        </button>
+        <BlindGamePanel
+          state={state}
+          gameId={record.id}
+          disabled={disabled}
+          send={send}
+          acknowledged={acknowledged}
+          error={error}
+        />
+      </section>
+    );
   if (gameId && !record)
     return (
       <section className="panel">

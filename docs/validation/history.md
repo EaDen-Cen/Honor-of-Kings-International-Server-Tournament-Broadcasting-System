@@ -425,3 +425,7 @@ Chrome 测试同时打开 Control、Caster、Overlay，完成选禁、刷新、�
 ## 2026-10-30 · locked hero / Game 2 / recording volume / preflight (branch candidate)
 
 针对真实比赛反馈：新增 `replace_draft_hero` 可针对当前与归档局替换已锁定 Ban/Pick 槽位（不回退 BP），同步 `draftHistory` 和关联赛后报告英雄，保存已有人工字段；`commit_game` 自动建立并选择本局报告，避免第二局还在写第一局；本机 OBS `GetRecordDirectory` + `statfs` 读取真实录制分区可用空间，低于 20 GiB 或 10% 警告；每局 Control 伪强制开播清单带紧急绕过。新增锁定纠错与磁盘容量单元测试。尚待 Actions Build/Lint/浏览器回归及 Windows OBS 实机验证。细节见 [操作和限制](../guides/live-preflight-and-corrections-2026-10-30.md)。
+
+## 2026-11-08：BO7 与逐局规则开发验证
+
+新增 BO7、混合 Match/Normal/Blind、跨局贡献资格、七局独立报告和规则管理器回归。具体实际执行结果与实机边界见 [本轮验证记录](bo7-game-rules.md)。
