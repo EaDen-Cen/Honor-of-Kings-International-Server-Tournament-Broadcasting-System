@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, utimesSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { maintainGeneratedStorage } from './storageMaintenance.js';
 
 const DAY = 86_400_000;
-function fixture(t: Parameters<typeof test>[1] extends (arg: infer T) => unknown ? T : never) {
+function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), 'hok-storage-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'vite-project' }));
