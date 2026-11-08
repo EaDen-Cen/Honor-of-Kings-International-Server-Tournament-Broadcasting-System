@@ -294,3 +294,7 @@ P0 `LineupAssignments` 过去要求两方完整解析且可信才能应用，导
 - 系列赛默认与单局覆盖、未来局临时变更、Blind Pick 稳定 Game ID / 赛后报告、跨局历史独立受限与贡献。
 - BO7 比分、Caster/Overlay、存档、Undo/Recovery、旧记录迁移一并验证；不是仅增加下拉选项。
 - 操作与验收边界：[逐局规则](docs/guides/game-rules-manager.md)、[测试记录](docs/validation/bo7-game-rules.md)。
+
+## 2026-11-08 · 本地空间安全维护与 OCR 稳定性研究
+
+加入只针对过期 CI/E2E 生成产物的自动清理（14 天，单次最多 500 文件/512 MiB）、只读目录体积统计与手动 dry-run；用户比赛状态、20 份恢复备份、媒体、画像、录像和活跃日志均不清理。GHUD 低可信/空白 OCR 不再保持四秒缓存，以支持重新采样，未修改 85% 双帧阈值。BetterGI PP-OCRv6/ROI/稳定帧比较、Paddle A/B 与真实样本验收见 [研究文档](docs/research/bettergi-ocr-comparison.md) 与 [操作说明](docs/guides/storage-maintenance.md)；暂不认定实机 OCR 准确率提升。
