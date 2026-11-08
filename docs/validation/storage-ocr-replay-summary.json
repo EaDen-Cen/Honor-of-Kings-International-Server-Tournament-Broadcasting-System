@@ -1,0 +1,482 @@
+[
+  {
+    "acceptance": {
+      "assessed": false,
+      "occludedFrames": 0,
+      "wrongPublished": 0,
+      "passed": null
+    },
+    "baseline": "main 6b5abd9 cache + legacy clock-gated publication; unchanged preprocessing and local engine",
+    "kind": "emulator",
+    "frames": 30,
+    "scope": "Offline file decode → calibrated crops → local OCR → in-memory authoritative Store. Excludes capture, HTTP/WS transport and OBS. Rejection includes first read, unchanged/frozen/cache and protected values, not just OCR failure.",
+    "results": [
+      {
+        "mode": "before",
+        "fields": {
+          "blueKills": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.1
+          },
+          "redKills": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 4,
+            "published": 26,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.13333333333333333
+          },
+          "blueGold": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 7,
+            "published": 23,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.23333333333333334
+          },
+          "redGold": {
+            "samples": 30,
+            "correct": 27,
+            "rejected": 7,
+            "published": 23,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.9,
+            "rejectionRate": 0.23333333333333334
+          },
+          "blueTowers": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.1
+          },
+          "redTowers": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.1
+          },
+          "gameTimeSeconds": {
+            "samples": 30,
+            "correct": 29,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.9666666666666667,
+            "rejectionRate": 0.1
+          }
+        },
+        "recoveries": [
+          {
+            "field": "blueKills",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redKills",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "blueGold",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redGold",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "blueTowers",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redTowers",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "gameTimeSeconds",
+            "frames": null,
+            "seconds": null
+          }
+        ],
+        "p95PipelineMs": 174.26960000000008
+      },
+      {
+        "mode": "after",
+        "fields": {
+          "blueKills": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 5,
+            "published": 25,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.16666666666666666
+          },
+          "redKills": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.1
+          },
+          "blueGold": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 11,
+            "published": 19,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.36666666666666664
+          },
+          "redGold": {
+            "samples": 30,
+            "correct": 27,
+            "rejected": 6,
+            "published": 24,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.9,
+            "rejectionRate": 0.2
+          },
+          "blueTowers": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 19,
+            "published": 11,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.6333333333333333
+          },
+          "redTowers": {
+            "samples": 30,
+            "correct": 30,
+            "rejected": 4,
+            "published": 26,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.13333333333333333
+          },
+          "gameTimeSeconds": {
+            "samples": 30,
+            "correct": 29,
+            "rejected": 3,
+            "published": 27,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.9666666666666667,
+            "rejectionRate": 0.1
+          }
+        },
+        "recoveries": [
+          {
+            "field": "blueKills",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redKills",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "blueGold",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redGold",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "blueTowers",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "redTowers",
+            "frames": null,
+            "seconds": null
+          },
+          {
+            "field": "gameTimeSeconds",
+            "frames": null,
+            "seconds": null
+          }
+        ],
+        "p95PipelineMs": 153.98819999999978
+      }
+    ]
+  },
+  {
+    "acceptance": {
+      "assessed": true,
+      "occludedFrames": 7,
+      "wrongPublished": 0,
+      "passed": true
+    },
+    "baseline": "main 6b5abd9 cache + legacy clock-gated publication; unchanged preprocessing and local engine",
+    "kind": "synthetic",
+    "frames": 22,
+    "scope": "Offline file decode → calibrated crops → local OCR → in-memory authoritative Store. Excludes capture, HTTP/WS transport and OBS. Rejection includes first read, unchanged/frozen/cache and protected values, not just OCR failure.",
+    "results": [
+      {
+        "mode": "before",
+        "fields": {
+          "blueKills": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "redKills": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "blueGold": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "redGold": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "blueTowers": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "redTowers": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.4090909090909091
+          },
+          "gameTimeSeconds": {
+            "samples": 22,
+            "correct": 15,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.6818181818181818,
+            "rejectionRate": 0.4090909090909091
+          }
+        },
+        "recoveries": [
+          {
+            "field": "blueKills",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "redKills",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "blueGold",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "redGold",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "blueTowers",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "redTowers",
+            "frames": 2,
+            "seconds": 1
+          },
+          {
+            "field": "gameTimeSeconds",
+            "frames": 2,
+            "seconds": 1
+          }
+        ],
+        "p95PipelineMs": 143.8515
+      },
+      {
+        "mode": "after",
+        "fields": {
+          "blueKills": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 18,
+            "published": 4,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.8181818181818182
+          },
+          "redKills": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 17,
+            "published": 5,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.7727272727272727
+          },
+          "blueGold": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 1,
+            "published": 21,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.045454545454545456
+          },
+          "redGold": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 1,
+            "published": 21,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.045454545454545456
+          },
+          "blueTowers": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 17,
+            "published": 5,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.7727272727272727
+          },
+          "redTowers": {
+            "samples": 22,
+            "correct": 22,
+            "rejected": 17,
+            "published": 5,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 1,
+            "rejectionRate": 0.7727272727272727
+          },
+          "gameTimeSeconds": {
+            "samples": 22,
+            "correct": 15,
+            "rejected": 9,
+            "published": 13,
+            "wrongPublished": 0,
+            "occludedWrongPublished": 0,
+            "accuracy": 0.6818181818181818,
+            "rejectionRate": 0.4090909090909091
+          }
+        },
+        "recoveries": [
+          {
+            "field": "blueKills",
+            "frames": 3,
+            "seconds": 2
+          },
+          {
+            "field": "redKills",
+            "frames": 1,
+            "seconds": 0
+          },
+          {
+            "field": "blueGold",
+            "frames": 1,
+            "seconds": 0
+          },
+          {
+            "field": "redGold",
+            "frames": 1,
+            "seconds": 0
+          },
+          {
+            "field": "blueTowers",
+            "frames": 1,
+            "seconds": 0
+          },
+          {
+            "field": "redTowers",
+            "frames": 1,
+            "seconds": 0
+          },
+          {
+            "field": "gameTimeSeconds",
+            "frames": 2,
+            "seconds": 1
+          }
+        ],
+        "p95PipelineMs": 141.85570000000007
+      }
+    ]
+  }
+]

@@ -140,18 +140,16 @@ test('unchanged OCR game clock cannot verify a frozen replay frame',()=>{
   assert.equal(Object.keys(trustedLiveUpdates(stats,a,b)).length,0);
 });
 
-test('GHUD seconds follow recent OCR clock at 1-second resolution, not stale or manual data',()=>{
+test('GHUD retains verified clock through occlusion and manual freeze without extrapolation',(t)=>{
   const stats=initialLiveGameStats();
   stats.gameTimeSeconds=371;
   stats.sources={gameTimeSeconds:{source:'ocr',capturedAt:100000,confidence:.97}};
-  assert.equal(displayedGameSeconds(stats,100000),371);
-  assert.equal(displayedGameSeconds(stats,101200),372);
-  assert.equal(displayedGameSeconds(stats,102100),373);
-  assert.equal(displayedGameSeconds(stats,116000),371,'stale OCR must not extrapolate indefinitely');
+  let now=100000;t.mock.method(Date,'now',()=>now);
+  for(now of [100000,101200,102100,116000])assert.equal(displayedGameSeconds(stats),371,'elapsed wall time cannot invent new game seconds');
   stats.sources.gameTimeSeconds={source:'manual',capturedAt:100000,confidence:1};
-  assert.equal(displayedGameSeconds(stats,102100),371,'manual clock cannot pretend to be synchronized');
+  assert.equal(displayedGameSeconds(stats),371,'manual clock cannot pretend to be synchronized');
   stats.gameTimeSeconds=undefined;
-  assert.equal(displayedGameSeconds(stats,102100),undefined);
+  assert.equal(displayedGameSeconds(stats),undefined);
 });
 test('HUD custom height and neutral boss presence persist, reset between games and reject invalid status',()=>{
   const s=new Store();

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import { registerTestArtifact } from '../server/storageMaintenance';
 
 export { expect } from '@playwright/test';
 export type { Page, Route } from '@playwright/test';
@@ -45,6 +46,13 @@ async function stopOwnedServer(child:ChildProcess,closed:Promise<void>) {
 // uploads and team presets as well as settings. Product reset semantics stay intact.
 // Teardown only closes clients: resetting live state here can race automatic OCR.
 export const test=base.extend<{ isolatedServer:void; mockDiscord:boolean }>({
+  context: async ({ context }, runWithContext) => {
+    context.on('page', page => {
+      const screenshot=page.screenshot.bind(page);
+      page.screenshot=async options=>{const buffer=await screenshot(options);if(options?.path)await registerTestArtifact(project,options.path);return buffer;};
+    });
+    await runWithContext(context);
+  },
   mockDiscord: [false, { option: true }],
   isolatedServer:[async({baseURL, mockDiscord},use)=>{
     if(baseURL!==`http://${host}:${port}`)throw new Error('E2E baseURL must point to its disposable local server.');

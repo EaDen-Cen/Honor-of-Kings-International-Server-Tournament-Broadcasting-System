@@ -42,7 +42,24 @@ test('small lossless HUD transport keeps exactly the full-frame OCR inputs and r
   const before = await recognizeLiveHud(frame, provider as PlayerRecognitionProvider);
   const after = await recognizeLiveHudCrops(images, provider, liveCaptureRects);
   assert.deepEqual(calls[0], calls[1], 'cyan filtering and field order must not change');
-  assert.deepEqual(before.candidates, after.candidates);
+  assert.equal(
+    before.frameHash,
+    after.frameHash,
+    'equivalent raw crops have the same pixel identity',
+  );
+  for (let i = 0; i < before.candidates.length; i++) {
+    assert.ok(before.candidates[i].evidenceId);
+    assert.notEqual(
+      before.candidates[i].evidenceId,
+      after.candidates[i].evidenceId,
+      'separate OCR runs carry separate evidence',
+    );
+    assert.deepEqual(
+      { ...before.candidates[i], evidenceId: undefined },
+      { ...after.candidates[i], evidenceId: undefined },
+      'all original recognition fields remain identical',
+    );
+  }
   await assert.rejects(recognizeLiveHudCrops(images.slice(1), provider, liveCaptureRects), /Seven/);
   await assert.rejects(
     recognizeLiveHudCrops(

@@ -1,5 +1,6 @@
 import { StrictVoting } from './strictVoting.js';
 import { AdbCapture } from './adbCapture.js';
+import { StorageMaintenance, storageReferences } from './storageMaintenance.js';
 import { recognizeNeutralCounters } from './neutralRecognition.js';
 import { invalidateHudCache } from './hudOcrCache.js';
 import { evaluateHero } from './aiEvaluation.js';
@@ -170,6 +171,34 @@ const recoveryTimer = setInterval(() => {
 recoveryTimer.unref();
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
 const adbCapture = new AdbCapture();
+const storage = new StorageMaintenance(
+  project,
+  resolve(dirname(dataFile), 'storage-maintenance.json'),
+  async () => JSON.stringify(store.data) + (await storageReferences(dirname(dataFile))),
+  async (automatic) => {
+    const state = store.data.state;
+    const report = state.postGameReports.find((r) => r.id === state.committedGameId);
+    if (
+      (state.currentPhase > 0 && !state.committedGameId) ||
+      (state.committedGameId && !report?.endedAt)
+    )
+      return 'match-active';
+    const obs = await obsBridge.status();
+    if (automatic && !obs.configured) return 'recording-status-unknown';
+    if (obs.recording) return 'recording-active';
+    if (obs.configured && (!obs.connected || obs.recording === null))
+      return 'recording-status-unknown';
+  },
+);
+let storageError = '';
+await storage.load().catch(() => {
+  storageError = 'Storage settings unavailable; cleanup disabled';
+});
+const storageTimer = setInterval(() => {
+  if (!storageError)
+    void storage.tick().catch(() => diagnostics.record('storage_maintenance_failed'));
+}, 60000);
+storageTimer.unref();
 const server = createServer(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Referrer-Policy', 'no-referrer');
@@ -191,6 +220,43 @@ const server = createServer(async (req, res) => {
   }
   try {
     const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/api/v1/storage') {
+      if (
+        roleFor(req.headers.authorization?.replace(/^Bearer /, '')) !== 'control' ||
+        !localOperatorRequest(req)
+      ) {
+        json(403, { error: 'Local Control only' });
+        req.resume();
+        return;
+      }
+      if (storageError) {
+        json(503, { error: storageError });
+        req.resume();
+        return;
+      }
+      if (req.method !== 'POST') {
+        json(405, { error: 'POST required' });
+        req.resume();
+        return;
+      }
+      try {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 4096) throw Error('Request too large');
+        }
+        const input = JSON.parse(body);
+        let preview, result;
+        if (input.action === 'inspect') preview = await storage.inspect();
+        else if (input.action === 'clean') result = await storage.clean(input.id);
+        else if (input.action === 'config') await storage.configure(input.config);
+        else throw Error('Unknown maintenance action');
+        json(200, { preview, result, config: storage.config, history: storage.history });
+      } catch (e) {
+        json(400, { error: e instanceof Error ? e.message : 'Storage unavailable' });
+      }
+      return;
+    }
     if (url.pathname.startsWith('/api/v1/public-votes/')) {
       const peer = req.socket.remoteAddress || 'unknown',
         now = Date.now();
@@ -1966,6 +2032,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
     diagnostics.record('server_stop');
     clearInterval(recoveryTimer);
+    clearInterval(storageTimer);
     void playerRecognition.close();
     clearInterval(tick);
     clearInterval(heartbeat);

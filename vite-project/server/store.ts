@@ -370,6 +370,7 @@ export class Store {
         if(!sample||!Array.isArray(sample.candidates)||sample.candidates.length!==7||new Set(sample.candidates.map(c=>c.key)).size!==7)throw new Error('Invalid HUD sample');
         integer(sample.capturedAt,0,this.clock());
         if(this.clock()-sample.capturedAt>30000)throw new Error('HUD sample expired');
+        if(sample.frameHash!==undefined && (typeof sample.frameHash!=='string'||!/^[a-f0-9]{64}$/.test(sample.frameHash)||sample.candidates.some(c=>typeof c.evidenceId!=='string'||!/^[a-zA-Z0-9-]{8,100}$/.test(c.evidenceId))))throw Error('Invalid HUD evidence');
         for(const c of sample.candidates)if(!liveCaptureKeys.includes(c.key)||c.value!==null&&(typeof c.value!=='number'||!Number.isFinite(c.value))||typeof c.confidence!=='number'||!Number.isFinite(c.confidence)||c.confidence<0||c.confidence>1)throw new Error('Invalid HUD candidate');
       }
       const updates=trustedLiveUpdates(state.liveGameStats,action.previous,action.sample);

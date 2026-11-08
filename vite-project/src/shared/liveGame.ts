@@ -23,6 +23,7 @@ export interface LiveFieldSource {
   confidence: number;
 }
 export interface LiveHudSample {
+  frameHash?: string;
   capturedAt: number;
   candidates: LiveCandidate[];
   profile?: string;
@@ -74,27 +75,43 @@ export function trustedLiveUpdates(
 ) {
   const updates: Partial<Record<LiveCaptureKey, number>> = {};
   if (previous.profile !== sample.profile) return updates;
+  const pixelEvidence = !!previous.frameHash && !!sample.frameHash;
+  if ((previous.frameHash || sample.frameHash) && !pixelEvidence) return updates;
+  if (pixelEvidence && previous.frameHash === sample.frameHash) return updates;
   const elapsed = sample.capturedAt - previous.capturedAt;
   const clock = sample.candidates.find((c) => c.key === 'gameTimeSeconds'),
     oldClock = previous.candidates.find((c) => c.key === 'gameTimeSeconds');
   if (
-    (clock?.source === 'ai' && oldClock?.source === 'ai') ||
-    clock?.value == null ||
-    oldClock?.value == null ||
-    clock.value <= oldClock.value ||
-    !Number.isInteger(clock.value) ||
-    !Number.isInteger(oldClock.value) ||
-    oldClock.value < 0 ||
-    clock.value > 7200 ||
-    clock.confidence < 0.85 ||
-    oldClock.confidence < 0.85 ||
-    !consistentLiveValue('gameTimeSeconds', oldClock.value, clock.value, elapsed)
+    !pixelEvidence &&
+    ((clock?.source === 'ai' && oldClock?.source === 'ai') ||
+      clock?.value == null ||
+      oldClock?.value == null ||
+      clock.value <= oldClock.value ||
+      !Number.isInteger(clock.value) ||
+      !Number.isInteger(oldClock.value) ||
+      oldClock.value < 0 ||
+      clock.value > 7200 ||
+      clock.confidence < 0.85 ||
+      oldClock.confidence < 0.85 ||
+      !consistentLiveValue('gameTimeSeconds', oldClock.value, clock.value, elapsed))
   )
     return updates;
   for (const key of liveCaptureKeys) {
     const incoming = sample.candidates.find((c) => c.key === key),
       prior = previous.candidates.find((c) => c.key === key),
       source = stats.sources?.[key];
+    if (
+      pixelEvidence &&
+      (!incoming?.evidenceId || !prior?.evidenceId || incoming.evidenceId === prior.evidenceId)
+    )
+      continue;
+    if (
+      key === 'gameTimeSeconds' &&
+      incoming?.value != null &&
+      prior?.value != null &&
+      incoming.value <= prior.value
+    )
+      continue;
     if (
       // Replaying one cached AI answer is not two independent observations.
       (incoming?.source === 'ai' && prior?.source === 'ai') ||
@@ -120,7 +137,7 @@ export function trustedLiveUpdates(
         current = stats[key] ?? 0;
       if (since <= 0 || incoming.value < current) continue;
       // A disconnected capture may resume after 30 seconds. The two new
-      // samples still need a progressing clock and agreement; compare them
+      // samples still need independent evidence and agreement; compare them
       // with the last published value using the actual elapsed interval.
       const windows = Math.max(1, Math.ceil(since / 15000));
       const maxDelta = key.endsWith('Gold')
@@ -186,8 +203,8 @@ export function liveHudReviewStates(
         prior.confidence < 0.85
       )
         review = 'low-confidence';
-      else if (stalledClock) review = 'clock-stalled';
       else if (updates[key] !== undefined) review = 'verified';
+      else if (stalledClock) review = 'clock-stalled';
       return [key, review];
     }),
   ) as Record<LiveCaptureKey, LiveHudReviewState>;
@@ -223,16 +240,10 @@ export function nextLiveGameStats(previous: LiveGameStats): LiveGameStats {
   };
 }
 
-/** Never invent elapsed game time: advance only a recently verified OCR
- * clock anchor. Manual values remain static until edited by the operator. */
-export function displayedGameSeconds(stats: LiveGameStats, now: number): number | undefined {
-  const base = stats.gameTimeSeconds;
-  if (base === undefined) return undefined;
-  const source = stats.sources?.gameTimeSeconds;
-  if (source?.source !== 'ocr' || !Number.isFinite(source.capturedAt)) return base;
-  const age = now - source.capturedAt;
-  if (age < 0 || age > 15000) return base;
-  return Math.min(7200, base + Math.floor(age / 1000));
+/** Display verified seconds; occlusion and pauses cannot advance the broadcast clock. */
+export function displayedGameSeconds(stats: LiveGameStats): number | undefined {
+  // A covered or paused clock must not broadcast extrapolated, unverified seconds.
+  return stats.gameTimeSeconds;
 }
 /** Translate the built-in bilingual names without rewriting saved match data.
  * A renamed or custom objective keeps the operator's exact label. */

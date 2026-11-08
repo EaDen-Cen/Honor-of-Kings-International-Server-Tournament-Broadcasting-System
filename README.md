@@ -1,6 +1,8 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
-> **GHUD 采集与资源计数（待审查开发分支）**：新增本机 Control 雷电 ADB 采集，保留 Windows/截图；资源累计数独立校准、人工冻结、跨局历史保留；比分移到顶栏两端。真实短样本发现并修复 10k 以上经济裁剪问题，采图+OCR 中位数约 1.55–1.57 秒，尚不满足 1Hz。分类资源与真实 OBS 长时间联动未验收。见 [操作](docs/guides/ghud-adb-objectives.md)、[验证](docs/validation/ghud-adb-objectives.md)。本轮基于已合并 #111 的 main `8175270`，不自动合并或发布。下方较早段落保留历史状态。
+> **2026-11-08 / 维护与 OCR 候选分支**：基于 main `6b5abd9`（#112 与 #113 已合并），保留 BO7、逐局规则和盲选；未采用已关闭 #114。新增设置中的只读空间统计、带来源证明的过期文件预览/清理与默认关闭的定期任务；修复失败 OCR 缓存和重复观测，时钟遮挡时按字段保留可信值。见 [空间工具](docs/guides/storage-maintenance.md)、[回放入口](docs/guides/hud-occlusion-replay.md)、[验证与缺样](docs/validation/storage-ocr-reliability.md)。旧无凭据文件及全部上传资料保持保护；新功能未自动合并或发布。
+
+> **GHUD 采集与资源计数（#112 已合并 main）**：新增本机 Control 雷电 ADB 采集，保留 Windows/截图；资源累计数独立校准、人工冻结、跨局历史保留；比分移到顶栏两端。真实短样本发现并修复 10k 以上经济裁剪问题，采图+OCR 中位数约 1.55–1.57 秒，尚不满足 1Hz。分类资源与真实 OBS 长时间联动未验收。见 [操作](docs/guides/ghud-adb-objectives.md)、[验证](docs/validation/ghud-adb-objectives.md)。该轮基于 #111 的 main `8175270`，已通过 #112 合并；正式版本未自动发布。下方较早段落保留历史状态。
 
 > **桌面工作区与 Discord 原生 Poll（#111 已合并 main）**：文件/编辑/视图/窗口/帮助菜单，独立赛前准备与操作指南、稳定 Portal 浮动/停靠；原生 Webhook Poll 默认优先，发布成功后 180 秒软截止，明确仍可能继续收票。保留 #110 严格网页投票。详见 [工作区](docs/guides/dock-workspace.md) 与 [投票模式](docs/guides/discord-mvp-voting.md)。
 

@@ -5,6 +5,16 @@ import {readFile} from 'node:fs/promises';
 import heroes from '../src/components/HeroList.js';
 import {recognizeImage,recognizeClientFrame} from './capture.js';
 
+test('reported Flowborn support versus Lady Sun confusion: image matcher retains support identity (synthetic crop)',async()=>{
+  const hero=heroes.find(h=>h.chineseName==='元流之子（辅助）')!,sun=heroes.find(h=>h.englishName==='Lady Sun')!;
+  assert.ok(hero&&sun);
+  const image=await readFile(new URL(`../public${hero.recognitionImageLink||hero.imageLink}`,import.meta.url));
+  const compressed=await sharp(image).resize(48,48).modulate({brightness:0.75,saturation:0.75}).jpeg({quality:45}).toBuffer();
+  const matches=await recognizeImage(compressed,undefined,'circle');
+  assert.equal(matches[0].heroId,hero.id);assert.notEqual(matches[0].heroId,sun.id);
+  assert.ok(matches[0].confidence-(matches[1]?.confidence??0)>=0.06);
+});
+
 test('synthetic Flowborn forms and Lady Sun remain distinct under compression and tint', async () => {
   const group = heroes.filter(hero => hero.variantGroup === 'flowborn' || hero.englishName === 'Lady Sun');
   assert.equal(group.length, 6);
