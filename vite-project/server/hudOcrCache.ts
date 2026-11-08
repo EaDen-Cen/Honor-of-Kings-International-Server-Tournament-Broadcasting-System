@@ -42,7 +42,12 @@ export async function recognizeHudNumbers(images: string[], provider: Provider, 
         until: Date.now() + 4000,
       };
       samples[index] = sample;
-      cache.fields.set(index, sample);
+      // Do not freeze weak/blank OCR for four seconds: an overlay or one
+      // blurred frame must be eligible for a fresh read on the next sample.
+      // Trust is still decided by the existing two-frame server gate.
+      if (Number.isFinite(sample.confidence) && sample.confidence >= 0.85 && sample.text.trim())
+        cache.fields.set(index, sample);
+      else cache.fields.delete(index);
     });
   }
   return {
