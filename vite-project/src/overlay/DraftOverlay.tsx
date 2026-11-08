@@ -246,78 +246,91 @@ export function DraftOverlay({ state }: { state: MatchState }) {
       <div className="broadcast-center" aria-hidden="true" />
       <div className="broadcast-bottom">
         {state.draftHistory.length > 0 && <DraftHistory state={state} compact />}
-        <div className="broadcast-bans">
-          {sides.map((side, position) => (
-            <div
-              className={`ban-team ${side} display-${position === 0 ? 'left' : 'right'}`}
-              key={state[`${side}Team`].id}
-            >
-              <span>
-                {t(side === 'blue' ? 'blueSide' : 'redSide')} · {t('ban')}
-              </span>
-              <div className="bans">
-                {Array.from({ length: state.banCount }, (_, index) => {
-                  const value = state[`${side}Bans`][index];
-                  const skipped = value === null;
-                  const hero = typeof value === 'number' ? heroForState(state, value) : undefined;
-                  const label = skipped
-                    ? t('emptyBan')
-                    : hero
-                      ? state.language === 'zh'
-                        ? hero.chineseName
-                        : hero.englishName
-                      : t('ban');
-                  return (
-                    <div
-                      className={`hero-slot ban ${skipped ? 'skipped-ban' : ''}`}
-                      key={index}
-                      title={label}
-                    >
-                      {hero ? (
-                        <>
-                          <img src={hero.imageLink} alt={label} />
-                          <b className="ban-mark">╱</b>
-                          {state.showHeroName && <span className="ban-name">{label}</span>}
-                        </>
-                      ) : (
-                        <span className={skipped ? 'empty skipped-ban-label' : 'empty'}>
-                          {skipped ? t('emptyBan') : '—'}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+        {state.draftMode !== 'blind' && (
+          <div className="broadcast-bans">
+            {sides.map((side, position) => (
+              <div
+                className={`ban-team ${side} display-${position === 0 ? 'left' : 'right'}`}
+                key={state[`${side}Team`].id}
+              >
+                <span>
+                  {t(side === 'blue' ? 'blueSide' : 'redSide')} · {t('ban')}
+                </span>
+                <div className="bans">
+                  {Array.from({ length: state.banCount }, (_, index) => {
+                    const value = state[`${side}Bans`][index];
+                    const skipped = value === null;
+                    const hero = typeof value === 'number' ? heroForState(state, value) : undefined;
+                    const label = skipped
+                      ? t('emptyBan')
+                      : hero
+                        ? state.language === 'zh'
+                          ? hero.chineseName
+                          : hero.englishName
+                        : t('ban');
+                    return (
+                      <div
+                        className={`hero-slot ban ${skipped ? 'skipped-ban' : ''}`}
+                        key={index}
+                        title={label}
+                      >
+                        {hero ? (
+                          <>
+                            <img src={hero.imageLink} alt={label} />
+                            <b className="ban-mark">╱</b>
+                            {state.showHeroName && <span className="ban-name">{label}</span>}
+                          </>
+                        ) : (
+                          <span className={skipped ? 'empty skipped-ban-label' : 'empty'}>
+                            {skipped ? t('emptyBan') : '—'}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="broadcast-picks">
-          {sides.map((side, position) => (
-            <div
-              key={state[`${side}Team`].id}
-              className={`pick-team ${side} display-${position === 0 ? 'left' : 'right'} ${phase?.team === side ? 'acting' : ''}`}
-            >
-              {Array.from({ length: 5 }, (_, index) => index)
-                .sort((a, b) =>
-                  state.draftComplete
-                    ? gameRoles.indexOf(playerAtSlot(state, side, a).role) -
-                      gameRoles.indexOf(playerAtSlot(state, side, b).role)
-                    : a - b,
-                )
-                .map((index) => (
-                  <PickCard
-                    key={index}
-                    state={state}
-                    side={side}
-                    index={index}
-                    position={position === 0 ? 'left' : 'right'}
-                  />
-                ))}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+        {state.draftMode === 'blind' && state.currentGameRules?.recordHeroes === false ? (
+          <p className="phase">
+            {t('blindPick')} ·{' '}
+            {state.language === 'zh' ? '不记录英雄阵容' : 'Heroes are not recorded'}
+          </p>
+        ) : (
+          <div className="broadcast-picks">
+            {sides.map((side, position) => (
+              <div
+                key={state[`${side}Team`].id}
+                className={`pick-team ${side} display-${position === 0 ? 'left' : 'right'} ${phase?.team === side ? 'acting' : ''}`}
+              >
+                {Array.from({ length: 5 }, (_, index) => index)
+                  .sort((a, b) =>
+                    state.draftComplete
+                      ? gameRoles.indexOf(playerAtSlot(state, side, a).role) -
+                        gameRoles.indexOf(playerAtSlot(state, side, b).role)
+                      : a - b,
+                  )
+                  .map((index) => (
+                    <PickCard
+                      key={index}
+                      state={state}
+                      side={side}
+                      index={index}
+                      position={position === 0 ? 'left' : 'right'}
+                    />
+                  ))}
+              </div>
+            ))}
+          </div>
+        )}
         <footer className={`phase ${phase?.team || ''}`}>
-          {state.committedGameId ? t('gameCommitted') : phaseName(state)}
+          {state.draftMode === 'blind'
+            ? t('blindPick')
+            : state.committedGameId
+              ? t('gameCommitted')
+              : phaseName(state)}
         </footer>
       </div>
     </section>

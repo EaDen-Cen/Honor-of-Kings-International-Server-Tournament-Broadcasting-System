@@ -84,3 +84,7 @@ GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architec
 - [PR #91 验证记录、基准范围与待实机验收项](validation/pr91-validation.md)
 
 - [2026-10-30 · 已锁定英雄纠错、BO3 报告与开播检查](guides/live-preflight-and-corrections-2026-10-30.md)：跨局人工纠错、真实 OBS 录制盘剩余空间、逐局伪强制启动流程。
+
+## BO7 与逐局规则
+
+[操作指南](guides/game-rules-manager.md) · [规则/历史结构](design/game-rules.md) · [验证记录](validation/bo7-game-rules.md)。支持系列赛默认与逐局覆盖、无英雄盲选开局与正常报告；普通 0 Ban 与 Blind Pick 不混用。

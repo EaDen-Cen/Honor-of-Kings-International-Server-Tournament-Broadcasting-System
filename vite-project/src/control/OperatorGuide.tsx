@@ -46,31 +46,36 @@ export function OperatorGuide({
   const labels = zh
     ? ['赛前准备', '选禁操作', '确认阵容', '记录与下一局']
     : ['Preparation', 'Draft', 'Confirm lineup', 'Record & next game'];
-  const hint = !connected
-    ? zh
-      ? '连接中断：画面保留最后一次状态，恢复连接后再继续操作。'
-      : 'Connection lost: showing the last state. Wait for reconnection before continuing.'
-    : pending
+  const hint =
+    state.draftMode === 'blind' && connected && !pending
       ? zh
-        ? '正在等待服务器确认，请稍候。'
-        : 'Waiting for server confirmation.'
-      : step === 0
+        ? '本局为盲选：在盲选面板直接开局，比赛结束后在赛后报告确认胜负。无需传统 BP 或十名英雄。'
+        : 'Blind Pick: start directly from the Blind Pick panel, then confirm the result in Post-game. Traditional BP and ten heroes are not required.'
+      : !connected
         ? zh
-          ? '先检查队伍、首发、赛制和解说延迟，再开始选禁。'
-          : 'Check teams, starters, rules and caster delay before drafting.'
-        : step === 1
-          ? `${zh ? '当前操作：' : 'Current turn: '}${phaseName(state, state.language)}`
-          : step === 2
+          ? '连接中断：画面保留最后一次状态，恢复连接后再继续操作。'
+          : 'Connection lost: showing the last state. Wait for reconnection before continuing.'
+        : pending
+          ? zh
+            ? '正在等待服务器确认，请稍候。'
+            : 'Waiting for server confirmation.'
+          : step === 0
             ? zh
-              ? '先核对 P1–P5 与最终英雄归属；比赛进行时使用局内 HUD 和 OBS。比赛结束后再确认本局有效、更新比分。'
-              : 'Verify P1–P5 and hero ownership; use Live HUD and OBS during play. Commit the valid game and update the score after play ends.'
-            : seriesFinished(state)
-              ? zh
-                ? '系列赛已结束。核对比分后，可处理赛后数据并导出备份。'
-                : 'Series complete. Verify the score, prepare post-game data and export a backup.'
-              : zh
-                ? '核对本局结果并更新系列赛比分，再进入下一局。'
-                : 'Check the result and update the series score before starting the next game.';
+              ? '先检查队伍、首发、赛制和解说延迟，再开始选禁。'
+              : 'Check teams, starters, rules and caster delay before drafting.'
+            : step === 1
+              ? `${zh ? '当前操作：' : 'Current turn: '}${phaseName(state, state.language)}`
+              : step === 2
+                ? zh
+                  ? '先核对 P1–P5 与最终英雄归属；比赛进行时使用局内 HUD 和 OBS。比赛结束后再确认本局有效、更新比分。'
+                  : 'Verify P1–P5 and hero ownership; use Live HUD and OBS during play. Commit the valid game and update the score after play ends.'
+                : seriesFinished(state)
+                  ? zh
+                    ? '系列赛已结束。核对比分后，可处理赛后数据并导出备份。'
+                    : 'Series complete. Verify the score, prepare post-game data and export a backup.'
+                  : zh
+                    ? '核对本局结果并更新系列赛比分，再进入下一局。'
+                    : 'Check the result and update the series score before starting the next game.';
   return (
     <section className="operator-guide panel" aria-label={zh ? '导播操作指引' : 'Operator guide'}>
       <ol className="operator-steps">
@@ -84,7 +89,7 @@ export function OperatorGuide({
       <p role="status" aria-live="polite">
         {hint}
       </p>
-      {state.bpInputMode === 'screen' && !state.committedGameId && (
+      {state.draftMode !== 'blind' && state.bpInputMode === 'screen' && !state.committedGameId && (
         <div className={'operator-id-preflight' + (idOrderVerified ? ' verified' : '')}>
           <label>
             <input

@@ -23,21 +23,31 @@ const field = object({ value: number, sourcePage: text, confidence: number, manu
 const grade = object({value:choices(...postGameGrades),sourcePage:choices('summary'),confidence:number,manual:boolean,evidence:optional(text),capturedAt:optional(number)});
 const difference = object({points:list(object({timeSeconds:integer,difference:number})),source:choices('settlement','manual'),confidence:number,maxDifference:number,evidence:optional(text),capturedAt:optional(number),partial:optional(boolean),durationSeconds:optional(integer)});
 const timeline = list(object({ timeSeconds: number, blueGold: number, redGold: number }));
+const ruleFields = {
+  mode: choices('match', 'normal', 'blind'), heroPool: choices('global', 'cn'),
+  banCount: choices(0, 1, 2, 3, 4, 5), draftRuleMode: choices('normal', 'player', 'global'),
+  enforcePreviousHistory: boolean, contributeToFutureHistory: boolean, recordHeroes: boolean,
+  requireLineupConfirmation: boolean, firstPickSide: side, sideSwapMode: choices('moveTeams', 'colorsOnly'),
+  flowbornFormsIndependent: boolean,
+};
+const gameRules = object(ruleFields);
+const gameOverrides = object(Object.fromEntries(Object.entries(ruleFields).map(([name, check]) => [name, optional(check)])));
+const seriesRules = object({ defaultGameRules: gameRules, games: record(gameOverrides) });
 const history = object({
-  id: text, gameNumber: integer, committedAt: number, firstPickSide: optional(side),
+  id: text, gameNumber: integer, committedAt: number, firstPickSide: optional(side), rules: optional(gameRules),
   heroPool: optional(choices('global', 'cn')), banCount: optional(integer),
   blueTeam: team, redTeam: team,
   bluePicks: list(hero), redPicks: list(hero),
   blueBans: optional(slots), redBans: optional(slots),
-  blueAssignments: optional(list(hero)), redAssignments: optional(list(hero)),
+  blueAssignments: optional(slots), redAssignments: optional(slots),
   bluePlayerSlotOrder: optional(playerOrder), redPlayerSlotOrder: optional(playerOrder),
 });
 const report = object({
   endedAt: optional(integer), winner: optional(side),
-  id: text, gameNumber: integer, seriesFormat: choices('BO1', 'BO3', 'BO5'), stage: text,
+  id: text, gameNumber: integer, seriesFormat: choices('BO1', 'BO3', 'BO5', 'BO7'), stage: text,
   selectedMvpPlayerId: nullable(text), selectedMvpRowId: nullable(text),
   teamFields: optional(record(record(field))), goldTimeline: optional(timeline),goldDifference:optional(difference),mvpArtScale:optional(number),
-  players: list(object({ rowId: text, playerId: text, side, slot: integer, rosterIndex: integer, teamName: text, portrait: text, role, heroId: hero, fields: record(field),grade:optional(grade) })),
+  players: list(object({ rowId: text, playerId: text, side, slot: integer, rosterIndex: integer, teamName: text, portrait: text, role, heroId: nullable(hero), fields: record(field),grade:optional(grade) })),
 });
 const liveStats = object({
   blueKills: number, redKills: number, blueTowers: number, redTowers: number,
@@ -48,8 +58,10 @@ const liveStats = object({
 });
 const state = object({
   blueTeam: team, redTeam: team, blueScore: integer, redScore: integer, gameNumber: integer,
-  seriesFormat: choices('BO1', 'BO3', 'BO5'), stage: text, language: choices('zh', 'eng'), overlayLayout: choices('panel', 'side'),
-  draftMode: choices('match', 'normal'), currentPhase: integer, draftComplete: boolean,
+  seriesRules: optional(seriesRules), currentGameRules: optional(gameRules),
+  rulesCorrections: optional(list(object({gameId:text,at:integer,reason:text,previous:boolean,next:boolean}))),
+  seriesFormat: choices('BO1', 'BO3', 'BO5', 'BO7'), stage: text, language: choices('zh', 'eng'), overlayLayout: choices('panel', 'side'),
+  draftMode: choices('match', 'normal', 'blind'), currentPhase: integer, draftComplete: boolean,
   blueBans: slots, redBans: slots, bluePicks: list(hero), redPicks: list(hero),
   // Fields introduced after the original draft protocol remain optional so an
   // older backend can still display its upgrade notice without crashing.

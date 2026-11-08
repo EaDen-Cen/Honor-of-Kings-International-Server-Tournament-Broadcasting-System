@@ -50,12 +50,15 @@ export function MvpOverlay({ state }: { state: MatchState }) {
   const saved = report?.players.find((p) => p.rowId === report.selectedMvpRowId),
     player = saved ? postGamePlayerIdentity(state, saved) : undefined;
   if (!player || !report) return null;
-  const hero = heroForState(state, player.heroId);
+  const hero = player.heroId === null ? undefined : heroForState(state, player.heroId);
   const value = (key: PostGameMetric) =>
     formatPostGameValue(reliableField(player.fields[key]) ? player.fields[key]!.value : null, key);
   const { primary: statTiles, highlights } = mvpStatSelection(player, report);
   const runtime = state.heroArtOverrides?.[String(player.heroId)],
-    crop = heroArtCrop(player.heroId, 'panel', runtime);
+    crop =
+      player.heroId === null
+        ? { x: 50, y: 50, scale: 1 }
+        : heroArtCrop(player.heroId, 'panel', runtime);
   const heroArt =
     state.artSourceMode === 'legacy' || runtime?.useLegacyImage
       ? hero?.imageLink
@@ -118,7 +121,10 @@ export function MvpOverlay({ state }: { state: MatchState }) {
         )}
         <div className="mvp-screen-hero">
           {hero?.imageLink && <img src={hero.imageLink} alt="" />}
-          <span>{zh ? hero?.chineseName : hero?.englishName || '—'}</span>
+          <span>
+            {(zh ? hero?.chineseName : hero?.englishName) ||
+              (zh ? '英雄未记录' : 'Hero not recorded')}
+          </span>
         </div>
         <div className="mvp-screen-kda">
           <strong>

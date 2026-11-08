@@ -5,7 +5,7 @@ export const sideLabel = (side: Side, lang: Language) => translate(lang, side ==
 
 // Team names and player IDs are user data, never translation keys.
 export const teamName = (state: MatchState, side: Side) => state[`${side}Team`].name;
-export const draftRuleName = (state: MatchState, lang = state.language) => translate(lang, ({ normal: 'ruleNormal', player: 'rulePlayer', global: 'ruleGlobal' } as const)[state.draftRuleMode]);
+export const draftRuleName = (state: MatchState, lang = state.language) => state.draftMode === 'blind' ? translate(lang, 'blindPick') : translate(lang, ({ normal: 'ruleNormal', player: 'rulePlayer', global: 'ruleGlobal' } as const)[state.draftRuleMode]);
 
 const stages: Record<string, MessageKey> = {
   'COMMUNITY TOURNAMENT': 'stageCommunity', '社区赛事': 'stageCommunity',
@@ -16,8 +16,9 @@ const stages: Record<string, MessageKey> = {
   'Grand Final': 'stageGrandFinal', '总决赛': 'stageGrandFinal',
 };
 export const stageName = (value: string, lang: Language) => stages[value] ? translate(lang, stages[value]) : value;
-export const seriesName = (value: MatchState['seriesFormat'], lang: Language) => translate(lang, ({ BO1: 'bo1', BO3: 'bo3', BO5: 'bo5' } as const)[value]);
+export const seriesName = (value: MatchState['seriesFormat'], lang: Language) => translate(lang, ({ BO1: 'bo1', BO3: 'bo3', BO5: 'bo5', BO7: 'bo7' } as const)[value]);
 export const phaseName = (state: MatchState, lang = state.language) => {
+  if (state.draftMode === 'blind') return translate(lang, 'blindPick');
   const phase = phases(state.draftMode, state.firstPickSide, state.banCount)[state.currentPhase];
   return phase ? translate(lang, phase.action === 'ban' ? 'banHero' : 'pickHero', { team: teamName(state, phase.team) }) : translate(lang, 'draftComplete');
 };

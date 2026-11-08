@@ -1,0 +1,150 @@
+.game-rules-manager {
+  max-width: 1300px;
+  margin: auto;
+}
+.game-rules-manager > label {
+  display: block;
+  margin-block: 12px;
+}
+.game-rules-manager details {
+  margin-block: 10px;
+}
+.game-rules-fields,
+.game-rules-batch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+.game-rules-fields label,
+.game-rules-batch label {
+  display: grid;
+  gap: 4px;
+  min-width: 100px;
+}
+.game-rules-fields .game-rules-check {
+  display: flex;
+  align-items: center;
+  min-width: 170px;
+}
+.game-rules-check input {
+  width: auto;
+}
+.game-rules-table {
+  overflow-x: auto;
+  margin-block: 16px;
+}
+.game-rules-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.game-rules-table th,
+.game-rules-table td {
+  padding: 12px;
+  border-bottom: 1px solid #354459;
+  vertical-align: top;
+  text-align: left;
+}
+.game-rules-table th small {
+  display: block;
+  font-weight: normal;
+}
+.game-rules-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 180px;
+}
+.game-rules-diff {
+  margin-block: 14px;
+  overflow-wrap: anywhere;
+}
+.game-rules-diff ul {
+  max-height: 160px;
+  overflow: auto;
+}
+.blind-lineup-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.blind-lineup-sides label {
+  display: grid;
+  margin-block: 8px;
+  gap: 4px;
+}
+@media (max-width: 700px) {
+  .blind-lineup-sides {
+    grid-template-columns: 1fr;
+  }
+}
+#game-rules-dialog {
+  position: fixed;
+  z-index: 2500;
+  width: min(1450px, calc(100vw - 36px));
+  max-width: none;
+  height: 94vh;
+  max-height: 94vh;
+  inset: 3vh 0;
+  margin: 0 auto;
+  color: inherit;
+  overflow-y: auto;
+  background: #101b2a;
+  border: 1px solid #54728e;
+  border-radius: 10px;
+  box-shadow: 0 12px 60px #0009;
+  padding: 14px;
+}
+#game-rules-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: -14px;
+  background: #101b2a;
+  z-index: 1;
+  padding: 10px 0;
+}
+#game-rules-dialog .game-rules-manager {
+  max-width: none;
+  padding: 10px;
+}
+#game-rules-dialog .game-rules-manager > p {
+  margin: 0 0 10px;
+}
+#game-rules-dialog .game-rules-table {
+  margin-block: 8px;
+}
+#game-rules-dialog .game-rules-table th,
+#game-rules-dialog .game-rules-table td {
+  padding: 6px 8px;
+}
+#game-rules-dialog .game-rules-table p {
+  margin: 2px 0 6px;
+}
+#game-rules-dialog .game-rules-table details {
+  margin-block: 4px 0;
+}
+#game-rules-dialog .game-rules-table label {
+  font-size: 12px;
+  gap: 1px;
+}
+#game-rules-dialog .game-rules-table select {
+  padding: 4px 7px;
+  min-height: 30px;
+}
+#game-rules-dialog .game-rules-actions button {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+#game-rules-dialog::backdrop {
+  background: #020812b8;
+}
+@media (max-width: 700px) {
+  #game-rules-dialog {
+    width: calc(100vw - 16px);
+    inset: 8px 0;
+    height: calc(100vh - 16px);
+    max-height: none;
+  }
+}

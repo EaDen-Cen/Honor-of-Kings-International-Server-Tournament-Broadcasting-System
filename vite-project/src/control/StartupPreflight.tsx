@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatchState } from '../shared/types';
-import { currentGame } from '../shared/draftRules';
+import { currentGame, seriesFinished } from '../shared/draftRules';
+import { gameRulesFor, maximumGames } from '../shared/gameRules';
 import { PreflightStatus, type Check } from './PreflightStatus';
 import { playerOrderCheckKey } from '../shared/playerOrderPreflight';
 
@@ -71,6 +72,8 @@ export function StartupPreflight({
 }) {
   const zh = state.language === 'zh';
   const game = currentGame(state);
+  const nextRules = state.committedGameId && !seriesFinished(state) && game < maximumGames(state.seriesFormat)
+    ? gameRulesFor(state, game + 1) : null;
   const key = [
     playerOrderCheckKey(state),
     game,
@@ -92,13 +95,13 @@ export function StartupPreflight({
   const labels = zh
     ? [
         '核对队伍、Logo、首发、P1–P5 与本局赛制 / BP 规则',
-        '连接并测试 BP 采集画面、尺寸与 ROI 校准，核对模板与英雄候选；准备人工纠正入口',
+        state.draftMode === 'blind' ? '本局为盲选，无需 BP 识别；检查局内 GHUD 采集与校准' : '连接并测试 BP 采集画面、尺寸与 ROI 校准，核对模板与英雄候选；准备人工纠正入口',
         '检查 OBS 的场景、Browser Source 内容、音频、录制状态与实际录制磁盘剩余空间',
         '检查备份、导播/解说 Overlay 与公网访问',
       ]
     : [
         'Verify teams, logos, P1–P5 order, series and BP rules',
-        'Test capture size, ROI, templates and hero candidates; locate manual correction',
+        state.draftMode === 'blind' ? 'Blind Pick skips BP recognition; check live GHUD capture and calibration' : 'Test capture size, ROI, templates and hero candidates; locate manual correction',
         'Check OBS scenes, Browser Source content, audio, recording and actual disk space',
         'Check backup, overlays and remote connectivity',
       ];
@@ -168,6 +171,8 @@ export function StartupPreflight({
           </span>
         )}
       </summary>
+      <p>{state.seriesFormat} · {state.draftMode === 'blind' ? (zh?'盲选':'Blind Pick') : state.draftMode} · {state.heroPool} · {state.banCount} Ban</p>
+      {nextRules && <p aria-label="Next game rules">{zh ? `下一局 · 第 ${game + 1} 局` : `Next game · Game ${game + 1}`} · {nextRules.mode === 'blind' ? (zh ? '盲选' : 'Blind Pick') : nextRules.mode === 'normal' ? (zh ? '普通 BP' : 'Normal BP') : (zh ? '常规 BP' : 'Match BP')} · {nextRules.heroPool} · {nextRules.banCount} Ban · {nextRules.draftRuleMode}</p>}
       <PreflightStatus
         token={token}
         connected={connected}

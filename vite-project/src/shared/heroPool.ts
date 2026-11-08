@@ -39,5 +39,5 @@ export const allPoolHeroes:Hero[]=Array.from(new Map([...globalHeroes,...cnHeroe
 const cnIds=new Set(cnHeroes.map(h=>h.id));
 export function heroesForPool(pool:HeroPool='global'):Hero[]{return pool==='cn'?cnHeroes:globalHeroes;}
 export function heroAllowed(pool:HeroPool|undefined,id:number){return pool==='cn'?cnIds.has(id):globalHeroes.some(h=>h.id===id);}
-export function defaultBansForMode(mode:'match'|'normal'):BanCount{return mode==='match'?4:2;}
+export function defaultBansForMode(mode:'match'|'normal'|'blind'):BanCount{return mode==='blind'?0:mode==='match'?4:2;}
 export function isBanCount(value:unknown):value is BanCount{return Number.isInteger(value)&&Number(value)>=0&&Number(value)<=5;}
