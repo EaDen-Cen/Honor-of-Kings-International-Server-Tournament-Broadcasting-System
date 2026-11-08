@@ -30,6 +30,7 @@ import { liveGameContext } from '../src/shared/liveGame.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { Diagnostics } from './diagnostics.js';
+import { maintainGeneratedStorage } from './storageMaintenance.js';
 import { recordingDiskSpace } from './recordingStorage.js';
 import { acquireBackendLock, RecoveryManager, archiveData } from './recovery.js';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
@@ -161,6 +162,27 @@ const discordTimer = setInterval(() => {
 }, 5000);
 discordTimer.unref();
 diagnostics.record('server_start', { ocrEnabled: true });
+// Clean ONLY obsolete generated test output, never match data, OBS media,
+// backups, portraits, active logs or other user-owned files. Run after startup
+// and daily, bounded to 500 files / 512 MiB per pass. Failures are nonfatal.
+function cleanupOldGeneratedFiles() {
+  try {
+    const report = maintainGeneratedStorage(project, { apply: true });
+    if (report.removed || report.failed)
+      diagnostics.record('generated_storage_cleanup', {
+        removed: report.removed,
+        bytes: report.reclaimedBytes,
+        failed: report.failed,
+        limited: report.limited,
+      });
+  } catch {
+    diagnostics.record('generated_storage_cleanup_failed');
+  }
+}
+const initialStorageCleanup = setTimeout(cleanupOldGeneratedFiles, 30_000);
+initialStorageCleanup.unref();
+const storageCleanupTimer = setInterval(cleanupOldGeneratedFiles, 24 * 60 * 60 * 1000);
+storageCleanupTimer.unref();
 const recovery = new RecoveryManager(dataFile, uploadDirectory);
 recovery.automatic();
 const recoveryTimer = setInterval(() => {
@@ -1966,6 +1988,8 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
     diagnostics.record('server_stop');
     clearInterval(recoveryTimer);
+    clearTimeout(initialStorageCleanup);
+    clearInterval(storageCleanupTimer);
     void playerRecognition.close();
     clearInterval(tick);
     clearInterval(heartbeat);
