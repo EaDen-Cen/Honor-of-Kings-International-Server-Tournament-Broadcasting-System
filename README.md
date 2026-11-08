@@ -367,6 +367,12 @@ AI 现在使用结构化校验与现有采用规则，云端不阻塞本地识�
 
 本局分路与 BP 直接编辑已纳入此次最终集成。支持锁定头像纠错、最终英雄交换和选手临时换路，使用同一 Store 权威状态。操作方式见 [导播指南](docs/guides/operator-guide.md)，映射与兼容说明见 [本局阵容架构](docs/architecture/game-lineup.md)。
 
-## BO7 与逐局规则（开发分支）
+## BO7 与逐局规则（已合并主分支）
 
 新增七局四胜及独立「逐局规则 / Game Rules Manager」：系列赛默认 + 单局覆盖，未来局可中途调整；盲选可无英雄开局并保留十人赛后报告。传统 0 Ban 仍走正常选角。参阅 [操作指南](docs/guides/game-rules-manager.md)、[状态与历史结构](docs/design/game-rules.md)、[验证记录](docs/validation/bo7-game-rules.md)。上线前按最终赛事计划彩排，已完成局的规则快照不会追溯变化。
+
+## 本地磁盘维护与 OCR 技术研究（2026-11-08）
+
+新增本地存储只读盘点 `npm run storage:inspect`、安全手动清理 `npm run storage:cleanup`，服务端启动后及每日自动清理超过 14 天的 CI/E2E 测试产物。**不会删除** `data/`、备份、上传图片、实时运行日志、英雄素材、依赖、编译目录或 OBS 录像。详见 [存储维护说明](docs/guides/storage-maintenance.md)。
+
+对比开源 BetterGI 的 ROI、模板/颜色匹配、PP-OCRv6、批量无检测器 OCR 与稳定帧机制，保留原 Tesseract 引擎；仅修复 GHUD 低置信度/空白缓存导致的重复弱结果。完整研究、实机样本门槛与替代模型测试方案见 [BetterGI OCR 对比](docs/research/bettergi-ocr-comparison.md)。并未宣称 OCR 准确率已经通过现场验收。
