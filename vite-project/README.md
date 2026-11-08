@@ -58,3 +58,7 @@ npm run hero:crop-sync
 
 ### PR #70 赛后 OCR 框选恢复
 先用结算页截图或共享窗口在 Control 中「单字段 OCR」点击预览，选择玩家并鼠标直接框选数字（可从一人按 130px 复制同队五行并检查），再识别一人/已框选所有人。框选结果不是自动应用，黑图/空白不会入库。与整页采集工具在当前会话复用截图。详见 [导播指南](../docs/guides/operator-guide.md)。
+
+## 本地存储检查与自动维护
+
+在此目录执行 `npm run storage:inspect` 只读统计 `node_modules`、`dist`、`data` 和生成文件占用，并预览过期测试产物；`npm run storage:cleanup` 执行同一安全清理。运行中的 HOK 服务会在启动约 30 秒后及每 24 小时执行安全自动清理，保留所有比赛数据、备份、英雄/选手素材及 OBS 录制，详见 [存储维护指南](../docs/guides/storage-maintenance.md)。OCR 源码分析及实机提升路线见 [BetterGI 对比](../docs/research/bettergi-ocr-comparison.md)。
