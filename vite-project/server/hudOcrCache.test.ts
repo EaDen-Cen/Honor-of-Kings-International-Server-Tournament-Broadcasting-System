@@ -42,3 +42,24 @@ test('overlapping frames keep their own reused fields while OCR is pending', asy
   release();
   assert.deepEqual((await pending).texts, ['a', 'slow']);
 });
+
+test('low-confidence or blank HUD OCR is retried rather than cached for four seconds', async () => {
+  let calls = 0;
+  const provider = {
+    recognizeNumbers: async (images: unknown) => {
+      calls++;
+      const items = images as string[];
+      return {
+        texts: items.map(() => calls === 1 ? '??' : calls === 2 ? '' : '1500'),
+        confidences: items.map(() => calls === 1 ? 0.72 : calls === 2 ? 0.99 : 0.96),
+        elapsedMs: 1,
+      };
+    },
+  };
+  const first = await recognizeHudNumbers(['same-crop'], provider, 'new-game');
+  assert.equal(first.confidences[0], 0.72);
+  assert.equal((await recognizeHudNumbers(['same-crop'], provider, 'new-game')).texts[0], '');
+  assert.equal((await recognizeHudNumbers(['same-crop'], provider, 'new-game')).texts[0], '1500');
+  assert.equal((await recognizeHudNumbers(['same-crop'], provider, 'new-game')).texts[0], '1500');
+  assert.equal(calls, 3);
+});
