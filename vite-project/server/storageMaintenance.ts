@@ -1,12 +1,11 @@
 import {
-  existsSync,
   lstatSync,
   readdirSync,
   readFileSync,
-  rmSync,
+  rmdirSync,
   unlinkSync,
 } from 'node:fs';
-import { resolve, relative, sep, join, dirname } from 'node:path';
+import { resolve, relative, sep, join } from 'node:path';
 
 /**
  * Only generated test/CI output is eligible for unattended deletion.
@@ -141,7 +140,7 @@ export function maintainGeneratedStorage(
     for (const folder of [...parents].sort((a, b) => b.length - a.length)) {
       const stats = safeFileType(folder);
       if (!stats?.isDirectory() || stats.isSymbolicLink()) continue;
-      try { if (readdirSync(folder).length === 0) rmSync(folder, { recursive: false }); }
+      try { if (readdirSync(folder).length === 0) rmdirSync(folder); }
       catch { /* In-use, freshly populated and permission-protected folders stay. */ }
     }
   }
