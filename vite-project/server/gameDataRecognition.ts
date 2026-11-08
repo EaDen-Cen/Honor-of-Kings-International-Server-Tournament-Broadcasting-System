@@ -395,9 +395,10 @@ export async function recognizeLiveHud(
       return 'data:image/png;base64,' + input.toString('base64');
     }),
   );
-  const result = await recognizeLiveHudCrops(images, provider, regions);
+  const result = await recognizeLiveHudCrops(images, provider, regions, aiContext);
   const candidates = result.candidates;
   return {
+    frameHash: result.frameHash,
     candidates: aiContext ? fuseHud(images, candidates, aiContext) : candidates,
     elapsedMs: result.elapsedMs,
   };
@@ -410,6 +411,7 @@ export async function recognizeLiveHudCrops(
   provider: Pick<PlayerRecognitionProvider, 'recognizeNumbers'>,
   regions: Record<LiveCaptureKey, CaptureRect>,
   cacheContext?: string,
+  clock = Date.now,
 ) {
   const start = performance.now();
   if (!Array.isArray(images) || images.length !== liveCaptureKeys.length)
@@ -440,7 +442,7 @@ export async function recognizeLiveHudCrops(
         squares += value * value;
       }
       const variance = squares / data.length - (sum / data.length) ** 2;
-      return { input, hasContent: variance >= 25 };
+      return { input, pixels: data, hasContent: variance >= 25 };
     }),
   );
   if (!inputs.some((crop) => crop.hasContent))
@@ -448,10 +450,20 @@ export async function recognizeLiveHudCrops(
   const prepared = await Promise.all(
     inputs.map((crop, index) => prepareLiveHudCrop(crop.input, liveCaptureKeys[index])),
   );
-  const result = await recognizeHudNumbers(prepared, provider, cacheContext);
+  const result = await recognizeHudNumbers(
+    prepared,
+    provider,
+    cacheContext,
+    clock,
+    (text, index) => parseLiveNumber(text, liveCaptureKeys[index]) !== null,
+  );
   return {
+    frameHash: createHash('sha256')
+      .update(Buffer.concat(inputs.map((c) => c.pixels)))
+      .digest('hex'),
     candidates: liveCaptureKeys.map((key, index) => ({
       key,
+      evidenceId: result.evidenceIds[index],
       value: inputs[index].hasContent ? parseLiveNumber(result.texts[index], key) : null,
       confidence: inputs[index].hasContent ? result.confidences[index] : 0,
       text: inputs[index].hasContent ? result.texts[index] : '',

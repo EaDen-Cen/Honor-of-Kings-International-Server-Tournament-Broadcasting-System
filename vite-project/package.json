@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "storage:inspect": "node --import tsx scripts/storage.ts",
+    "replay:hud": "node --import tsx scripts/replay-hud.ts",
+    "replay:hud:example": "node --import tsx scripts/create-hud-replay.ts",
     "dev": "vite",
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "server": "node --env-file-if-exists=.env --import tsx server/server.ts",

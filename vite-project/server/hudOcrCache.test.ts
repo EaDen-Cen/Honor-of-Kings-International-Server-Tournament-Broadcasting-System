@@ -1,6 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { recognizeHudNumbers } from './hudOcrCache.js';
+
+test('blank and weak first reads are retried on identical crops', async () => {
+  for (const first of [
+    { text: '', confidence: 0.99 },
+    { text: '9', confidence: 0.4 },
+    { text: 'CONTROL', confidence: 0.99 },
+  ]) {
+    let calls = 0;
+    const provider = {
+      recognizeNumbers: async () => {
+        calls++;
+        return {
+          texts: [calls === 1 ? first.text : '1'],
+          confidences: [calls === 1 ? first.confidence : 0.99],
+          elapsedMs: 1,
+        };
+      },
+    };
+    const valid = (text: string) => /^\d+$/.test(text);
+    await recognizeHudNumbers(['same-crop'], provider, 'game-source-profile', Date.now, valid);
+    const next = await recognizeHudNumbers(
+      ['same-crop'],
+      provider,
+      'game-source-profile',
+      Date.now,
+      valid,
+    );
+    assert.equal(calls, 2, 'failed OCR must not occupy the four-second cache');
+    assert.equal(next.texts[0], '1');
+  }
+});
 test('unchanged HUD crops reuse OCR and changed regions remain one batch', async () => {
   const batches: string[][] = [];
   const provider = {

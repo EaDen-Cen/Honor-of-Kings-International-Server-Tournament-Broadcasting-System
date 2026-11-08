@@ -1,11 +1,14 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { PlayerRecognitionProvider } from './playerRecognition.js';
 type Provider = Pick<PlayerRecognitionProvider, 'recognizeNumbers'>;
 let caches = new WeakMap<
   Provider,
   {
     context: string;
-    fields: Map<number, { key: string; text: string; confidence: number; until: number }>;
+    fields: Map<
+      number,
+      { key: string; text: string; confidence: number; until: number; evidenceId: string }
+    >;
   }
 >();
 /** Reuse only identical, already validated crops for at most four seconds.
@@ -14,15 +17,24 @@ let caches = new WeakMap<
  * All changed fields remain a single OCR batch. A moving clock still needs a
  * fresh read, so the existing two-sample publication gate remains meaningful.
  */
-export async function recognizeHudNumbers(images: string[], provider: Provider, context?: string) {
-  if (context === undefined) return provider.recognizeNumbers(images);
+export async function recognizeHudNumbers(
+  images: string[],
+  provider: Provider,
+  context?: string,
+  clock = Date.now,
+  validText: (text: string, index: number) => boolean = () => true,
+) {
+  if (context === undefined) {
+    const result = await provider.recognizeNumbers(images);
+    return { ...result, evidenceIds: images.map(() => randomUUID()) };
+  }
   let cache = caches.get(provider);
   if (!cache || cache.context !== context) {
     cache = { context, fields: new Map() };
     caches.set(provider, cache);
   }
   const keys = images.map((image) => createHash('sha256').update(image).digest('hex'));
-  const now = Date.now();
+  const now = clock();
   // Snapshot reused fields before awaiting OCR: another in-flight frame may
   // update the shared cache while this frame's changed regions are being read.
   const samples = keys.map((key, index) => {
@@ -39,16 +51,26 @@ export async function recognizeHudNumbers(images: string[], provider: Provider, 
         key: keys[index],
         text: result.texts[offset],
         confidence: result.confidences[offset],
-        until: Date.now() + 4000,
+        until: clock() + 4000,
+        evidenceId: randomUUID(),
       };
       samples[index] = sample;
-      cache.fields.set(index, sample);
+      if (
+        typeof sample.text === 'string' &&
+        sample.text.trim() &&
+        Number.isFinite(sample.confidence) &&
+        sample.confidence >= 0.85 &&
+        validText(sample.text, index)
+      )
+        cache.fields.set(index, sample);
+      else cache.fields.delete(index);
     });
   }
   return {
     texts: samples.map((sample) => sample!.text),
     confidences: samples.map((sample) => sample!.confidence),
-    elapsedMs: Date.now() - now,
+    elapsedMs: clock() - now,
+    evidenceIds: samples.map((sample) => sample!.evidenceId),
   };
 }
 

@@ -81,6 +81,7 @@ export function LiveHudCapturePanel({
   const [elapsedMs, setElapsedMs] = useState<number>();
   const [now, setNow] = useState(Date.now);
   const [captureFailed, setCaptureFailed] = useState(false);
+  const [calibrationEpoch, setCalibrationEpoch] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -157,6 +158,7 @@ export function LiveHudCapturePanel({
     setAuto(false);
     setPublish(false);
     setCalibrated(true);
+    setCalibrationEpoch((value) => value + 1);
     setMessage(
       zh
         ? '采集位置已确认，请先手动采样两次核对 OCR。'
@@ -212,7 +214,7 @@ export function LiveHudCapturePanel({
             images,
             context,
             regions,
-            source: capture.calibrationKey,
+            source: JSON.stringify([capture.calibrationKey, calibrationEpoch]),
             neutral,
           }),
           signal: request.signal,
@@ -414,6 +416,16 @@ export function LiveHudCapturePanel({
             <li key={key} data-field={key} data-health={health}>
               {liveCaptureLabel(key, zh)}: {labels[health]}
               {source && ` · ${new Date(source.capturedAt).toLocaleTimeString()}`}
+              {source?.source === 'ocr' &&
+                ` · ${Math.max(0, Math.floor((now - source.capturedAt) / 1000))}s ${zh ? '未获新核验' : 'since last verification'}`}
+              {review && review[key] !== 'published' && ` · ${reviewLabel[review[key]]}`}
+              {previous?.frameHash &&
+                result?.frameHash === previous.frameHash &&
+                (zh ? ' · 重复画面，等待新帧' : ' · Repeated pixels; waiting for a new frame')}
+              {result?.candidates.find((c) => c.key === key)?.evidenceId &&
+                previous?.candidates.find((c) => c.key === key)?.evidenceId ===
+                  result?.candidates.find((c) => c.key === key)?.evidenceId &&
+                (zh ? ' · 缓存结果不算独立观测' : ' · Cached result is not independent evidence')}
             </li>
           );
         })}

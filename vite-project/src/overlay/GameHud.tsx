@@ -28,15 +28,14 @@ export function GameHud({ state }: { state: MatchState }) {
     '--hud-row-height': `${heightPx}px`,
   } as CSSProperties;
   const [now, setNow] = useState(Date.now);
-  // This timer only updates the displayed, OCR-anchored seconds. Capture and
-  // validation are performed separately by LiveHudCapturePanel.
+  // Refresh stale status only; the clock displays authoritative verified seconds.
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
   const ocr = Object.values(stats.sources ?? {}).filter((source) => source.source === 'ocr');
   const stale = ocr.some((source) => now - source.capturedAt > 15000);
-  const seconds = displayedGameSeconds(stats, now);
+  const seconds = displayedGameSeconds(stats);
   const time =
     seconds === undefined
       ? '--:--'

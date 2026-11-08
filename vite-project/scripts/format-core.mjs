@@ -9,9 +9,13 @@ const prettier = resolve(dirname(require.resolve('prettier/package.json')), 'bin
 const core = [
   'server/storageMaintenance.ts',
   'server/storageMaintenance.test.ts',
+  'server/maintenanceBo7.test.ts',
+  'server/hudEvidence.test.ts',
   'src/control/StorageMaintenancePanel.tsx',
   'scripts/storage.ts',
   'scripts/artifactReporter.ts',
+  'scripts/replay-hud.ts',
+  'scripts/create-hud-replay.ts',
   'e2e/storage-maintenance.spec.ts',
   'server/adbCapture.ts',
   'server/adbCapture.test.ts',
@@ -79,6 +83,7 @@ const core = [
   'src/shared/broadcastArtwork.ts',
   'src/shared/liveGame.ts',
   'e2e/recognition-performance.spec.ts',
+  'e2e/hud-trusted-clock.spec.ts',
 ];
 const files = process.argv.slice(2).filter((value) => !value.startsWith('--'));
 const result = spawnSync(
