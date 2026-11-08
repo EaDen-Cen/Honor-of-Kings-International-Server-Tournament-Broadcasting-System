@@ -28,7 +28,9 @@
     "format:check": "node scripts/format-core.mjs --check",
     "benchmark:hud": "node --import tsx scripts/benchmark-hud-recognition.ts",
     "benchmark:adb": "node --import tsx scripts/benchmark-adb-capture.ts",
-    "benchmark:replay": "node --import tsx scripts/benchmark-replay.ts"
+    "benchmark:replay": "node --import tsx scripts/benchmark-replay.ts",
+    "storage:inspect": "node --import tsx scripts/storage-maintenance.ts --dry-run",
+    "storage:cleanup": "node --import tsx scripts/storage-maintenance.ts --apply"
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",
