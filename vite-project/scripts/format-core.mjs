@@ -7,6 +7,12 @@ const prettier = resolve(dirname(require.resolve('prettier/package.json')), 'bin
 // Adopt formatting incrementally: keep recognition/OBS changes readable without
 // rewriting generated hero catalogs, screenshots or unrelated legacy modules.
 const core = [
+  'server/storageMaintenance.ts',
+  'server/storageMaintenance.test.ts',
+  'src/control/StorageMaintenancePanel.tsx',
+  'scripts/storage.ts',
+  'scripts/artifactReporter.ts',
+  'e2e/storage-maintenance.spec.ts',
   'server/adbCapture.ts',
   'server/adbCapture.test.ts',
   'server/neutralRecognition.ts',

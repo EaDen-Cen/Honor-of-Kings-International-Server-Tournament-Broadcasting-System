@@ -6,6 +6,7 @@ const executablePath=process.env.CHROME_PATH || (process.platform==='win32'&&exi
 
 export default defineConfig({
   testDir: './e2e', workers: 1, timeout: 90000,
+  reporter: [['list'], ['./scripts/artifactReporter.ts']],
   forbidOnly: !!process.env.CI,
   use: { baseURL: 'http://127.0.0.1:3101', viewport: { width: 1440, height: 1000 },
     screenshot: 'only-on-failure', trace: 'retain-on-failure',

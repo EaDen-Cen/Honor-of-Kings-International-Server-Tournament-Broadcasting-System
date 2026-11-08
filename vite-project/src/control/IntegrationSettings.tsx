@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { StorageMaintenancePanel } from './StorageMaintenancePanel';
 import { WorkspaceShortcutSettings } from './WorkspaceShortcutSettings';
 import { apiURL } from '../shared/config';
 import { AiRecognitionSettings } from './AiRecognitionSettings';
@@ -231,6 +232,7 @@ export function IntegrationSettings({ token, zh }: { token: string; zh: boolean 
           持续 BGM 应在各场景引用同一音频源，或使用全局音频。切场景时不要销毁或重新开始媒体播放。
         </p>
       </details>
+      <StorageMaintenancePanel token={token} zh={zh} />
       <p role="status">{message}</p>
     </div>
   );
