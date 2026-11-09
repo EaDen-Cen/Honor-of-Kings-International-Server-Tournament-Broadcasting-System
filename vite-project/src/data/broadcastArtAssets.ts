@@ -447,6 +447,10 @@ const assets: Record<string, { source: string; local: string }> = {
   "119": {
     "source": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260916/17895496027563.jpg",
     "local": "/heroesArt/broadcast-119-5f07edebb52c-bd0b4ed3f31c.webp"
+  },
+  "120": {
+    "source": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260920/17898748302633.jpg",
+    "local": "/heroesArt/broadcast-120-035822a2c939-6cfed7a36a95.webp"
   }
 };
 export default assets;

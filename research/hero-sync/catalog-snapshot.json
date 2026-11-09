@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-08T04:54:41.885Z",
+  "checkedAt": "2026-11-09T20:50:14.580Z",
   "source": "https://wiki.bittopup.com/hok",
   "heroes": [
     {
@@ -254,6 +254,7 @@
       "campId": 138,
       "englishName": "Wang Wei",
       "occupation": "Mid Lane",
+      "imageUrl": "https://camp.honorofkings.com/camp/admin/hero/head_128-128/9ydtLpQD.png",
       "detailUrl": "https://wiki.bittopup.com/hok/138",
       "source": "bittopup"
     },
@@ -687,6 +688,14 @@
       "occupation": "Farm Lane",
       "imageUrl": "https://camp.honorofkings.com/social/game/src/image_hero_head_128*128/g0jHNDf6.png",
       "detailUrl": "https://wiki.bittopup.com/hok/508",
+      "source": "bittopup"
+    },
+    {
+      "campId": 509,
+      "englishName": "Dunshan",
+      "occupation": "Roaming",
+      "imageUrl": "https://camp.honorofkings.com/social/game/src/image_hero_head_128*128/oAi4jpSd.png",
+      "detailUrl": "https://wiki.bittopup.com/hok/509",
       "source": "bittopup"
     },
     {

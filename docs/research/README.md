@@ -5,7 +5,7 @@
 - [BetterGI 局部识别研究](bettergi-vision.md)：固定源码提交、拾取键/相对 ROI/干扰排除/局部 OCR 回退及 HOK 的许可和样本边界。
 
 <!-- HERO-SYNC:INDEX:START -->
-- 当前 Hero Sync 基线：**2026-10-08**，程序内 **119** 个有效英雄条目；最近远端目录 **119** 条。
+- 当前 Hero Sync 基线：**2026-11-09**，程序内 **120** 个有效英雄条目；最近远端目录 **120** 条。
 - [程序内英雄名单](hero-roster.md)：当前有效英雄、中文/英文名称与 release-order ID。
 - [英雄数据自动同步](hero-sync.md)：每周检查国际服名单、自动刷新相关文档、生成审计记录并通过 PR 提交候选更新。
 <!-- HERO-SYNC:INDEX:END -->
