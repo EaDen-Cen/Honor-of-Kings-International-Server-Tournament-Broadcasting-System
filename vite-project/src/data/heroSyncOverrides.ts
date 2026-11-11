@@ -5,161 +5,53 @@ import type { Hero } from './heroTypes.js';
 // Relationship fields are intentionally excluded.
 //
 const heroSyncOverrides: Record<number, Partial<Hero>> = {
-  "72": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230918/16950220092457.jpg",
-    "campId": 533
-  },
-  "59": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230418/16818068585094.jpg",
-    "campId": 545
-  },
-  "71": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230830/16933834425152.jpg",
-    "campId": 514
-  },
-  "30": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230217/16766156937993.jpg",
-    "campId": 142
-  },
-  "12": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947656519.jpg",
-    "campId": 199
-  },
-  "25": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947254748.jpg",
-    "campId": 166
-  },
-  "3": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230215/16764535933981.jpg",
-    "campId": 556
-  },
-  "17": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960894103.jpg",
-    "campId": 183
-  },
-  "89": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240710/17206057736405.jpg",
-    "campId": 517
-  },
-  "64": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230530/16854401604666.jpg",
-    "campId": 503
-  },
-  "78": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240111/17049607313291.jpg",
-    "campId": 646
-  },
-  "16": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703962395539.jpg",
-    "campId": 184
-  },
-  "94": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241023/17296516261476.jpg",
-    "campId": 523
-  },
-  "62": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230518/16843805158039.jpg",
-    "campId": 536
-  },
-  "57": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230413/16813555096462.jpg",
-    "campId": 506
-  },
-  "20": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703955933283.jpg",
-    "campId": 174
-  },
-  "63": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230525/16850060637812.jpg",
-    "campId": 191
-  },
-  "49": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956553957.jpg",
-    "campId": 109
-  },
-  "67": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230711/16890701379136.jpg",
-    "campId": 134
-  },
-  "34": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703938141840.jpg",
-    "campId": 133
-  },
-  "38": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703853577327.jpg",
-    "campId": 129
-  },
-  "31": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782682133171.jpg",
-    "campId": 141
-  },
-  "76": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231218/17028710535795.jpg",
-    "campId": 159
-  },
-  "15": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703963622222.jpg",
-    "campId": 187
-  },
-  "41": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703970177236.jpg",
-    "campId": 119
-  },
-  "75": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703975776673.jpg",
-    "campId": 126
-  },
-  "92": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240924/17271621892148.jpg",
-    "campId": 577
-  },
-  "73": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960878878.jpg",
-    "campId": 155
-  },
-  "32": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947923197.jpg",
-    "campId": 139
+  "1": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230105/16729031797582.jpg",
+    "campId": 178
   },
   "2": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230105/16729028446204.jpg",
     "campId": 182
   },
-  "44": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703965519839.jpg",
-    "campId": 115
+  "3": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230215/16764535933981.jpg",
+    "campId": 556
   },
-  "83": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959275582.jpg",
-    "campId": 508
-  },
-  "58": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230412/16812839271125.jpg",
-    "campId": 140
-  },
-  "82": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240407/17124619688151.jpg",
-    "campId": 189
-  },
-  "29": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703954818872.jpg",
-    "campId": 150
-  },
-  "77": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231218/17028838926164.jpg",
-    "campId": 563
-  },
-  "23": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703951573581.jpg",
-    "campId": 169
-  },
-  "80": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240223/17086772952855.jpeg",
-    "campId": 192
+  "4": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703988548916.jpg",
+    "campId": 538
   },
   "5": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703964966248.jpg",
     "campId": 531
+  },
+  "6": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703962938671.jpg",
+    "campId": 528
+  },
+  "7": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782674937921.jpg",
+    "campId": 510
+  },
+  "8": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703957184701.jpg",
+    "campId": 507
+  },
+  "9": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703955201503.jpg",
+    "campId": 505
+  },
+  "10": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703951826456.jpg",
+    "campId": 504
+  },
+  "11": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703949131283.jpg",
+    "campId": 502
+  },
+  "12": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947656519.jpg",
+    "campId": 199
   },
   "13": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703941038515.jpg",
@@ -169,189 +61,29 @@ const heroSyncOverrides: Record<number, Partial<Hero>> = {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703964971706.jpg",
     "campId": 190
   },
-  "19": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956853716.jpg",
-    "campId": 175
+  "15": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703963622222.jpg",
+    "campId": 187
   },
-  "48": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782683578492.jpg",
-    "campId": 111
+  "16": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703962395539.jpg",
+    "campId": 184
   },
-  "60": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230425/16824096632673.jpg",
-    "campId": 127
-  },
-  "6": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703962938671.jpg",
-    "campId": 528
-  },
-  "36": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703883357652.jpg",
-    "campId": 131
-  },
-  "8": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703957184701.jpg",
-    "campId": 507
-  },
-  "53": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230221/16769489874213.jpg",
-    "campId": 105
-  },
-  "66": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230705/16885457469748.jpg",
-    "campId": 156
-  },
-  "91": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240819/17240572441090.jpg",
-    "campId": 149
-  },
-  "81": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240306/17096943743147.jpeg",
-    "campId": 170
-  },
-  "45": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703963861041.jpg",
-    "campId": 114
-  },
-  "88": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240701/17198281574105.png",
-    "campId": 519
-  },
-  "40": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250417/17448846816981.jpg",
-    "campId": 123
-  },
-  "86": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240612/17181825467192.jpg",
-    "campId": 547
-  },
-  "47": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960197426.jpg",
-    "campId": 112
-  },
-  "70": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230816/16921508225336.jpg",
-    "campId": 146
-  },
-  "54": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230316/16789508125887.jpg",
-    "campId": 157
-  },
-  "35": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703934873763.jpg",
-    "campId": 132
-  },
-  "65": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230627/16878534165158.jpg",
-    "campId": 564
-  },
-  "93": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240925/17272362376084.jpg",
-    "campId": 524
-  },
-  "56": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230404/16805977896645.jpg",
-    "campId": 198
-  },
-  "10": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703951826456.jpg",
-    "campId": 504
-  },
-  "68": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230719/16897537931032.jpg",
-    "campId": 501
-  },
-  "50": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703953724316.jpg",
-    "campId": 108
-  },
-  "26": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959354437.jpg",
-    "campId": 154
-  },
-  "37": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703856995315.jpg",
-    "campId": 130
-  },
-  "55": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230321/16793842102363.jpg",
-    "campId": 162
-  },
-  "85": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959561921.jpg",
-    "campId": 180
+  "17": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960894103.jpg",
+    "campId": 183
   },
   "18": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703957841731.jpg",
     "campId": 179
   },
-  "11": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703949131283.jpg",
-    "campId": 502
+  "19": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956853716.jpg",
+    "campId": 175
   },
-  "27": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703957932547.jpg",
-    "campId": 153
-  },
-  "28": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956394479.jpg",
-    "campId": 152
-  },
-  "79": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240206/17071859547198.jpeg",
-    "campId": 513
-  },
-  "69": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230726/16903392928628.jpg",
-    "campId": 196
-  },
-  "74": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231026/16982917226758.jpg",
-    "campId": 137
-  },
-  "42": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703968511671.jpg",
-    "campId": 118
-  },
-  "7": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782674937921.jpg",
-    "campId": 510
-  },
-  "61": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230511/16837961427473.jpg",
-    "campId": 163
-  },
-  "24": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703950253742.jpg",
-    "campId": 167
-  },
-  "43": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703966903382.jpg",
-    "campId": 117
-  },
-  "33": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703942013672.jpg",
-    "campId": 135
-  },
-  "52": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230217/16766165191362.jpg",
-    "campId": 106
-  },
-  "1": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230105/16729031797582.jpg",
-    "campId": 178
-  },
-  "87": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240627/17194708938860.jpeg",
-    "campId": 522
-  },
-  "9": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703955201503.jpg",
-    "campId": 505
-  },
-  "84": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240430/17144391036465.jpg",
-    "campId": 176
+  "20": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703955933283.jpg",
+    "campId": 174
   },
   "21": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782677126529.jpg",
@@ -361,41 +93,315 @@ const heroSyncOverrides: Record<number, Partial<Hero>> = {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703953257541.jpg",
     "campId": 171
   },
+  "23": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703951573581.jpg",
+    "campId": 169
+  },
+  "24": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703950253742.jpg",
+    "campId": 167
+  },
+  "25": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947254748.jpg",
+    "campId": 166
+  },
+  "26": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959354437.jpg",
+    "campId": 154
+  },
+  "27": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703957932547.jpg",
+    "campId": 153
+  },
+  "28": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956394479.jpg",
+    "campId": 152
+  },
+  "29": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703954818872.jpg",
+    "campId": 150
+  },
+  "30": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230217/16766156937993.jpg",
+    "campId": 142
+  },
+  "31": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782682133171.jpg",
+    "campId": 141
+  },
+  "32": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703947923197.jpg",
+    "campId": 139
+  },
+  "33": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703942013672.jpg",
+    "campId": 135
+  },
+  "34": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703938141840.jpg",
+    "campId": 133
+  },
+  "35": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703934873763.jpg",
+    "campId": 132
+  },
+  "36": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703883357652.jpg",
+    "campId": 131
+  },
+  "37": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703856995315.jpg",
+    "campId": 130
+  },
+  "38": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703853577327.jpg",
+    "campId": 129
+  },
   "39": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703973552776.jpg",
     "campId": 124
+  },
+  "40": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250417/17448846816981.jpg",
+    "campId": 123
+  },
+  "41": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703970177236.jpg",
+    "campId": 119
+  },
+  "42": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703968511671.jpg",
+    "campId": 118
+  },
+  "43": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703966903382.jpg",
+    "campId": 117
+  },
+  "44": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703965519839.jpg",
+    "campId": 115
+  },
+  "45": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703963861041.jpg",
+    "campId": 114
   },
   "46": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703962018250.jpg",
     "campId": 113
   },
+  "47": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960197426.jpg",
+    "campId": 112
+  },
+  "48": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230308/16782683578492.jpg",
+    "campId": 111
+  },
+  "49": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703956553957.jpg",
+    "campId": 109
+  },
+  "50": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703953724316.jpg",
+    "campId": 108
+  },
   "51": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703949391479.jpg",
     "campId": 107
+  },
+  "52": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230217/16766165191362.jpg",
+    "campId": 106
+  },
+  "53": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230221/16769489874213.jpg",
+    "campId": 105
+  },
+  "54": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230316/16789508125887.jpg",
+    "campId": 157
+  },
+  "55": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230321/16793842102363.jpg",
+    "campId": 162
+  },
+  "56": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230404/16805977896645.jpg",
+    "campId": 198
+  },
+  "57": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230413/16813555096462.jpg",
+    "campId": 506
+  },
+  "58": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230412/16812839271125.jpg",
+    "campId": 140
+  },
+  "59": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230418/16818068585094.jpg",
+    "campId": 545
+  },
+  "60": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230425/16824096632673.jpg",
+    "campId": 127
+  },
+  "61": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230511/16837961427473.jpg",
+    "campId": 163
+  },
+  "62": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230518/16843805158039.jpg",
+    "campId": 536
+  },
+  "63": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230525/16850060637812.jpg",
+    "campId": 191
+  },
+  "64": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230530/16854401604666.jpg",
+    "campId": 503
+  },
+  "65": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230627/16878534165158.jpg",
+    "campId": 564
+  },
+  "66": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230705/16885457469748.jpg",
+    "campId": 156
+  },
+  "67": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230711/16890701379136.jpg",
+    "campId": 134
+  },
+  "68": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230719/16897537931032.jpg",
+    "campId": 501
+  },
+  "69": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230726/16903392928628.jpg",
+    "campId": 196
+  },
+  "70": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230816/16921508225336.jpg",
+    "campId": 146
+  },
+  "71": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230830/16933834425152.jpg",
+    "campId": 514
+  },
+  "72": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20230918/16950220092457.jpg",
+    "campId": 533
+  },
+  "73": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703960878878.jpg",
+    "campId": 155
+  },
+  "74": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231026/16982917226758.jpg",
+    "campId": 137
+  },
+  "75": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703975776673.jpg",
+    "campId": 126
+  },
+  "76": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231218/17028710535795.jpg",
+    "campId": 159
+  },
+  "77": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20231218/17028838926164.jpg",
+    "campId": 563
+  },
+  "78": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240111/17049607313291.jpg",
+    "campId": 646
+  },
+  "79": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240206/17071859547198.jpeg",
+    "campId": 513
+  },
+  "80": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240223/17086772952855.jpeg",
+    "campId": 192
+  },
+  "81": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240306/17096943743147.jpeg",
+    "campId": 170
+  },
+  "82": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240407/17124619688151.jpg",
+    "campId": 189
+  },
+  "83": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959275582.jpg",
+    "campId": 508
+  },
+  "84": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240430/17144391036465.jpg",
+    "campId": 176
+  },
+  "85": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703959561921.jpg",
+    "campId": 180
+  },
+  "86": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240612/17181825467192.jpg",
+    "campId": 547
+  },
+  "87": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240627/17194708938860.jpeg",
+    "campId": 522
+  },
+  "88": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240701/17198281574105.png",
+    "campId": 519
+  },
+  "89": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240710/17206057736405.jpg",
+    "campId": 517
   },
   "90": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240808/17231058358471.png",
     "campId": 148
   },
-  "4": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703988548916.jpg",
-    "campId": 538
+  "91": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240819/17240572441090.jpg",
+    "campId": 149
+  },
+  "92": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240924/17271621892148.jpg",
+    "campId": 577
+  },
+  "93": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240925/17272362376084.jpg",
+    "campId": 524
+  },
+  "94": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241023/17296516261476.jpg",
+    "campId": 523
   },
   "95": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241106/17308747847368.jpg",
     "campId": 121
   },
-  "114": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260129/17696820202336.jpg"
+  "96": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241127/17326794149685.jpg"
   },
-  "104": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250519/17476507302714.png"
-  },
-  "110": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251009/17599813604282.png"
+  "97": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241212/17339838683282.jpg"
   },
   "98": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241230/17355426718723.jpg"
+  },
+  "99": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703968156576.png"
+  },
+  "100": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250217/17398008418090.jpg"
+  },
+  "101": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250310/17415993517706.jpg"
   },
   "102": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250324/17427998035938.jpg"
@@ -403,46 +409,47 @@ const heroSyncOverrides: Record<number, Partial<Hero>> = {
   "103": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250613/17497786133610.jpg"
   },
-  "109": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250729/17537556774382.jpg"
+  "104": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250519/17476507302714.png"
   },
-  "107": {},
-  "111": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251024/17613028144089.jpg"
-  },
-  "101": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250310/17415993517706.jpg"
-  },
-  "97": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241212/17339838683282.jpg"
-  },
-  "115": {},
-  "96": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20241127/17326794149685.jpg"
-  },
-  "99": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703968156576.png"
-  },
-  "113": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251128/17643166313838.jpg"
-  },
-  "118": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260521/17793548664086.jpg"
-  },
-  "100": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250217/17398008418090.jpg"
-  },
-  "112": {
-    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251127/17642257844346.jpg"
-  },
-  "116": {},
-  "117": {},
   "105": {},
   "106": {
     "chineseName": "元流之子（刺客）"
   },
+  "107": {},
   "108": {
     "chineseName": "元流之子（辅助）"
+  },
+  "109": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20250729/17537556774382.jpg"
+  },
+  "110": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251009/17599813604282.png"
+  },
+  "111": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251024/17613028144089.jpg"
+  },
+  "112": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251127/17642257844346.jpg"
+  },
+  "113": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20251128/17643166313838.jpg"
+  },
+  "114": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260129/17696820202336.jpg"
+  },
+  "115": {},
+  "116": {},
+  "117": {},
+  "118": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260521/17793548664086.jpg"
+  },
+  "119": {
+    "imageLink": "/heroesImg/sync-138-f3471141f852a4a2.png",
+    "campId": 138
+  },
+  "120": {
+    "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260920/17898748302633.jpg"
   }
 };
 

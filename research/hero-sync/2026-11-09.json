@@ -1,0 +1,145 @@
+{
+  "checkedAt": "2026-11-09T20:50:14.580Z",
+  "mode": "update",
+  "sources": {
+    "catalog": "https://wiki.bittopup.com/hok",
+    "officialEnglishPattern": "https://world.honorofkings.com/zlkdatasys/ip/hero/en/{campId}.html",
+    "officialChinesePattern": "https://world.honorofkings.com/zlkdatasys/ip/hero/zh-Hant/{campId}.html"
+  },
+  "remoteCount": 120,
+  "additions": [],
+  "metadataOverrides": [
+    {
+      "localId": 120,
+      "campId": 509,
+      "fields": {
+        "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20260920/17898748302633.jpg"
+      }
+    },
+    {
+      "localId": 119,
+      "campId": 138,
+      "fields": {
+        "imageLink": "/heroesImg/sync-138-f3471141f852a4a2.png",
+        "campId": 138
+      }
+    }
+  ],
+  "manualReview": [
+    "No high-resolution official key art was detected for local hero #105 Flowborn (Mage); overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #106 Flowborn (Assassin); overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #107 Flowborn (Marksman); overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #108 Flowborn (Roamer); overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #116 Florentino; overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #117 Lorion; overlay will keep using the local icon fallback.",
+    "No high-resolution official key art was detected for local hero #115 Annette; overlay will keep using the local icon fallback.",
+    "Official HOK CAMP pick rate could not be parsed for 120 matched heroes; existing values were kept and will be retried later.",
+    "Local lane differs from current auxiliary catalog for #43 Wuyan: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #38 Dian Wei: Clash Lane → Jungling. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #67 Dharma: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #1 Yang Jian: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #85 Nezha: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #13 Kaizer: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #56 Menki: Clash Lane → Jungling. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #7 Sun Ce: Jungling → Clash Lane. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed.",
+    "Local lane differs from current auxiliary catalog for #87 Yao: Clash Lane → Jungling. Not auto-applied because lane metadata is not sourced from an authoritative tournament feed."
+  ],
+  "missingLocalWarnings": [],
+  "sourceChanges": [
+    {
+      "campId": 138,
+      "field": "imageUrl",
+      "after": "https://camp.honorofkings.com/camp/admin/hero/head_128-128/9ydtLpQD.png"
+    },
+    {
+      "campId": 509,
+      "field": "added",
+      "after": "Dunshan"
+    }
+  ],
+  "localDifferences": [
+    {
+      "localId": 43,
+      "campId": 117,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 38,
+      "campId": 129,
+      "field": "occupation",
+      "localValue": "Clash Lane",
+      "remoteValue": "Jungling",
+      "actionable": false
+    },
+    {
+      "localId": 67,
+      "campId": 134,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 1,
+      "campId": 178,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 85,
+      "campId": 180,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 13,
+      "campId": 193,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 56,
+      "campId": 198,
+      "field": "occupation",
+      "localValue": "Clash Lane",
+      "remoteValue": "Jungling",
+      "actionable": false
+    },
+    {
+      "localId": 7,
+      "campId": 510,
+      "field": "occupation",
+      "localValue": "Jungling",
+      "remoteValue": "Clash Lane",
+      "actionable": false
+    },
+    {
+      "localId": 87,
+      "campId": 522,
+      "field": "occupation",
+      "localValue": "Clash Lane",
+      "remoteValue": "Jungling",
+      "actionable": false
+    }
+  ],
+  "assets": [
+    {
+      "heroId": 119,
+      "campId": 138,
+      "sourceUrl": "https://camp.honorofkings.com/camp/admin/hero/head_128-128/9ydtLpQD.png",
+      "localPath": "/heroesImg/sync-138-f3471141f852a4a2.png",
+      "sha256": "f3471141f852a4a26ac315765ce9edb5216ed2c00ed68026d71452759c47a28a",
+      "mime": "image/png",
+      "bytes": 39359
+    }
+  ]
+}

@@ -130,7 +130,7 @@ P0 `LineupAssignments` 过去要求两方完整解析且可信才能应用，导
 ### M14：英雄数据库
 
 <!-- HERO-SYNC:M14:START -->
-当前自动同步基线：**2026-10-08**；程序内 **119** 个有效英雄条目，最近远端目录返回 **119** 条。独立英雄名单和相关 Hero Sync 文档会随候选同步 PR 自动刷新。
+当前自动同步基线：**2026-11-09**；程序内 **120** 个有效英雄条目，最近远端目录返回 **120** 条。独立英雄名单和相关 Hero Sync 文档会随候选同步 PR 自动刷新。
 <!-- HERO-SYNC:M14:END -->
 
 当前名单只维护在 [hero-roster.md](docs/research/hero-roster.md)。Hero Sync 只生成候选 PR，不自动合并；远端缺失不删除本地英雄，关系数据不自动覆盖。旧存档迁移至 release-order ID，图标文件名与 ID 独立。详细来源与模板职责见 [Hero Sync](docs/research/hero-sync.md)。Panel/Side 裁切通过 `hero:crop-sync` 提升到共享默认文件，现场覆盖仍保留在运行数据中。
