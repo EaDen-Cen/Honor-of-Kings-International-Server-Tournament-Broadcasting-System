@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import { initialState } from '../src/shared/types.js';
 import { TeamPresetStore } from './teamPresets.js';
-import { exportTeamLibrary, importTeamLibrary, previewTeamLibrary } from './teamTransfer.js';
+import { exportTeamLibrary, importTeamLibrary, PendingTeamImport, previewTeamLibrary } from './teamTransfer.js';
 import { uploadPortrait } from './portraits.js';
 
 test('portable library round trip keeps team IDs, logos, starters, substitutes and image bytes', async () => {
@@ -58,6 +58,49 @@ test('portable library round trip keeps team IDs, logos, starters, substitutes a
     assert.equal(overwrite.replaced,1);
     assert.equal(target.get(team.id)?.name,'Updated Team');
   } finally {rmSync(a,{recursive:true,force:true});rmSync(b,{recursive:true,force:true});}
+});
+
+test('confirmation applies only the validated archive once, with current conflict information and backup', async (t) => {
+  const root = mkdtempSync(join(tmpdir(),'hok-transfer-preview-'));
+  try {
+    const source = new TeamPresetStore(join(root,'source.json'));
+    const target = new TeamPresetStore(join(root,'target.json'));
+    const pending = new PendingTeamImport(target,join(root,'out'));
+    const image = await sharp({create:{width:32,height:32,channels:3,background:'#dc8032'}}).png().toBuffer();
+    const name = randomUUID()+'.png';
+    writeFileSync(join(root,name),image);
+    const team = source.create({...initialState().blueTeam,name:'Imported team',logo:'/uploads/player-portraits/'+name});
+    const bundle = exportTeamLibrary(source,root,root);
+    const stage = () => pending.preview(bundle,'control A');
+    let backups = 0;
+    const confirm = (id:string, owner='control A') => pending.confirm(id,owner,'replace',()=>{backups++;});
+    const first = await stage();
+    assert.equal(first.newTeams,1);
+    assert.throws(()=>confirm(first.previewId,'control B'),/Expired/);
+    assert.throws(()=>confirm(randomUUID()),/Expired/);
+    assert.deepEqual(target.list(),[]);
+    const originalBase64 = bundle.assets[0].base64;
+    bundle.assets[0].base64 = 'AAAA';
+    assert.equal(confirm(first.previewId).added,1);
+    assert.deepEqual(readFileSync(join(root,'out',target.get(team.id)!.logo.split('/').at(-1)!)),image);
+    assert.throws(()=>confirm(first.previewId),/Expired/);
+    await assert.rejects(stage(),/Invalid/);
+    bundle.assets[0].base64 = originalBase64;
+    const stale = await stage();
+    target.update(team.id,{...team,name:'Edited after preview'});
+    assert.throws(()=>confirm(stale.previewId),/Expired/);
+    assert.equal(target.get(team.id)?.name,'Edited after preview');
+    const replaced = await stage();
+    const fresh = await stage();
+    assert.throws(()=>confirm(replaced.previewId),/Expired/);
+    const clock = Date.now();
+    t.mock.method(Date,'now',()=>clock+300001);
+    assert.throws(()=>confirm(fresh.previewId),/Expired/);
+    assert.equal(backups,1);
+    const next = await stage();
+    assert.throws(()=>pending.confirm(next.previewId,'control A','replace',()=>{throw Error('backup failed');}),/backup failed/);
+    assert.equal(target.get(team.id)?.name,'Edited after preview');
+  } finally {rmSync(root,{recursive:true,force:true});}
 });
 
 test('invalid archive checksum, missing image and duplicate team ID cannot touch existing teams',async()=>{

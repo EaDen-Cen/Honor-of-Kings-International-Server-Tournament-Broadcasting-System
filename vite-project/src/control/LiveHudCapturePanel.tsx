@@ -20,7 +20,7 @@ import {
 import { LiveHudCalibration } from './LiveHudCalibration';
 import './liveHudCalibration.css';
 import { useGameDataCapture } from './useGameDataCapture';
-import { captureHudImages } from './hudCapture';
+import { captureHudImages, hudRequestBody } from './hudCapture';
 import { useAdbHudCapture } from './useAdbHudCapture';
 import { loadHudCalibration, saveHudCalibration } from './hudCalibrationProfiles';
 import { NeutralHudCalibration } from './NeutralHudCalibration';
@@ -73,6 +73,7 @@ export function LiveHudCapturePanel({
     [message, setMessage] = useState('');
   const context = liveGameContext(state),
     signature = useRef(''),
+    acceptsGzip = useRef(false),
     last = useRef<Result>(),
     running = useRef(false),
     epoch = useRef(0),
@@ -205,21 +206,30 @@ export function LiveHudCapturePanel({
               }),
             }
           : undefined;
-      const response = await fetch(
+      const endpoint = new URL(
         `${(import.meta.env.VITE_API_URL || '').replace(/\/$/, '')}/api/v1/recognition/live-hud`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            images,
-            context,
-            regions,
-            source: JSON.stringify([capture.calibrationKey, calibrationEpoch]),
-            neutral,
-          }),
-          signal: request.signal,
-        },
+        location.href,
       );
+      const body = await hudRequestBody(
+        {
+          images,
+          context,
+          regions,
+          source: JSON.stringify([capture.calibrationKey, calibrationEpoch]),
+          neutral,
+        },
+        acceptsGzip.current,
+        endpoint,
+      );
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': typeof body === 'string' ? 'application/json' : 'application/gzip',
+        },
+        body,
+        signal: request.signal,
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       if (
@@ -239,6 +249,7 @@ export function LiveHudCapturePanel({
             ? previousFrame
             : undefined;
       setElapsedMs(Math.round(performance.now() - started));
+      acceptsGzip.current = data.acceptsGzip === true;
       setCaptureFailed(false);
       setPrevious(prior);
       setResult(next);
@@ -279,6 +290,7 @@ export function LiveHudCapturePanel({
         last.current = undefined;
         setPrevious(undefined);
         setCaptureFailed(true);
+        acceptsGzip.current = false;
         setMessage(
           request.signal.reason instanceof Error
             ? request.signal.reason.message

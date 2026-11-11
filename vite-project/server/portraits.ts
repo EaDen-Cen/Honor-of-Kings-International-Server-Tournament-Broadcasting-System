@@ -68,9 +68,9 @@ export async function uploadPortrait(req: IncomingMessage, res: ServerResponse, 
     for await (const chunk of req) {
       size += chunk.length;
       if (size > MAX_PORTRAIT_BYTES) { json(413, { error: 'uploadTooLarge' }); req.resume(); return; }
-      chunks.push(Buffer.from(chunk));
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
-    const data = Buffer.concat(chunks);
+    const data = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, size);
     // The old hand-written JPEG segment scanner rejected otherwise decodable files.
     // Ask libvips to decode the image instead of guessing from JPEG segment markers.
     let encoded: Buffer;
@@ -86,7 +86,8 @@ export async function uploadPortrait(req: IncomingMessage, res: ServerResponse, 
         encoded = await pipeline.rotate().jpeg().toBuffer();
       } else {
         // Preserve original PNG/WebP bytes: existing imports and cache hashes depend on this.
-        await pipeline.raw().toBuffer();
+        // Force a decode of every row while retaining only one channel in the validation buffer.
+        await pipeline.extractChannel(0).raw().toBuffer();
         encoded = data;
       }
       if (encoded.length > MAX_PORTRAIT_BYTES) { json(413, { error: 'uploadTooLarge' }); return; }
@@ -96,7 +97,7 @@ export async function uploadPortrait(req: IncomingMessage, res: ServerResponse, 
     const name = `${randomUUID()}.${format}`;
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, name), encoded, { flag: 'wx' });
-    json(201, { url: `/uploads/player-portraits/${name}` });
+    json(201, { url: `/uploads/player-portraits/${name}`, previewOriginal: encoded === data });
   } catch { if (!res.writableEnded) json(500, { error: 'uploadFailed' }); }
   finally { req.setTimeout(0); }
 }

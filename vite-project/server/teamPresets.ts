@@ -45,6 +45,8 @@ export function validateImportedTeams(input: unknown): TeamPreset[] {
 
 export class TeamPresetStore {
   private teams: TeamPreset[] = [];
+  private generation = 0;
+  get revision() { return this.generation; }
   constructor(private file: string) {
     if (existsSync(file)) {
       const saved = JSON.parse(readFileSync(file, 'utf8'));
@@ -64,6 +66,7 @@ export class TeamPresetStore {
     try { writeFileSync(fd, JSON.stringify({version:1,teams}, null, 2)); fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(this.file + '.tmp', this.file);
     this.teams = teams;
+    this.generation++;
   }
   create(input: unknown) {
     const now = Date.now();

@@ -5,6 +5,25 @@ import {
   type LiveCaptureKey,
 } from '../shared/gameCapture';
 
+/** Keep small samples, loopback requests and older servers on the JSON path. */
+export async function hudRequestBody(input: unknown, acceptsGzip: boolean, endpoint: URL) {
+  const json = JSON.stringify(input);
+  if (
+    !acceptsGzip ||
+    json.length < 8192 ||
+    /^(?:localhost\.?|127\.\d+\.\d+\.\d+|\[::1\])$/i.test(endpoint.hostname) ||
+    typeof CompressionStream !== 'function'
+  )
+    return json;
+  try {
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+    const compressed = await new Response(stream).blob();
+    return compressed.size < json.length ? compressed : json;
+  } catch {
+    return json;
+  }
+}
+
 /** Lossless, ordered crops from one frame. The server checks each crop against
  * the calibration before OCR; a field can never drift into another HUD slot. */
 export function captureHudImages(
