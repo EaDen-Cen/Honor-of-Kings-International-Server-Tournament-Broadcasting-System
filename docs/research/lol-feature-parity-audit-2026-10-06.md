@@ -1,5 +1,7 @@
 # HOK / LoL 功能对照审计（2026-10-06）
 
+本表保留 10 月 6 日的功能比较。HOK 后续加入 BO7/逐局盲选与 GHUD 独立观测，当前现场规则和识别边界见[逐局操作](../guides/game-rules-manager.md)与[遮挡回放](../guides/hud-occlusion-replay.md)。
+
 > 历史研究快照（2026-10-06），不作为当前操作指南。Simulator 当前支持显式 Control 联动；备份/恢复已实现。当前状态见 [里程碑](../../MILESTONES.md)，操作见 [屏幕识别指南](../guides/screen-recognition.md)。
 
 > 目标：只学习 LoL 项目的功能、可靠性与导播工作流优化，不复制 LoL 的 UI / 视觉语言。

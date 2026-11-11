@@ -1,5 +1,7 @@
 # 存储维护与 OCR 证据边界
 
+这项实现已由 #115 合入 main（`29d2212`）。回放的裁图/OCR 时间与在线 Control 等待 ACK 的时间使用独立测量。[回放指南](../guides/hud-occlusion-replay.md) · [动作 ACK 基准](../validation/upload-latency.md)
+
 基线 main `6b5abd9`，保留 #113 BO7/逐局规则；不采用已关闭 #114 的实现。
 
 ## 存储

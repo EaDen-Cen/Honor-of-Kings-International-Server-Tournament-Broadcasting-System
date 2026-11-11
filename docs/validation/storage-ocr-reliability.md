@@ -1,5 +1,7 @@
 # 存储维护与 OCR 核验记录 — 2026-11-08
 
+#115 已合入 main（`29d2212`）。该 PR 的 Broadcast system checks 与 Hero data sync 两项 GitHub Actions 最终均为 success。本页保留 11 月 8 日的本机测试与离线回放结果。[PR #115 检查](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/115/checks) · [上传延迟验证](upload-latency.md)
+
 基线：main `6b5abd9bb0f1d5a3fed9bc6646b26ac8c86f36a6`，包含 #112、#113。#114 已关闭未合并，本轮新建 `codex/storage-ocr-reliability`，独立实现与验证。没有重置比赛数据、修改生产凭证或合并/发布正式版本。
 
 ## 复现与修复

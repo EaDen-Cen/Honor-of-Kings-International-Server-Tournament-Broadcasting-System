@@ -45,7 +45,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { heroesForPool } from '../src/shared/heroPool.js';
 import type { Role } from '../src/shared/types.js';
 import { TeamPresetStore } from './teamPresets.js';
-import { exportTeamLibrary, previewTeamLibrary, importTeamLibrary } from './teamTransfer.js';
+import {
+  exportTeamLibrary,
+  previewTeamLibrary,
+  importTeamLibrary,
+  PendingTeamImport,
+} from './teamTransfer.js';
 import { Store } from './store.js';
 import { ObsBridge } from './obsBridge.js';
 import { SecureSettings } from './secureSettings.js';
@@ -103,6 +108,7 @@ const store = new Store(dataFile, Date.now, presets);
 const uploadDirectory = resolve(
   process.env.UPLOAD_DIR || resolve(dirname(dataFile), 'uploads/player-portraits'),
 );
+const pendingTeamImport = new PendingTeamImport(presets, uploadDirectory);
 const diagnostics = new Diagnostics(resolve(dirname(dataFile), 'logs'));
 const secureSettings = new SecureSettings(resolve(dirname(dataFile), 'secure-settings.json'));
 const aiProfiles = new AiProfiles(secureSettings);
@@ -1049,7 +1055,26 @@ const server = createServer(async (req, res) => {
           }
           chunks.push(chunk);
         }
-        const input = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        let body: Buffer = Buffer.concat(chunks);
+        if (
+          url.pathname.endsWith('live-hud') &&
+          req.headers['content-type'] === 'application/gzip'
+        ) {
+          const { gunzip } = await import('node:zlib');
+          try {
+            body = await new Promise<Buffer>((resolve, reject) =>
+              gunzip(body, { maxOutputLength: 5 * 1024 * 1024 }, (error, data) =>
+                error ? reject(error) : resolve(data),
+              ),
+            );
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE')
+              json(413, { error: 'Frame too large' });
+            else json(400, { error: 'Invalid compressed GHUD sample' });
+            return;
+          }
+        }
+        const input = JSON.parse(body.toString('utf8'));
         const capturedAt = Date.now(),
           context = liveGameContext(store.data.state);
         if (url.pathname.endsWith('live-hud')) {
@@ -1111,6 +1136,7 @@ const server = createServer(async (req, res) => {
           }
           json(200, {
             ...result,
+            acceptsGzip: true,
             neutral,
             capturedAt,
             context,
@@ -1485,7 +1511,8 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'State changed during capture' });
           return;
         }
-        json(200, result);
+        const omitPreview = input.omitEchoPreview === true && result.preview === input.image;
+        json(200, omitPreview ? { ...result, preview: undefined } : result);
       } catch {
         json(400, { error: 'Browser frame recognition failed' });
       }
@@ -1662,8 +1689,21 @@ const server = createServer(async (req, res) => {
           }
           req.setTimeout(0);
           const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const owner = req.headers.authorization!;
           if (url.pathname.endsWith('/preview')) {
-            json(200, await previewTeamLibrary(body.bundle, presets));
+            json(
+              200,
+              body.prepareImport === true
+                ? await pendingTeamImport.preview(body.bundle, owner)
+                : await previewTeamLibrary(body.bundle, presets),
+            );
+          } else if (body.previewId !== undefined) {
+            json(
+              200,
+              pendingTeamImport.confirm(body.previewId, owner, body.conflict, () =>
+                recovery.create(true),
+              ),
+            );
           } else {
             // Preserve a point-in-time backup before replacing any existing roster.
             recovery.create(true);
@@ -1677,14 +1717,20 @@ const server = createServer(async (req, res) => {
           const status =
             message === 'teamTransferTooLarge'
               ? 413
-              : message === 'teamTransferMissingAsset'
-                ? 422
-                : error instanceof SyntaxError ||
-                    ['teamTransferInvalid', 'presetInvalid', 'substitutesInvalid'].includes(message)
-                  ? 400
-                  : 500;
+              : message === 'teamTransferPreviewExpired' || message === 'teamTransferBusy'
+                ? 409
+                : message === 'teamTransferMissingAsset'
+                  ? 422
+                  : error instanceof SyntaxError ||
+                      ['teamTransferInvalid', 'presetInvalid', 'substitutesInvalid'].includes(
+                        message,
+                      )
+                    ? 400
+                    : 500;
           const expectedErrors = [
             'teamTransferTooLarge',
+            'teamTransferPreviewExpired',
+            'teamTransferBusy',
             'teamTransferMissingAsset',
             'teamTransferInvalid',
             'presetInvalid',

@@ -1,5 +1,7 @@
 # BP 直接编辑与本局阵容验证
 
+在 BO7 中修订第 N 局阵容时，请同时核对该局报告和历史 ID。逐局模式及历史快照的验证见[BO7 规则记录](bo7-game-rules.md)。
+
 2026-11-05 最终 main 集成已完成单次全量 Playwright 109/109，另含完整 build、lint、unit 与 Windows 检查，见 [最终集成记录](final-integration-2026-11-05.md)。下文保留 #108 开发阶段的分轮验证过程。
 
 ## 分阶段实现

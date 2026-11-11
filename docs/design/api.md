@@ -1,5 +1,7 @@
 # API 接口
 
+BP 入口 `/api/recognize-frame` 可以复用圆形 Ban 的输入作为锁定标记，支持新版客户端请求省去与输入相同的预览，旧客户端继续取得完整预览。测识别接口时记录上传、响应字节和耗时，测比赛操作时以对应 WebSocket ACK 为终点。[传输验证](../validation/upload-latency.md)
+
 除公开健康检查与登录入口外，比赛和识别接口使用 `Authorization: Bearer <角色 token>`。Control 可修改比赛，Caster / Overlay 只读；Caster 的 BP、比分与比赛进度保持延迟，队伍/赛事资料与展示配置实时更新（字段边界见 `server/store.ts` 的 `casterViewState`）。
 
 | 接口 | 方法 | 用途 |
@@ -76,7 +78,9 @@ WS Action 包含 `set_player_slot_order`（单队人工/自动修正）、`set_p
 ## PR #69：真实 SPA 路由 + HUD 自定义 ROI 请求
 后端 HTML Shell 由 `server/uiRoutes.ts` 统一维护。路由新增 `/overlay/postgame-compare`（`role` 为查询参数，选对位：clash/jungle/mid/farm/roam）和 `/overlay/game-progress`，二者均映射 `dist/index.html`，不增加多页面 Vite 入口；未知 HTML 路径不得使用任意 overlay shell 兜底。
 
-`POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`（旧整帧兼容）或 `{images,context,regions?}`（七张无损 PNG），`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回 `profile` 为规范化 ROI 字符串，随后 `live_game_ocr` 若 `previous.profile !== sample.profile` 必须拒绝跨配置两帧合并；时钟必须实际增长。运营端保存 `localStorage['hok-ghud-calibration-v1']`，不是云端共享预设，不应暗示自动同步到另一台设备。
+新版 Control 先发送普通 JSON。收到七字段响应中的 `acceptsGzip: true` 后，较大的远程样本可用 `Content-Type: application/gzip` 发送同一 JSON 的 gzip 内容。压缩传输体和解压内容分别限制为 5 MiB；后续比赛上下文、校准、候选和发布规则相同。
+
+`POST /api/v1/recognition/live-hud` 接收 `{image,context,regions?}`（旧整帧兼容）或 `{images,context,regions?}`（七张无损 PNG），`regions` 是精确含七个 `LiveCaptureKey` 的 0–1 矩形 map。每个 ROI 必须位于合法画面中，限制宽/高及互相覆盖比例，不合法返回 HTTP 400；无 `regions` 兼容旧请求，但 Control UI 必须经过手动预览确认才能提交。返回的 `profile` 标识来源及校准。`live_game_ocr` 拒绝跨配置的两帧合并。带新观测标识的七字段独立核验，旧协议与分类资源计数仍要求时钟推进。运营端将七字段校准保存在本机浏览器的 `hok-ghud-calibration-v2`，v1 仅供旧配置读取。
 
 2026-10-20 裁图传输：`images` 必须按 `liveCaptureKeys` 顺序提供七个 PNG data URL，单项不超过 180,000 字符、100,000 像素；各图尺寸必须等于对应校准矩形在 1920×1080 中的 `pixelRect` 尺寸。全空白、错误数量/格式/尺寸返回 HTTP 400，不调用数字 OCR。新旧输入共享 Control 鉴权、前后游戏上下文检查、颜色处理与候选解析，`profile` 和后续两帧发布规则一致。若同时传入两种字段，优先使用 `images`，不会回退掩盖裁图错误。比赛 API 保持 `Cache-Control: no-store`；公共静态原画支持 ETag/304，带内容摘要的内置原画和构建文件可长期缓存。
 

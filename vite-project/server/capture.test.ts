@@ -74,3 +74,13 @@ test('same portrait with a newly visible lock cue does not reuse stale cached lo
   assert.equal(after.lockCue,'checkmark');
   assert.deepEqual(before.candidates,after.candidates);
 });
+
+test('a circular Ban uses the portrait itself for lock evidence when the cue image is omitted',async()=>{
+  const sharp=(await import('sharp')).default;
+  const png=await sharp({create:{width:72,height:72,channels:3,background:'#29364f'}}).png().toBuffer();
+  const image='data:image/png;base64,'+png.toString('base64');
+  const compact=await recognizeClientFrame(image,[],'circle');
+  const legacy=await recognizeClientFrame(image,[],'circle',image);
+  assert.deepEqual(compact,legacy);
+  assert.equal(compact.preview,image);
+});

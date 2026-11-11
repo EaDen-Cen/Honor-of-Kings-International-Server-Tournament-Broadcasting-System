@@ -1,5 +1,7 @@
 # 研究资料
 
+复核视觉识别的依据包括[BetterGI 固定提交](bettergi-vision.md)、[同批遮挡回放](../guides/hud-occlusion-replay.md)和[传输计时](../validation/upload-latency.md)。英雄名单和编号依据下方最近一次同步审计。
+
 [文档索引](../README.md)
 
 - [BetterGI 局部识别研究](bettergi-vision.md)：固定源码提交、拾取键/相对 ROI/干扰排除/局部 OCR 回退及 HOK 的许可和样本边界。
@@ -19,7 +21,7 @@ JSON 证据保留根目录 `research/` 原路径；文件内记录的素材路�
 
 - [HOK / LoL 功能对照审计（2026-10-06）](lol-feature-parity-audit-2026-10-06.md)：只比较功能、可靠性与导播工作流；记录哪些 LoL 优化已移植到 HOK、哪些应保持游戏专属。
 
-- [英雄 Release-order ID](hero-id-order.md)：119 位英雄的上架顺序编号、同批英雄规则、旧存档迁移与图标资产解耦。
+- [英雄 Release-order ID](hero-id-order.md)：英雄的上架顺序编号、同批英雄规则、旧存档迁移与图标资产解耦。
 
 - [英雄数据核查（2026-09-16）](hero-data-audit-2026-09-16.md)：历史编号与来源快照，不作为当前名单。
 

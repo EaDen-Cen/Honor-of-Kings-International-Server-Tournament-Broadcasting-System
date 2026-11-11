@@ -1,5 +1,7 @@
 # PR #69 · 赛后图形、MVP 与 GHUD 修复彩排
 
+旧截图与赛后证据的保护规则见[本地空间维护](storage-maintenance.md)。对同一错误读数进行复核，可保留输入图并按[遮挡回放](hud-occlusion-replay.md)检查。
+
 最新 GHUD 来源、独立校准、资源计数与比分排列以 [ADB / 资源操作指南](ghud-adb-objectives.md) 为准；下文保留较早版本记录。
 
 [文档索引](../README.md) / [导播操作指南](operator-guide.md) / [API 约束](../design/api.md)

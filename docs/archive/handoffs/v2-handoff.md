@@ -1,4 +1,4 @@
-> 历史归档：保留原始阶段记录，不代表最新功能或待办。当前操作请看 [操作指南](../../guides/operator-guide.md)，完整分类见 [文档索引](../../README.md)。原位置：`V2-HANDOFF.md`。文中非链接的源码/数据路径沿用原上下文。
+> 历史归档：保留原始阶段记录，不代表最新功能或待办。当前操作请看 [操作指南](../../guides/operator-guide.md)，完整分类见 [文档索引](../../README.md)。原位置：`V2-HANDOFF.md`。文中非链接的源码/数据路径沿用原上下文。 旧版队伍、选手和赛后数据迁移请对照[队伍资料指南](../../guides/team-library-migration.md)维护照片与队标。
 
 # HOK Broadcast System V2
 

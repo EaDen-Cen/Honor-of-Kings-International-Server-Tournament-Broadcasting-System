@@ -1,5 +1,7 @@
 # 本局实际阵容与直接编辑
 
+纠正已锁定英雄或交换选手后，以服务器 ACK 和相应 Game ID 的阵容快照核对结果。遇到提交等待可复现[动作确认基准](../validation/upload-latency.md)。
+
 ## 审查结论
 
 既有 Store 保存 Pick 顺序和最终英雄归属，使用 revision、ACK、Undo 与原子保存。`replace_draft_hero` 已具备历史局纠错及赛后英雄更新能力。`PlayerSlotOrder` 表示画面槽位到选手名单索引的映射，`Assignments` 表示画面槽位上的英雄。赛后数据使用 `team.id:rosterIndex` 绑定选手。

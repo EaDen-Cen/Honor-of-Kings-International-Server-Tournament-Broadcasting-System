@@ -1,5 +1,7 @@
 # 英雄数据自动同步
 
+2026-11-09 的名单同步已通过 #116 合入 main（`a6a1af1`）。在游戏客户端核对头像匹配时，以[程序内名单](hero-roster.md)确认 ID 和形态。
+
 <!-- HERO-SYNC:STATUS:START -->
 ## 当前自动同步状态
 
@@ -67,7 +69,7 @@
 
 ## Release-order Hero ID
 
-v1.0.0 前将当前基线的 119 个英雄/形态条目改为按国际服 **Launch Time 从旧到新连续编号**。当前编号范围为 `1..119`，ID 越大代表越晚上架；Control 的“上线时间（新→旧）”因此直接按 ID 降序，不再依赖缺失的 releaseDate 元数据。
+初次迁移时将 119 个英雄/形态条目改为按国际服 **Launch Time 从旧到新连续编号**。迁移基线的编号范围为 `1..119`，后续条目按上架顺序追加；Control 的“上线时间（新→旧）”因此直接按 ID 降序，不再依赖缺失的 releaseDate 元数据。
 
 完整规则、Flowborn 多形态、Plus 2.0 AoV 英雄同批处理和旧存档迁移见 [hero-id-order.md](hero-id-order.md)。头像资产路径与 hero ID 已解耦，不会因为重新编号再次重命名你已经整理好的 `public/heroesImg/`。
 

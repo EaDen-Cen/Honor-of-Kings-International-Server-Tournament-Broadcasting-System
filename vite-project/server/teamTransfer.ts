@@ -98,7 +98,11 @@ async function validateBundle(input: unknown) {
 
 /** Preview validates the archive without touching the database or uploaded images. */
 export async function previewTeamLibrary(input: unknown, presets: TeamPresetStore) {
-  const {teams,decoded,externalAssets} = await validateBundle(input);
+  return summarize(await validateBundle(input), presets);
+}
+
+type ValidatedLibrary = Awaited<ReturnType<typeof validateBundle>>;
+function summarize({teams,decoded,externalAssets}: ValidatedLibrary, presets: TeamPresetStore) {
   const current = new Set(presets.list().map(team => team.id));
   return {
     teams: teams.length,
@@ -114,7 +118,12 @@ export async function importTeamLibrary(
   input: unknown, presets: TeamPresetStore, uploads: string, conflict: LibraryImportConflict,
 ) {
   if (!['skip','replace'].includes(conflict)) throw new Error('teamTransferInvalid');
-  const {teams,decoded,externalAssets} = await validateBundle(input);
+  return applyValidatedLibrary(await validateBundle(input),presets,uploads,conflict);
+}
+
+function applyValidatedLibrary(
+  {teams,decoded,externalAssets}: ValidatedLibrary, presets: TeamPresetStore, uploads: string, conflict: LibraryImportConflict,
+) {
   const existing = new Set(presets.list().map(team => team.id));
   const selected = teams.filter(team => conflict === 'replace' || !existing.has(team.id));
   const needed = new Set(collectAssets(selected));
@@ -142,5 +151,57 @@ export async function importTeamLibrary(
   } catch (error) {
     for (const file of created) rmSync(file,{force:true});
     throw error;
+  }
+}
+
+/** A single, fully validated archive can be confirmed once before it expires. */
+export class PendingTeamImport {
+  private pending?: {
+    id: string;
+    ownerHash: string;
+    revision: number;
+    expires: number;
+    library: ValidatedLibrary;
+  };
+  private timer?: ReturnType<typeof setTimeout>;
+  private preparing = false;
+  constructor(private presets: TeamPresetStore, private uploads: string) {}
+
+  async preview(input: unknown, owner: string) {
+    if (this.preparing) throw new Error('teamTransferBusy');
+    this.preparing = true;
+    try {
+      const library = await validateBundle(input);
+      const id = randomUUID();
+      const ttl = 5 * 60 * 1000;
+      clearTimeout(this.timer);
+      this.pending = {
+        id,
+        ownerHash: sha256(Buffer.from(owner)),
+        revision: this.presets.revision,
+        expires: Date.now() + ttl,
+        library,
+      };
+      this.timer = setTimeout(() => { this.pending = undefined; }, ttl);
+      this.timer.unref();
+      return { ...summarize(library, this.presets), previewId: id };
+    } finally {
+      this.preparing = false;
+    }
+  }
+
+  confirm(id: unknown, owner: string, conflict: LibraryImportConflict, backup: () => void) {
+    if (!['skip', 'replace'].includes(conflict)) throw new Error('teamTransferInvalid');
+    const pending = this.pending;
+    if (!pending || pending.id !== id || pending.ownerHash !== sha256(Buffer.from(owner))) {
+      throw new Error('teamTransferPreviewExpired');
+    }
+    clearTimeout(this.timer);
+    this.pending = undefined;
+    if (Date.now() >= pending.expires || this.presets.revision !== pending.revision) {
+      throw new Error('teamTransferPreviewExpired');
+    }
+    backup();
+    return applyValidatedLibrary(pending.library, this.presets, this.uploads, conflict);
   }
 }

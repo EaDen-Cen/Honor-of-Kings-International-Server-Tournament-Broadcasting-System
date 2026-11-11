@@ -10,6 +10,7 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
   const t = translator(lang);
   const [status, setStatus] = useState<'loading' | 'loaded' | 'failed'>('loading');
   const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<{ saved: string; local: string }>();
   const [error, setError] = useState<MessageKey>();
   const request = useRef<AbortController>();
   const mounted = useRef(true);
@@ -27,7 +28,10 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
     };
   }, []);
   useEffect(() => { setStatus('loading'); }, [value]);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.local); }, [preview]);
+  useEffect(() => { if (preview && preview.saved !== value) setPreview(undefined); }, [preview, value]);
   const src = portraitAssetURL(value);
+  const previewSrc = preview?.saved === value ? preview.local : src;
   let requestedURL = src;
   try { requestedURL = new URL(src, location.href).href; } catch { /* Invalid text stays visible for correction. */ }
   async function upload(file?: File) {
@@ -43,7 +47,10 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
       if (!response.ok) throw new Error(response.status === 413 ? 'uploadTooLarge' : response.status === 415 ? 'uploadFormat' : [401, 403].includes(response.status) ? 'uploadUnauthorized' : 'uploadFailed');
       const data = await response.json();
       if (typeof data.url !== 'string' || !data.url) throw new Error('uploadFailed');
-      if (mounted.current && request.current === abort && !abort.signal.aborted) onChange(data.url);
+      if (mounted.current && request.current === abort && !abort.signal.aborted) {
+        setPreview(data.previewOriginal === true ? { saved: data.url, local: URL.createObjectURL(file) } : undefined);
+        onChange(data.url);
+      }
     } catch (cause) {
       if (mounted.current && request.current === abort) setError(cause instanceof Error && ['uploadTooLarge', 'uploadFormat', 'uploadUnauthorized'].includes(cause.message) ? cause.message as MessageKey : 'uploadFailed');
     } finally {
@@ -59,7 +66,7 @@ export function PortraitField({ value, token, lang, disabled, onChange, onBusy, 
     <label>{t(titleKey)}<input aria-label={t(titleKey)} maxLength={1000} disabled={disabled || uploading} value={value} onChange={e => { setError(undefined); onChange(e.target.value); }} /></label>
     <div className="portrait-input">
       <div className={`portrait-preview portrait-${value ? status : 'empty'}`}>
-        {value ? <img key={src} src={src} alt={t('portraitPreview')} onLoad={() => setStatus('loaded')} onError={() => setStatus('failed')} /> : <span>—</span>}
+        {value ? <img key={previewSrc} src={previewSrc} alt={t('portraitPreview')} onLoad={() => setStatus('loaded')} onError={() => preview ? setPreview(undefined) : setStatus('failed')} /> : <span>—</span>}
       </div>
       <div className="portrait-actions">
         <label className="upload-label">{t(uploading ? 'uploading' : 'choosePortrait')}<input aria-label={t('choosePortrait')} type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || uploading} onChange={e => { void upload(e.target.files?.[0]); e.target.value = ''; }} /></label>

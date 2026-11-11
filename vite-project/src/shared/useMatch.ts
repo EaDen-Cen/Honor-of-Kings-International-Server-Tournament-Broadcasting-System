@@ -13,7 +13,7 @@ interface Session {
   ready: boolean;
   socket?: WebSocket;
   snapshot?: Snapshot;
-  pending?: { id: string; action: Action; timer: ReturnType<typeof setTimeout> };
+  pending?: { id: string; action: Action; timer: ReturnType<typeof setTimeout>; sentAt: number };
   recover?: (message?: string) => void;
 }
 function cancelPending(session: Session) {
@@ -27,7 +27,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
   const [status, setStatus] = useState('Connecting');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [acknowledged, setAcknowledged] = useState<{ id: string; action: Action }>();
+  const [acknowledged, setAcknowledged] = useState<{ id: string; action: Action; elapsedMs: number }>();
   const sessionRef = useRef<Session>();
   const desiredScope = useRef({ role, token });
   desiredScope.current = { role, token };
@@ -120,7 +120,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
             setError(msg.error);
             if (msg.id === session.pending?.id) { cancelPending(session); setPending(false); }
           } else if (msg.type === 'ack' && msg.id === session.pending?.id) {
-            setAcknowledged({ id: msg.id, action: session.pending.action });
+            setAcknowledged({ id: msg.id, action: session.pending.action, elapsedMs: Math.round(performance.now() - session.pending.sentAt) });
             cancelPending(session); setPending(false);
           }
         };
@@ -148,7 +148,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
       if (sessionRef.current !== session || session.stopped || session.pending?.id !== id) return;
       session.recover?.('操作确认超时，正在重新加载比赛状态。请确认结果后再重试。');
     }, 8000);
-    session.pending = { id, action, timer };
+    session.pending = { id, action, timer, sentAt: performance.now() };
     setPending(true);
     try { session.socket.send(JSON.stringify({ type: 'action', id, revision: session.snapshot.revision, action })); return true; }
     catch { session.recover?.(disconnectedMessage); return false; }

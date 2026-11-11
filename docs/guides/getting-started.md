@@ -192,3 +192,5 @@ Auto BP 已支持浏览器窗口采集、18 槽位校准/预设、Pick/Ban 识�
 
 ### 赛后选手评分与自定义数字字段（PR #70）
 旧单字段工具只读取隐藏的共享窗口视频，未共享整页上传截图，导致截图工作流无法用；已改为直接使用共享截图或共享实时窗口，在 Control 的「单字段 OCR」中预览并拖框，随后选择单人或批量识别。服务器允许 1–10 张显式 rowId 的裁图，并拒绝完全空白图。详细操作见 [赛后与 GHUD 彩排](postgame-ghud-overlay-fixes.md)。
+
+首次启动后在 Control 设置中查看本地空间占用，可核对运行依赖、测试产物与比赛资料的位置。排查操作响应时在 `vite-project` 运行 `npm run benchmark:action-ack`。[空间预览](storage-maintenance.md) · [延迟验证](../validation/upload-latency.md)

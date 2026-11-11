@@ -55,6 +55,21 @@ test('undo is a new delayed event, preserving the earlier timeline', () => {
   now = 1180000; assert.deepEqual(s.snapshot('caster').state.blueBans, [46]);
   now += 10000; assert.deepEqual(s.snapshot('caster').state.blueBans, []);
 });
+test('committing and undoing an action preserve previously published match data', () => {
+  const store = new Store();
+  pick(store, 46);
+  const first = store.data;
+  const savedFirst = structuredClone(first);
+  pick(store, 47);
+  const second = store.data;
+  const savedSecond = structuredClone(second);
+  apply(store, { type: 'undo' });
+  assert.deepEqual(store.data.state, savedFirst.state);
+  assert.notStrictEqual(store.data.state, second.history.at(-1));
+  pick(store, 48);
+  assert.deepEqual(first, savedFirst);
+  assert.deepEqual(second, savedSecond);
+});
 test('delay calibration recalculates historical state in both directions', () => {
   let now = 1000000; const s = new Store(undefined, () => now); pick(s, 46); now += 10000;
   apply(s, { type: 'delay', seconds: 5 }); assert.deepEqual(s.snapshot('caster').state.blueBans, [46]);

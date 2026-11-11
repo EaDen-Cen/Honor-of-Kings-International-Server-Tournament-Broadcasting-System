@@ -1,5 +1,7 @@
 # BO7 / Game Rules Manager 验证记录
 
+#113 已合入 main（`6b5abd9`）。后续 #115 的正常 BP → 0 Ban 盲选 → 正常 BP 回归还验证了跨局缓存和证据保护。[三局回归记录](storage-ocr-reliability.md)
+
 开发基线：main `ddcd8e9`（PR #112），功能分支 `feat/bo7-game-rules-20261108`。开发前复核 PR #68 的双英雄池与 0–5 Ban 行为；该 PR 明确未包括盲选。
 
 ## 覆盖范围

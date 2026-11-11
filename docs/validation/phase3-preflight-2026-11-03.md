@@ -1,5 +1,7 @@
 # Phase 3：真实预检与导播流程
 
+现场预检入口已整合到桌面菜单。窗口关闭后可通过顶栏未完成数量和原面板复查。[工作区操作](../guides/dock-workspace.md)
+
 复用现有 OperatorGuide、可保存的 DockWorkspace 布局、共享采集流与 OBS/Recovery API。没有添加第二套比赛生命周期或独立比赛状态；阶段仍由 Store 中的 BP、commit、比分和历史推导。
 
 ## 操作

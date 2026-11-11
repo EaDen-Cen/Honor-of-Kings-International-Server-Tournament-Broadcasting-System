@@ -1,5 +1,7 @@
 # BetterGI 局部识别研究与 HOK 适用边界
 
+研究中的缓存与逐字段验证建议已随 #115 合入（`29d2212`）。同批回放与实际端到端确认的测量边界见[识别回放](../guides/hud-occlusion-replay.md)和[传输验证](../validation/upload-latency.md)。
+
 [研究索引](README.md) · [GHUD 采集架构](../architecture/ghud-capture.md)
 
 核查日期：2026-11-08。HOK 基线为 main `6b5abd9`（#113，包含 BO7/逐局规则/盲选）；此文是源码研究与迁移判断，不是 BetterGI 或 PaddleOCR 在 HOK 上的性能实测。

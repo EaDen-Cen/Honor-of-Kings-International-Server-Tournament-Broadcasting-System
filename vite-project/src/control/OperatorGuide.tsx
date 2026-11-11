@@ -9,12 +9,14 @@ export function OperatorGuide({
   state,
   connected,
   pending,
+  ackMs,
   onTeams,
   onSettings,
 }: {
   state: MatchState;
   connected: boolean;
   pending: boolean;
+  ackMs?: number;
   onTeams: () => void;
   onSettings: () => void;
 }) {
@@ -89,6 +91,11 @@ export function OperatorGuide({
       <p role="status" aria-live="polite">
         {hint}
       </p>
+      {ackMs !== undefined && (
+        <p>
+          {zh ? '上次操作从发送到服务器确认' : 'Last action sent to acknowledgement'} · {ackMs} ms
+        </p>
+      )}
       {state.draftMode !== 'blind' && state.bpInputMode === 'screen' && !state.committedGameId && (
         <div className={'operator-id-preflight' + (idOrderVerified ? ' verified' : '')}>
           <label>

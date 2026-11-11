@@ -1,5 +1,7 @@
 # 文档总索引
 
+导播点击提交后等待时间过长，先核对 Control 的持久化 ACK。识别面板另有裁图上传、服务器处理和预览回传。复现命令与各阶段测量见[上传与动作延迟验证](validation/upload-latency.md)。
+
 本地维护与 OCR：[空间占用/安全清理](guides/storage-maintenance.md)、[同批遮挡回放](guides/hud-occlusion-replay.md)、[BetterGI 源码研究](research/bettergi-vision.md)、[架构](architecture/storage-ocr-reliability.md)、[验证](validation/storage-ocr-reliability.md)。
 
 GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architecture/ghud-capture.md)、[验证](validation/ghud-adb-objectives.md)。
@@ -8,7 +10,7 @@ GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architec
 
 无 Bot 严格三分钟投票：[操作与部署](guides/discord-mvp-voting.md)、[验证与限制](validation/strict-mvp-voting.md)。
 
-最新分支关系、功能覆盖与完整验证见 [2026-11-05 最终集成记录](validation/final-integration-2026-11-05.md)。
+#99–#108 的分支关系与当时完整验证见 [2026-11-05 最终集成记录](validation/final-integration-2026-11-05.md)。
 
 ## 可靠性重构开发链（2026-11-03，尚未发布）
 
@@ -19,9 +21,11 @@ GHUD ADB 与资源：[操作](guides/ghud-adb-objectives.md)、[架构](architec
 
 下方为此前功能与版本记录；开发分支能力不能追溯视为已发布 RC 内容。
 
-> **2026-10-25**：盾山（Dunshan）已在国际服 10 月 21 日上线，程序开发分支补录为 Hero ID 120，更新离线头像、身份映射及回归测试，见 [英雄名单](research/hero-roster.md) / [同步说明](research/hero-sync.md)。
+> **2026-10-25**：盾山（Dunshan）已在国际服 10 月 21 日上线，程序通过 #96 补录为 Hero ID 120，更新离线头像、身份映射及回归测试，见 [英雄名单](research/hero-roster.md) / [同步说明](research/hero-sync.md)。
 
-> **2026-10-25 开发分支（尚未实机验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](guides/team-library-migration.md)。\n\n[返回项目首页](../README.md)
+> **2026-10-25 队伍资料迁移（#95 已合入 main，两台导播机迁移待验收）**：队伍资料库新增 JPEG 解码兼容修复、队伍 Logo 本地上传，以及包括首发、替补和本地图片的跨电脑导入/导出；默认按 ID 跳过重复队伍，支持显式更新，详见 [队伍资料迁移指南](guides/team-library-migration.md)。
+
+[返回项目首页](../README.md)
 
 2026-10-23 开发升级入口：[Discord / MVP 投票](guides/discord-mvp-voting.md)、[配置与 AI](guides/ai-recognition.md)、[OBS 与赛后轮播](guides/obs-director-setup.md)、[隔离验收及待验证清单](validation/2026-10-23-console-upgrade.md)。这些开发改动不追溯计入已发布的 RC。
 

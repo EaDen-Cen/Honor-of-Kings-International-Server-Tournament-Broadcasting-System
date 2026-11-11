@@ -1,5 +1,7 @@
 # OCR 遮挡回放与逐字段核验
 
+离线回放的 P95 终点是内存 Store 的动作。要测远程采样的传输量，可在 `vite-project` 运行 `node --import tsx scripts/benchmark-hud-upload.ts "<样本目录>"`，对比同批七字段裁图压缩前后的字节数。要测比赛操作从发送到持久化确认的往返时间，运行 `npm run benchmark:action-ack`。[测量条件](../validation/upload-latency.md)
+
 本轮沿用本地 Tesseract、16:9 内容校准与七字段裁图，不引入云端默认识别或 PaddleOCR 依赖。BetterGI 的源码依据和许可边界见 [研究记录](../research/bettergi-vision.md)。当前改进是失败缓存、独立观测和逐字段保留，不宣称完成自动顶栏锚点检测或中立资源图标分类。
 
 ## 操作变化

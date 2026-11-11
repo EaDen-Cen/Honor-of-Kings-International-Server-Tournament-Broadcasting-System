@@ -1,6 +1,7 @@
 import { test,expect } from './fixtures';
 import { harness } from './harness';
 import { initialState } from '../src/shared/types';
+import { readFile } from 'node:fs/promises';
 
 test('team library download and preview imported package before choosing conflict policy',async ({page,request,baseURL})=>{
   const h = await harness(baseURL);
@@ -8,8 +9,13 @@ test('team library download and preview imported package before choosing conflic
   try {
     await h.send({type:'reset_match'});
     await h.send({type:'settings',settings:{...h.state(),language:'eng'}});
+    const image = await readFile('e2e/fixtures/player-test.png');
+    const portrait = await request.post('/api/uploads/player-portrait',{
+      headers:{...headers,'Content-Type':'image/png','X-File-Name':'test.png'},data:image,
+    });
+    expect(portrait.ok()).toBeTruthy();
     const saved = await request.post('/api/team-presets',{headers,
-      data:{...initialState().blueTeam,name:'Portable team test'}});
+      data:{...initialState().blueTeam,name:'Portable team test',logo:(await portrait.json()).url}});
     expect(saved.ok()).toBeTruthy();
     page.on('dialog',dialog=>dialog.accept());
     await page.goto('/control#token=e2e-control');
@@ -27,9 +33,22 @@ test('team library download and preview imported package before choosing conflic
     await transfer.locator('input[type=file]').setInputFiles(downloaded!);
     await expect(transfer.locator('.transfer-preview')).toContainText('Validated:');
     await expect(transfer.locator('.transfer-preview')).toContainText('existing');
-    await transfer.getByRole('button',{name:'Confirm import'}).click();
+    const [confirmation] = await Promise.all([
+      page.waitForRequest(req=>new URL(req.url()).pathname==='/api/team-presets/transfer/import'),
+      transfer.getByRole('button',{name:'Confirm import'}).click(),
+    ]);
+    const payload = confirmation.postDataJSON();
+    expect(payload).toEqual({previewId:expect.stringMatching(/^[a-f0-9-]{36}$/),conflict:'skip'});
     await expect(transfer.getByRole('status')).toContainText('Import complete:');
     const current = await (await request.get('/api/team-presets',{headers})).json();
     expect(current.teams.some((team:{name:string})=>team.name==='Portable team test')).toBeTruthy();
+    const repeated = await request.post('/api/team-presets/transfer/import',{headers,data:payload});
+    expect(repeated.status()).toBe(409);
+    const bundle=JSON.parse(await readFile(downloaded!,'utf8'));
+    const legacy={bundle,conflict:'skip'};
+    const full=await request.post('/api/team-presets/transfer/import',{headers,data:legacy});
+    expect(full.ok()).toBeTruthy();
+    expect((await full.json()).skipped).toBe(1);
+    console.log(`Team import confirmation JSON bytes: ${Buffer.byteLength(JSON.stringify(legacy))} → ${Buffer.byteLength(confirmation.postData()!)}`);
   } finally {h.close();}
 });

@@ -124,3 +124,5 @@ Flowborn 总称页也不能替代三种形态的逐项可用性核验。
 6. 名单/图片/引用校验、完整 BP 和三端显示检查结果见 [VALIDATION.md](../validation/history.md)。
 
 该步骤放在其他系统开发、验证与说明之后，见 [WORKFLOW.md](../archive/planning/workflow-2026-09-17.md)。
+
+本次 9 月审计保留当时的数据。2026-11-09 同步已记录 120 个有效条目，查看[当前同步状态](hero-sync.md)与[当前名单](hero-roster.md)。

@@ -1,5 +1,7 @@
 # 应用目录
 
+从本目录执行 `npm run storage:inspect` 查看本地文件分类，或执行 `npm run benchmark:action-ack` 复现比赛动作的确认等待。[维护指南](../docs/guides/storage-maintenance.md) · [延迟验证](../docs/validation/upload-latency.md)
+
 > v1.0.0 Release Candidate：核心 BP / Auto BP / Player ID / 换英雄链路已进入发布准备状态。**Game HUD 仍是 Experimental / 测试功能**，不要把它当作已完成正式赛事验收的比分源。
 
 这是 HOK Broadcast 的前端、后端和测试执行目录。项目概览见 [根 README](../README.md)，全部说明见 [文档索引](../docs/README.md)。

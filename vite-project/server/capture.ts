@@ -436,7 +436,7 @@ export async function recognizeClientFrame(
         const meta = await sharp(buffer).metadata();
         if (!meta.width || !meta.height || meta.width * meta.height > 4_000_000)
           throw new Error('Frame dimensions too large');
-        const cueMeta = await sharp(cueBuffer).metadata();
+        const cueMeta = cueBuffer === buffer ? meta : await sharp(cueBuffer).metadata();
         if (!cueMeta.width || !cueMeta.height || cueMeta.width * cueMeta.height > 4_000_000)
           throw new Error('Lock frame dimensions too large');
         const cueEvidence = async () => {

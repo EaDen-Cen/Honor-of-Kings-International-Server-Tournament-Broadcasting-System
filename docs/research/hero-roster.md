@@ -1,5 +1,7 @@
 # 程序内英雄名单
 
+核查新增头像及服务器英雄池时，请以本页自动生成表的 ID 对照[同步规则](hero-sync.md)。同名或相近头像的识别表现须另用原始比赛裁图核验。[屏幕识别](../guides/screen-recognition.md)
+
 [返回项目首页](../../README.md) · [英雄数据自动同步](hero-sync.md) · [Release-order ID 规则](hero-id-order.md)
 
 这份名单由 **Hero Data Synchronizer** 自动维护，用于核对当前程序实际包含的英雄、中文/英文显示名与 release-order ID。不要手工维护表格；英雄同步候选 PR 会自动刷新这里。

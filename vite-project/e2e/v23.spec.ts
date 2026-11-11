@@ -102,14 +102,20 @@ test('V2.3 real portrait upload, PNG/JPEG/WebP, runtime serving, preview errors,
     const input=page.getByLabel('Player portrait URL',{exact:true}).first();
     await input.fill('https://');await expect(page.locator('.team-settings-dialog')).toBeVisible();
     await input.fill('/playerImg/missing.png');await expect(page.locator('.portrait-status').first()).toHaveText('Portrait failed to load. Check the URL or upload again.');
+    const controlPreviewGets:string[]=[];
+    page.on('request',req=>{if(req.method()==='GET')controlPreviewGets.push(new URL(req.url()).pathname);});
     await page.getByLabel('Choose image',{exact:true}).first().setInputFiles('e2e/fixtures/player-test.png');
     await expect(input).toHaveValue(/^\/uploads\/player-portraits\/[0-9a-f-]+\.png$/);
     await expect(page.locator('.portrait-status').first()).toHaveText('Portrait loaded');
     const url=await input.inputValue();
+    await expect(page.locator('.portrait-preview img').first()).toHaveAttribute('src',/^blob:/);
+    expect(controlPreviewGets).not.toContain(url);
     await expect(overlay.locator('.player-portrait')).toHaveCount(0);
     await page.getByRole('button',{name:'Save settings',exact:true}).click();
     await expect(overlay.locator('.pick-team.blue .player-portrait').first()).toHaveAttribute('src',url);
-    expect((await request.get(url)).status()).toBe(200);
+    const savedPortrait=await request.get(url);
+    expect(savedPortrait.status()).toBe(200);
+    expect(await savedPortrait.body()).toEqual(readFileSync('e2e/fixtures/player-test.png'));
     expect(await caster.evaluate(async url=>(await fetch(url)).status,url)).toBe(200);
     const delayed=await request.get('/api/match',{headers:{Authorization:'Bearer e2e-caster'}});
     expect((await delayed.json()).state.blueTeam.playerPortraits[0]).toBe(url);
@@ -130,6 +136,8 @@ test('V2.3 real portrait upload, PNG/JPEG/WebP, runtime serving, preview errors,
     await h.send({type:'undo'});await expect(overlay.locator('.pick-team.blue .player-portrait').first()).toHaveAttribute('src',url);
     await page.reload();await page.getByRole('button',{name:'Team settings',exact:true}).click();
     await expect(page.getByLabel('Player portrait URL',{exact:true}).first()).toHaveValue(url);
+    await expect(page.locator('.portrait-preview img').first()).toHaveAttribute('src',new RegExp(url+'$'));
+    await expect(page.locator('.portrait-status').first()).toHaveText('Portrait loaded');
     await page.getByRole('button',{name:'Clear image',exact:true}).first().click();
     await page.getByRole('button',{name:'Save settings',exact:true}).click();await expect(overlay.locator('.player-portrait')).toHaveCount(0);
     expect((await request.get(url)).status()).toBe(200); // Historical snapshots must retain access.

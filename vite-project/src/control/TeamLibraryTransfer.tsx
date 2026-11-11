@@ -3,7 +3,7 @@ import './teamLibraryTransfer.css';
 import { apiURL } from '../shared/config';
 import type { Language } from '../shared/types';
 
-type Preview = {teams:number;images:number;newTeams:number;conflicts:number;externalAssets:string[]};
+type Preview = {teams:number;images:number;newTeams:number;conflicts:number;externalAssets:string[];previewId?:string};
 type ImportResult = {added:number;replaced:number;skipped:number;images:number;externalAssets:string[]};
 type Conflict = 'skip' | 'replace';
 
@@ -33,6 +33,8 @@ export function TeamLibraryTransfer({
     teamTransferMissingAsset:label('部分本地图片不存在，无法完整导出或导入。请检查图片后重试。','A referenced local image is missing. Check artwork before retrying.'),
     teamTransferTooLarge:label('资料包超过大小限制（最多 96 MB 图片数据）。','Library package exceeds the 96 MB artwork limit.'),
     teamTransferInvalid:label('资料包无效、格式不受支持或图片校验失败。','Invalid package, unsupported format or failed image integrity check.'),
+    teamTransferPreviewExpired:label('预览已过期或本机队伍资料有变更，请重新选择文件核对。','Preview expired or local teams changed. Select the file again to review.'),
+    teamTransferBusy:label('另一份资料包正在校验，请稍后重新选择文件。','Another package is being checked. Select the file again shortly.'),
     teamTransferFailed:label('数据迁移失败，原有资料没有被覆盖。','Transfer failed. Existing team records were preserved.'),
   }[key] || label('操作失败：','Operation failed: ')+key);
   const download = async () => {
@@ -59,13 +61,15 @@ export function TeamLibraryTransfer({
     setBusy(true);onBusy(true);
     try {
       const parsed:unknown = JSON.parse(await file.text());
-      const summary = await request('preview','POST',{bundle:parsed}) as Preview;
-      setBundle(parsed);setPreview(summary);
+      const summary = await request('preview','POST',{bundle:parsed,prepareImport:true}) as Preview;
+      // Earlier servers require the bundle a second time at confirmation.
+      if (!summary.previewId) setBundle(parsed);
+      setPreview(summary);
     } catch(e) {setError(description(e instanceof Error ? e.message : 'teamTransferInvalid'));}
     finally {setBusy(false);onBusy(false);}
   };
   const apply = async () => {
-    if (!preview || !bundle || busy || disabled) return;
+    if (!preview || (!preview.previewId && !bundle) || busy || disabled) return;
     const text = conflict === 'replace'
       ? label(`导入 ${preview.teams} 支队伍，更新 ${preview.conflicts} 支同 ID 队伍？系统会先备份本机数据。`,
         `Import ${preview.teams} teams and replace ${preview.conflicts} matching IDs? A local backup will be created first.`)
@@ -74,11 +78,15 @@ export function TeamLibraryTransfer({
     if (!window.confirm(text)) return;
     setBusy(true);onBusy(true);setError('');setResult(undefined);
     try {
-      const output = await request('import','POST',{bundle,conflict}) as ImportResult;
+      const output = await request('import','POST',preview.previewId ? {previewId:preview.previewId,conflict} : {bundle,conflict}) as ImportResult;
+      setBundle(undefined);setPreview(undefined);setFilename('');
       await onImported();
       setResult(output);
-      setBundle(undefined);setPreview(undefined);setFilename('');
-    } catch (e) {setError(description(e instanceof Error ? e.message : 'teamTransferFailed'));}
+    } catch (e) {
+      const key=e instanceof Error ? e.message : 'teamTransferFailed';
+      if (key==='teamTransferPreviewExpired') setPreview(undefined);
+      setError(description(key));
+    }
     finally {setBusy(false);onBusy(false);}
   };
   return <section className="team-library-transfer">

@@ -1,5 +1,7 @@
 # 逐局规则与比赛记录
 
+维护工具按比赛资料来源保护报告和证据。BO7 正常局、盲选局及后续正常局的清理隔离回归见[#115 的验证记录](../validation/storage-ocr-reliability.md)。
+
 本增量沿用 Store、MatchState、GameDraftRecord 和 PostGameReport，不另建比赛状态源。
 
 ```text

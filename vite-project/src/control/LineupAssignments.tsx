@@ -386,6 +386,7 @@ export function LineupAssignments({
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image,
+          omitEchoPreview: true,
           // Diagnostic label only; the server still validates heroes/revision.
           slot: key,
           revision,
@@ -399,7 +400,7 @@ export function LineupAssignments({
       return {
         side,
         playerIndex: index,
-        preview: data.preview as string,
+        preview: data.preview ?? image,
         candidates: (data.candidates ?? []) as Candidate[],
       } satisfies SlotResult;
     },

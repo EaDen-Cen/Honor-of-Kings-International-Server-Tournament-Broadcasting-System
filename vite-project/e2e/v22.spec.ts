@@ -265,6 +265,7 @@ test('empty ban advances the phase without consuming a hero and renders distinct
     expect(h.state().bluePicks).toEqual([]);
     await expect(overlay.locator('.ban-team.blue .skipped-ban')).toHaveCount(1);
     await expect(overlay.locator('.ban-team.blue .skipped-ban-label')).toHaveText('Empty ban');
+    await expect(control.locator('.operator-guide')).toContainText(/Last action sent to acknowledgement · \d+ ms/);
 
     await h.send({ type: 'undo' });
     await expect.poll(() => h.state().currentPhase).toBe(0);

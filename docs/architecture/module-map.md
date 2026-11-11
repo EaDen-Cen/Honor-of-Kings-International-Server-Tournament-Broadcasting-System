@@ -1,5 +1,7 @@
 # 模块地图
 
+磁盘维护入口与保留规则集中在[存储维护架构](storage-ocr-reliability.md)。查动作提交或图片响应的耗时，从[传输与确认验证](../validation/upload-latency.md)定位服务器边界。
+
 | 责任 | 现有入口 | 主要依赖与边界 |
 | --- | --- | --- |
 | 比赛核心 | `server/store.ts`, `src/shared/draftRules.ts`, `types.ts` | 校验 action、revision、Undo、事件、有效局与比分；所有客户端共享 |
