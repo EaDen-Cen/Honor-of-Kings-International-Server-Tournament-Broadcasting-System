@@ -278,7 +278,14 @@ export class Store {
     if (this.data.ids.includes(id)) return;
     if (revision !== this.data.revision) throw new Error('比赛状态已更新，请确认当前选禁结果后重试');
     if (!action || typeof action !== 'object') throw new Error('操作无效');
-    const next = copy(this.data);
+    // Published history and events are read-only. Isolate the working state and
+    // the arrays we append to or pop from until persistence succeeds.
+    const next: Data = {
+      ...this.data,
+      state: copy(this.data.state),
+      history: this.data.history.slice(),
+      events: this.data.events.slice(),
+    };
     const state = next.state;
     if (applyPostGameAction(state, action, this.clock())) next.history.push(copy(this.data.state));
     else switch (action.type) {
@@ -706,7 +713,7 @@ export class Store {
     case 'undo': {
       const previous = next.history.pop();
       if (!previous) throw new Error('没有可以撤销的操作');
-      next.state = previous;
+      next.state = copy(previous);
       break;
     }
     case 'reset_draft':
