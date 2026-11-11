@@ -513,24 +513,27 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     const image=captureWindowFrame(region);
     // Keep the portrait matcher on the calibrated artwork. The separate cue
     // crop includes the checkmark that projects below the Pick portrait.
-    const cueRegion=options?.shape==='circle'?region:{...region,height:Math.min(1-region.y,region.height*1.30)};
-    const lockImage=captureWindowFrame(cueRegion);
+    const lockImage = options?.shape === 'circle' ? undefined : captureWindowFrame({
+      ...region, height: Math.min(1 - region.y, region.height * 1.30),
+    });
     const response=await fetch(`${apiURL}/api/recognize-frame`,{
       method:'POST',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
       body:JSON.stringify({
         image,
         lockImage,
+        omitEchoPreview: true,
         revision,
         allowedHeroIds:options?.allowedHeroIds,
         shape:options?.shape??'square',
       }),
       signal:options?.signal,
     });
-    const data:RecognitionResponse=await response.json();
+    const payload = await response.json();
     if(!mounted.current||version!==captureGeneration.current||context!==captureContext.current)throw new Error(zh?'BP 阶段、采集源或选框已变化，请重新读取。':'BP phase, source or calibration changed; scan again.');
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
-    samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage,result:data}];
+    const data: RecognitionResponse = { ...payload, preview: payload.preview ?? image };
+    samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage:lockImage??image,result:data}];
     return data;
   },[captureWindowFrame,phaseKey,recognitionContext,revision,t,token,zh]);
 

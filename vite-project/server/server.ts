@@ -1485,7 +1485,8 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'State changed during capture' });
           return;
         }
-        json(200, result);
+        const omitPreview = input.omitEchoPreview === true && result.preview === input.image;
+        json(200, omitPreview ? { ...result, preview: undefined } : result);
       } catch {
         json(400, { error: 'Browser frame recognition failed' });
       }

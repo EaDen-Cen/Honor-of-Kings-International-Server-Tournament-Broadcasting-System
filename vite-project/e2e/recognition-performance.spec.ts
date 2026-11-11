@@ -134,13 +134,13 @@ test('final hero swaps keep two-read validation without a 1.6-second polling pen
     await page.route('**/api/recognize-frame', async (route) => {
       calls++;
       const input = route.request().postDataJSON();
+      expect(input.omitEchoPreview).toBe(true);
       const side = input.slot.startsWith('blue') ? 'blue' : 'red';
       const lineup = swap ? (side === 'blue' ? blue : red) : h.state()[`${side}Picks`];
       const desired = lineup[Number(input.slot.slice(-1)) - 1];
       await new Promise((resolve) => setTimeout(resolve, 35));
       await route.fulfill({
         json: {
-          preview: input.image,
           candidates: input.allowedHeroIds
             .map((heroId: number) => ({ heroId, confidence: heroId === desired ? 0.99 : 0.1 }))
             .sort(

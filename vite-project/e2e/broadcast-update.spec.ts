@@ -2,6 +2,40 @@ import { test, expect } from './fixtures';
 import { harness } from './harness';
 import heroes from '../src/components/HeroList';
 import { openDockPanel } from './dockNavigation';
+import sharp from 'sharp';
+
+test('Ban recognition sends one crop and omits only its echoed preview when requested', async ({request,baseURL}) => {
+  const h = await harness(baseURL);
+  try {
+    await h.send({type:'settings',settings:{...h.state(),bpInputMode:'screen'}});
+    const headers = { Authorization: 'Bearer e2e-control' };
+    const snapshot = await request.get('/api/match',{headers});
+    expect(snapshot.ok()).toBeTruthy();
+    const {revision} = await snapshot.json();
+    const hero = heroes[0];
+    const file = await request.get(hero.recognitionImageLink || hero.imageLink);
+    expect(file.ok()).toBeTruthy();
+    const png = await sharp(await file.body()).resize(72,72).png().toBuffer();
+    const image = 'data:image/png;base64,' + png.toString('base64');
+    const body = {image,revision,allowedHeroIds:[hero.id],shape:'circle'};
+    const legacy = {...body,lockImage:image};
+    const compact = {...body,omitEchoPreview:true};
+    const read = async (data: typeof body) => {
+      const response = await request.post('/api/recognize-frame',{headers,data});
+      expect(response.ok()).toBeTruthy();
+      return {payload:await response.json(),bytes:(await response.body()).length};
+    };
+    const before = await read(legacy), after = await read(compact);
+    const {preview,...evidence} = before.payload;
+    expect(preview).toBe(image);
+    expect(evidence.candidates[0].heroId).toBe(hero.id);
+    expect(after.payload).toEqual(evidence);
+    const size = (value: typeof body) => Buffer.byteLength(JSON.stringify(value));
+    expect(size(compact)).toBeLessThan(size(legacy) * 0.55);
+    expect(after.bytes).toBeLessThan(before.bytes * 0.1);
+    console.log(`72×72 Ban JSON bytes: request ${size(legacy)} → ${size(compact)}, response ${before.bytes} → ${after.bytes}`);
+  } finally { h.close(); }
+});
 
 test('empty history, inline settings and BO win boxes follow authoritative side swaps',async({browser,baseURL})=>{
   const h=await harness(baseURL),context=await browser.newContext({viewport:{width:1920,height:1080}});
@@ -37,7 +71,7 @@ test('recognition requires review; rejection and stale results cannot submit; ma
   const h=await harness(baseURL),context=await browser.newContext();
   try {
     await h.send({type:'reset_match'});await h.send({type:'settings',settings:{...h.state(),language:'eng',bpInputMode:'screen',recognitionAutoAccept:false}});
-    const page=await context.newPage();let fail=false;
+    const page=await context.newPage();let fail=false, requestedImage='';
     await page.addInitScript(()=>{
       localStorage.setItem('hok-capture-auto-watch','0');localStorage.setItem('hok-player-slot-auto','0');localStorage.setItem('hok-lineup-auto','0');
       Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{value:async()=>{
@@ -47,8 +81,10 @@ test('recognition requires review; rejection and stale results cannot submit; ma
     });
     await page.route('**/api/recognize-frame',async route=>{
       const body=route.request().postDataJSON();
-      expect(body.image).toMatch(/^data:image\/png;base64,/);expect(body.lockImage).toMatch(/^data:image\/png;base64,/);
-      await route.fulfill({status:fail?503:200,json:fail?{error:'disabled'}:{candidates:[{heroId:heroes[0].id,confidence:.96}],preview:body.image,lockCue:'padlock'}});
+      requestedImage=body.image;
+      expect(body.image).toMatch(/^data:image\/png;base64,/);expect(body.shape).toBe('circle');
+      expect(body.lockImage).toBeUndefined();expect(body.omitEchoPreview).toBe(true);
+      await route.fulfill({status:fail?503:200,json:fail?{error:'disabled'}:{candidates:[{heroId:heroes[0].id,confidence:.96}],lockCue:'padlock'}});
     });
     await page.goto('/control#token=e2e-control');
     await page.getByRole('button',{name:'Choose game window',exact:true}).click();
@@ -59,6 +95,7 @@ test('recognition requires review; rejection and stale results cannot submit; ma
       if(i<2)await expect(review).not.toBeVisible();
     }
     await expect(review).toBeVisible();expect(h.state().currentPhase).toBe(0);
+    await expect(review.getByRole('img',{name:'Current slot capture'})).toHaveAttribute('src',requestedImage);
     await review.getByRole('button',{name:'Reject / keep watching',exact:true}).click();
     await expect(review).toHaveCount(0);expect(h.state().currentPhase).toBe(0);expect(h.state().blueBans).toEqual([]);
 

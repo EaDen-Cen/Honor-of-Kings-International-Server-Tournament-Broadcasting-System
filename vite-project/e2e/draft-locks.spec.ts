@@ -22,8 +22,9 @@ test('Pick uses each own checkmark without waiting for next preselection; double
     let group=false,both=false,first=false,calls=0;
     await page.route('**/api/recognize-frame',async route=>{
       const body=route.request().postDataJSON();expect(body.lockImage).toMatch(/^data:image\/png;base64,/);
+      expect(body.shape).toBe('square');expect(body.omitEchoPreview).toBe(true);
       const slot=group?calls++%2:0;
-      await route.fulfill({json:{preview:body.image,candidates:[{heroId:group?20+slot:10,confidence:.95},{heroId:30,confidence:.2}],fingerprint:slot?'ffffffffffffffff':'0000000000000000',meanLuma:slot?10:220,lockCue:(group?(slot===0||both):first)?'checkmark':'none'}});
+      await route.fulfill({json:{preview:'/heroesImg/1.png',candidates:[{heroId:group?20+slot:10,confidence:.95},{heroId:30,confidence:.2}],fingerprint:slot?'ffffffffffffffff':'0000000000000000',meanLuma:slot?10:220,lockCue:(group?(slot===0||both):first)?'checkmark':'none'}});
     });
     await page.goto('/control');await page.getByRole('button',{name:'Choose game window',exact:true}).click();
     const scan=page.getByRole('button',{name:'Recognize now',exact:true});
@@ -41,6 +42,7 @@ test('Pick uses each own checkmark without waiting for next preselection; double
     both=true;
     for(let i=0;i<2;i++) {await scan.click();await expect(scan).toBeEnabled();}
     await expect(review).toBeVisible();await expect(review.locator('.pick-group-review-entry')).toHaveCount(2);
+    await expect(review.locator('.pick-group-review-entry img').first()).toHaveAttribute('src','/heroesImg/1.png');
     await review.getByRole('button',{name:'Confirm and submit',exact:true}).click();
     await expect.poll(()=>h.state().redPicks.length).toBe(2);
   } finally {h.close();}
