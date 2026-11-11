@@ -72,3 +72,5 @@
 ## 本地回归
 
 生产构建、核心格式检查通过。Lint 为 0 错误，AudienceVoteView 保留 2 条既有 Fast Refresh 警告。完整单元和服务测试 418 项通过、2 项私人样本跳过。两组定向 Playwright 各通过 15 项，覆盖 BP/阵容识别、ACK、导入预览确认、PNG/JPEG/WebP 上传、刷新、GHUD 权限和压缩请求、Overlay 同步。
+
+在同一 Windows 工作区运行完整 `npm run test:e2e`，124 项全部通过，用时 17.5 分钟，0 跳过。用例包括正常 BP、BO7 盲选和断线重连、延迟 Caster、照片上传与 Undo，以及网页投票满 180 秒后拒收新票。隧道同步的 PowerShell 契约测试使用模拟网络通过。持续集成状态随提交更新。[性能 PR 与检查结果](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/pull/117/checks)
