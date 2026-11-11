@@ -1,6 +1,8 @@
 # 无 Bot 严格 180 秒 MVP 投票验证
 
-日期：2026-11-05。分支：`codex/webhook-mvp-voting`，基于已合并 #109 的 main `b143729`。本功能尚未合并或发布。
+#110 已合入 main（`c4c4a74`）。后续 #111 另外增加 Discord 原生 Poll 软截止，严格网页模式的到期拒票语义继续适用。[投票模式操作](../guides/discord-mvp-voting.md)
+
+日期：2026-11-05。分支：`codex/webhook-mvp-voting`，基于已合并 #109 的 main `b143729`。下文记录 #110 合并前的验证。
 
 ## 方案结论
 

@@ -1,5 +1,7 @@
 # GHUD 采集与资源累计数
 
+GHUD measures capture, transport, OCR and match confirmation separately. The browser sends calibrated PNG crops as JSON. A remote server can advertise gzip support after the first successful sample, allowing the browser to compress subsequent large requests losslessly. Loopback continues to use JSON. Compare the [occlusion replay](../guides/hud-occlusion-replay.md) with the [transport and WebSocket acknowledgement benchmarks](../validation/upload-latency.md).
+
 ```text
 Windows/shared screenshot ─┐
 Local Control → verified LDPlayer → bounded screencap ─┤

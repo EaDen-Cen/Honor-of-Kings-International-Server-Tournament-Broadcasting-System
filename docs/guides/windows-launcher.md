@@ -107,3 +107,5 @@ URL 仅从 cloudflared 的盒状公告行获取；帮助链接、子域后缀、
 ## 2026-10-30 · 开播检查与 OBS 录制盘容量（待实机验收）
 
 原启动器服务/隧道机制保留，Control 页面新增逐局伪强制开播清单与紧急绕过。本机 `GET /api/v1/obs/storage` 先向 OBS WebSocket v5 请求真正的录制目录，再读取同机磁盘剩余空间。未连接 OBS 时可用本机 `HOK_RECORDING_DIR` 显式指定真正录制文件夹；不要误用 `vite-project`、`DATA_FILE` 所在 C 盘。若 OBS 与后端不在同一电脑，磁盘监控必须部署于真实录制机，不能假定跨机路径代表同一硬盘。详见 [现场指南](live-preflight-and-corrections-2026-10-30.md)。
+
+在本机 `vite-project` 目录可用 `npm run storage:inspect` 只读统计应用文件，或用 `npm run benchmark:action-ack` 测量测试动作的确认等待。[空间维护](storage-maintenance.md) · [延迟验证](../validation/upload-latency.md)

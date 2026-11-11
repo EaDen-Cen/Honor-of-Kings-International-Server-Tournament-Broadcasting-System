@@ -1,5 +1,7 @@
 # HOK Broadcast v1.0.0 新手上手教程
 
+开播前可在 Control 设置查看本机目录占用。比赛操作响应缓慢时，从「帮助 → 操作指南 / 版本」打开「操作指南与诊断」面板，查看上次操作从发送到本页收到服务器确认的毫秒数。[空间预览](storage-maintenance.md) · [确认时间含义](../validation/upload-latency.md)
+
 > **Release Candidate（2026-10-10）**：核心 BP / Auto BP / Player ID / 换英雄流程已进入发布准备状态。局内 HUD 目前仍是 **测试功能**，第一次使用时先把 Draft Overlay 和手动比分流程跑通，再单独彩排 HUD。
 
 > 这份教程按“第一次接触项目也能跑起来”的顺序写。更完整的参数、部署和比赛规则见 [运行指南](getting-started.md)、[比赛操作指南](operator-guide.md) 与 [Auto BP 指南](screen-recognition.md)。

@@ -1,4 +1,6 @@
-# 国服 / 国际服英雄池与每队 0–5 Ban（PR #68 开发分支）
+# 国服 / 国际服英雄池与每队 0–5 Ban（PR #68 已合入 main）
+
+选择普通 0 Ban 仍要完成公开顺序 Pick。赛事要求双方盲选时，在本局规则中单独选择 Blind，并为此局设置是否记录英雄与后续全局历史贡献。[逐局规则操作](game-rules-manager.md)
 
 [返回文档索引](../README.md) · [比赛操作](operator-guide.md) · [识别与校准](screen-recognition.md)
 
@@ -11,7 +13,7 @@
 3. **BP 模式**：`match` 在首轮最多 Ban 两名英雄/队，完成第一段 3 个 Pick/队后，再 Ban 剩余的 `banCount - 2` 个/队，然后进行末段 2 个 Pick/队；`normal` 在任何 Pick 之前把各队所有 Ban 一次完成。除 0 Ban 外，Match 模式标准 4 Ban 为 2+2，5 Ban 为 2+3。这里的社区赛自定义 0–3 Ban 顺序不是 KPL 官方专用赛制。
 4. **跨局禁选限制**：普通（每局独立）、选手 BP（按选手 ID）、全局 BP（按稳定队伍 ID）；独立于 Ban 数。元流之子独立/共享形态规则保持原配置。
 
-2026 年 KPL 规则文本的征召顺序为蓝红各 2 Ban → 双方各 3 Pick → 蓝红各再 3 Ban → 双方各 2 Pick，合计每队 5 Ban。官方国际赛事中的 Four-Ban Match 使用前 2 + 后 2 的流程，不能把“国际服”写死成永远只有四 Ban。参阅 [2026 KPL 征召规则](https://www.wangyoushe.com/info/Ejzlq) 与 [Honor of Kings 国际赛事规则](https://www.honorofkings.com/esports/kwc/rule.html)。**巅峰对决/Ultimate Battle 是双方盲选特殊流程，不等同于本系统普通 0 Ban 的公开顺序 Pick；当前尚未模拟巅峰对决的盲选。**
+2026 年 KPL 规则文本的征召顺序为蓝红各 2 Ban → 双方各 3 Pick → 蓝红各再 3 Ban → 双方各 2 Pick，合计每队 5 Ban。官方国际赛事中的 Four-Ban Match 使用前 2 + 后 2 的流程，不能把“国际服”写死成永远只有四 Ban。参阅 [2026 KPL 征召规则](https://www.wangyoushe.com/info/Ejzlq) 与 [Honor of Kings 国际赛事规则](https://www.honorofkings.com/esports/kwc/rule.html)。**巅峰对决/Ultimate Battle 是双方盲选特殊流程，不等同于本系统普通 0 Ban 的公开顺序 Pick；正式比赛从 #113 起可在逐局规则中设置 Blind。**
 
 ## 当前实现与安全边界
 

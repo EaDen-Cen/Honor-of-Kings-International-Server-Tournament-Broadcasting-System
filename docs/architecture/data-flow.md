@@ -1,5 +1,7 @@
 # 数据与确认边界
 
+Control 通过 WebSocket 提交比赛动作，服务器保存后返回 ACK。识别图片经 HTTP 取得候选，采用候选才会进入比赛动作链。圆形 Ban 的锁定图可复用同一次上传，前端可直接展示与响应相同的本地输入图。[测量方法](../validation/upload-latency.md)
+
 ```mermaid
 sequenceDiagram
   participant UI as Control

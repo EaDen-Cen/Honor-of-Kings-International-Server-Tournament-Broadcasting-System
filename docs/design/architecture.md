@@ -1,5 +1,7 @@
 # 系统结构
 
+比赛配置、BP 和赛后修改以 Store 持久化完成为确认时点。导播端的等待可以通过[数据流](../architecture/data-flow.md)和[动作 ACK 基准](../validation/upload-latency.md)分段核对。
+
 ## 2026-10-23 开发增量
 
 保留 MatchState 和原有识别发布规则。外部凭证由 `server/secureSettings.ts` 统一加密，`aiProfiles.ts` 管理默认/备用配置，`discordVoting.ts` 独立保存观众投票生命周期；不把凭证或观众票数混入比赛快照。普通布局与区域设置仍由现有浏览器存储驱动，并仅备份白名单键。原有比赛备份格式不变，新凭证和投票记录需另行保管。
@@ -122,7 +124,7 @@ OBS Browser Source、Caster、Control、十人结算和 MVP 卡从一致的可�
 
 ## PR #91 隔离边界
 
-`AiRecognitionService` 是有界后台调度器，`aiTransport` 在实际 DNS socket 查验公共地址并限制响应大小；`aiFusion` 复用英雄池/玩家名单/数字解析与既有比赛规则。配置或权威修改递增代次并取消旧请求。HUD 区域缓存按 worker/game/profile 保存短期相同图像读数，仍需时钟推进和双样本发布校验；AI 双缓存读数不能冒充独立样本。没有把云端请求加入 HUD 关键等待链。
+`AiRecognitionService` 是有界后台调度器，`aiTransport` 在实际 DNS socket 查验公共地址并限制响应大小；`aiFusion` 复用英雄池/玩家名单/数字解析与既有比赛规则。配置或权威修改递增代次并取消旧请求。HUD 区域缓存按 worker/game/profile 保存短期相同图像读数，发布时逐字段核对两次独立观测。时钟本身及无帧证据的旧协议仍要求时钟推进；AI 双缓存读数不能冒充独立样本。没有把云端请求加入 HUD 关键等待链。
 
 工作区采用 React 18 兼容的 FlexLayout 0.8.17。布局模型只存节点/尺寸/标签；稳定 portal 宿主拥有真实组件，停靠槽位只负责移动 DOM。关闭标签不卸载识别组件，切换布局不修改服务器状态。小屏幕改纵向宿主排列，退出 Control 正常执行组件清理。
 

@@ -1,5 +1,7 @@
 # 英雄 Release-order ID 规则
 
+编号迁移时的基线和后来新增英雄分开核对。#116 合入的 2026-11-09 同步列出 120 个有效条目，当前 ID 及头像映射见[英雄名单](hero-roster.md)。
+
 ## 目标
 
 从 v1.0.0 起，程序内英雄 ID 不再是历史录入顺序，而是**国际服上架顺序**：
@@ -7,7 +9,7 @@
 - `ID 1` = 当前英雄池里最早的一批英雄中的第一位；
 - ID 单调递增；
 - **ID 越大，国际服上架越晚**；
-- 当前基线为 `1..119`，最新英雄 Wang Wei / 王维为 `ID 119`。
+- 初次迁移覆盖 `1..119`，其中 Wang Wei / 王维为 `ID 119`。后续加入的 Dunshan / 盾山为 `ID 120`。
 
 这样 Control 的“上线时间（新→旧）”不再依赖不完整的 `releaseDate` 字段，直接按 ID 降序即可覆盖全部英雄。
 
@@ -56,7 +58,7 @@ https://www.levelinfinite.com/news/hok-plus-2-0-update/
 | 118 | Devara |
 | 119 | Wang Wei |
 
-完整 `1..119` 顺序以 `vite-project/src/data/heroIdOrder.ts` 和 [独立英雄名单](hero-roster.md)为准。
+完整 ID 顺序以 `vite-project/src/data/heroIdOrder.ts` 和 [独立英雄名单](hero-roster.md)为准。
 
 ## 旧 ID 与本地数据
 

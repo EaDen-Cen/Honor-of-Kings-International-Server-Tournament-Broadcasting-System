@@ -1,5 +1,7 @@
 # HOK Broadcast × OBS Studio 双向控制与单人导播自动化路线图
 
+本文保留 2026-10-19 的规划。现场已可使用的本机连接、录制磁盘检查与人工切镜入口见[OBS 导播设置](../guides/obs-director-setup.md)，设备彩排范围见[实机验收](../validation/hardware-acceptance.md)。
+
 > 状态：**M24.0 已提交开发候选、未实机验收；M24.1–M24.5 尚属设计企划**；创建：2026-10-19；对应里程碑：M24（P0）  
 > 依据：[2026-10-18 双场实战复盘](../validation/live-two-match-retrospective-2026-10-18.md)  
 > 前置缺陷：**最终阵容英雄归属检测到变化但不一定应用成功（P0）**。此问题必须在自动联动正式启用前修复及复测。  

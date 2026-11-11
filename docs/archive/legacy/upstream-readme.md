@@ -1,4 +1,4 @@
-> 历史归档：保留原始阶段记录，不代表最新功能或待办。当前操作请看 [操作指南](../../guides/operator-guide.md)，完整分类见 [文档索引](../../README.md)。原位置：`README.md`。文中非链接的源码/数据路径沿用原上下文。
+> 历史归档：保留原始阶段记录，不代表最新功能或待办。当前操作请看 [操作指南](../../guides/operator-guide.md)，完整分类见 [文档索引](../../README.md)。原位置：`README.md`。文中非链接的源码/数据路径沿用原上下文。 原模拟器用于演练。正式 BO7 赛事的先手、0 Ban 和盲选历史配置见[逐局规则指南](../../guides/game-rules-manager.md)。
 
 
 # Honor of Kings Ban/Pick Simulator 王者荣耀国际服BP模拟器

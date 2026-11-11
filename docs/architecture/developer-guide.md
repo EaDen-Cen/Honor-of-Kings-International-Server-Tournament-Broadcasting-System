@@ -1,5 +1,7 @@
 # 开发与验证
 
+检查提交等待可在 `vite-project` 执行 `npm run benchmark:action-ack`。比较同一基线、同一比赛状态下的结果，并保留对应提交 SHA 和测量边界。[基准记录](../validation/upload-latency.md)
+
 从仓库根目录进入 `vite-project`，使用 Node 24 与锁文件：`npm ci`。不要用升级依赖替代定位回归。
 
 依次运行 `npm run build`、`npm run lint`、`npm run format:check`、`npm test`、`npm run test:e2e`。识别变更还需对应 benchmark 与私有真实样本。Windows 启动器测试命令见 `.github/workflows/broadcast-checks.yml`，测试使用隔离资料目录；不要连接正在比赛的服务。

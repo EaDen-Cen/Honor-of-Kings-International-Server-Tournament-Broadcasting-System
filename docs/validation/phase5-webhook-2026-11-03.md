@@ -1,5 +1,7 @@
 # Phase 5：Webhook 优先通知
 
+随后 #110 与 #111 增加两种免 Bot 投票模式。测试频道的原生 Poll、三分钟截止公告和客户端结果见[原生投票验证](desktop-native-poll.md)。
+
 ## 使用方法
 
 1. 设置中心 → Discord Webhook / 可选 Bot：填写已有 Webhook URL 并保存。只发送通知时 Bot Token、服务器 ID、频道 ID 均可留空。密钥复用 SecureSettings 加密保存，不返回浏览器或写入日志。

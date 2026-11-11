@@ -1,5 +1,7 @@
 # PR #91 验证记录（2026-10-21）
 
+核对 #91 的数量时使用本页提交。后续现场输入的采集、OCR 拒识和操作确认分别记录在[采集实测](ghud-adb-objectives.md)、[遮挡回放](storage-ocr-reliability.md)与[传输验证](upload-latency.md)。
+
 初始验证基线：`c0afa2e8ad5b5e8e888fbc1cfb2838841f8136c2`。**状态更新（2026-10-21）**：PR #91 已合并 `main`，合并提交 [`00dedd05a224`](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/commit/00dedd05a224d77efd5d3dbf4f1c2bf2fb7b18c0)。本文保留草稿阶段测试与失败的时间顺序，不把早期失败写成最终状态。
 
 ## 已执行
