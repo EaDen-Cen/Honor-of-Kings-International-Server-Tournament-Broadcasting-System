@@ -598,8 +598,17 @@ export async function recognizeClientFrame(
       const cueMeta = cueBuffer === buffer ? meta : await sharp(cueBuffer).metadata();
       if (!cueMeta.width || !cueMeta.height || cueMeta.width * cueMeta.height > 4_000_000)
         throw new Error('Lock frame dimensions too large');
+      // Pick cue crops share the original top and width, then extend down by
+      // up to 30%. Either image can be resized to fit the upload limit.
+      const portraitBottom = (meta.height * cueMeta.width) / meta.width;
+      const extension =
+        cueBuffer !== buffer &&
+        cueMeta.height > portraitBottom &&
+        cueMeta.height <= portraitBottom * 1.3 + 2
+          ? portraitBottom
+          : undefined;
       const cueEvidence = async () => {
-        const extended = await detectDraftLockCue(cueBuffer, matchShape === 'circle');
+        const extended = await detectDraftLockCue(cueBuffer, matchShape === 'circle', extension);
         // Existing calibrations may already include the projecting checkmark.
         // Check the original too rather than forcing users to recrop them.
         return extended !== 'none' || cueBuffer === buffer

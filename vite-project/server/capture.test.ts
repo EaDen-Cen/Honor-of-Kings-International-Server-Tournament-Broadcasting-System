@@ -84,3 +84,24 @@ test('a circular Ban uses the portrait itself for lock evidence when the cue ima
   assert.deepEqual(compact,legacy);
   assert.equal(compact.preview,image);
 });
+
+test('a compact checkmark can be confirmed on its projecting team diamond only', async () => {
+  const sharp = (await import('sharp')).default;
+  const { readFile } = await import('node:fs/promises');
+  // The actual bottom 22 rows of a failing Linux Chromium capture, without hero artwork.
+  const strip = await readFile(new URL('./fixtures/projecting-pick-checkmark.png', import.meta.url));
+  const bg = '#111111';
+  const portrait = await sharp({ create: { width: 72, height: 72, channels: 3, background: bg } }).png().toBuffer();
+  const base = () => sharp({ create: { width: 72, height: 94, channels: 3, background: bg } });
+  const frame = (buffer: Buffer) => 'data:image/png;base64,' + buffer.toString('base64');
+  const withStrip = async (pixels: Buffer) => frame(await base().composite([{input: pixels, top: 72, left: 0}]).png().toBuffer());
+  const cue = await withStrip(strip);
+  assert.equal((await recognizeClientFrame(frame(portrait), [], 'square', cue)).lockCue, 'checkmark');
+  assert.equal((await recognizeClientFrame(cue, [], 'square')).lockCue, 'none', 'same patch inside the portrait');
+  assert.equal((await recognizeClientFrame(frame(portrait), [], 'circle', cue)).lockCue, 'none', 'Ban requires a padlock');
+
+  const gray = await sharp(strip).grayscale().png().toBuffer();
+  assert.equal((await recognizeClientFrame(frame(portrait), [], 'square', await withStrip(gray))).lockCue, 'none', 'a check needs team color');
+  const noCheck = await sharp(strip).composite([{input: await sharp({create: {width: 13, height: 9, channels: 3, background: '#9e294c'}}).png().toBuffer(), left: 29, top: 7}]).png().toBuffer();
+  assert.equal((await recognizeClientFrame(frame(portrait), [], 'square', await withStrip(noCheck))).lockCue, 'none', 'a diamond needs the check shape');
+});

@@ -15,13 +15,22 @@ const lockPixelCount = lockMask.reduce((n, px) => n + px, 0);
 const nativeOffsets = Array.from({length: 29}, (_, size) =>
   Uint8Array.from({length: 16}, (_, i) => Math.round((i / 15) * (size - 1))));
 const neighbors = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+const diamondAxes = [[-.2,.5],[1.2,.5],[.5,-.2],[.5,1.2]];
+const diamondCorners = [[-.2,-.2],[1.2,-.2],[-.2,1.2],[1.2,1.2]];
 
 // Positive shape evidence, never an arbitrary change in portrait brightness or
 // hash. Connected components keep a white frame/hair mass out of the matcher.
-export async function detectDraftLockCue(source:Buffer,banPortrait=false):Promise<DraftLockCue> {
+export async function detectDraftLockCue(source:Buffer,banPortrait=false,portraitBottom?:number):Promise<DraftLockCue> {
   const {data,info}=await sharp(source).removeAlpha().toColourspace('srgb').raw().toBuffer({resolveWithObject:true});
   const {width,height,channels}=info;
   if(width<16||height<16) return 'none';
+  const teamColor = (x:number,y:number) => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return undefined;
+    const i=(y*width+x)*channels;
+    if(data[i+2]>data[i]*1.35&&data[i+1]>data[i]*1.15&&data[i+2]>65) return 'blue';
+    if(data[i]>data[i+1]*1.35&&data[i]>data[i+2]*1.35&&data[i]>65) return 'red';
+    return 'neutral';
+  };
   let deadline = performance.now() + 4;
   const yieldIfDue = async () => {
     if (performance.now() >= deadline) {
@@ -63,12 +72,21 @@ export async function detectDraftLockCue(source:Buffer,banPortrait=false):Promis
         let blue=0,red=0;
         for(const [nx,ny] of [[-.15,.5],[1.15,.5],[.5,-.15],[.5,1.15],[-.15,0],[1.15,0],[0,1.15],[1,1.15]]) {
           const x=Math.round(left+nx*w),y=Math.round(top+ny*h);
-          if(x<0||x>=width||y<0||y>=height) continue;
-          const i=(y*width+x)*channels;
-          if(data[i+2]>data[i]*1.35&&data[i+1]>data[i]*1.15&&data[i+2]>65) blue++;
-          if(data[i]>data[i+1]*1.35&&data[i]>data[i+2]*1.35&&data[i]>65) red++;
+          const color=teamColor(x,y);
+          if(color==='blue') blue++;
+          if(color==='red') red++;
         }
-        return blue>=4||red>=4;
+        if(blue>=4||red>=4) return true;
+        if(banPortrait||portraitBottom===undefined||top<portraitBottom) return false;
+        // On a small projecting badge, one sample can land on an antialiased
+        // edge. Require the team color on all four axes of the diamond and
+        // neutral corners outside it. Portrait artwork never takes this path.
+        const sample = ([nx,ny]:number[]) =>
+          teamColor(Math.round(left+nx*(w-1)),Math.round(top+ny*(h-1)));
+        const color=sample(diamondAxes[0]);
+        return (color==='blue'||color==='red') &&
+          diamondAxes.every(point=>sample(point)===color) &&
+          diamondCorners.every(point=>sample(point)==='neutral');
       })();
       for(const kind of ['checkmark','padlock'] as const) {
         if(banPortrait&&kind==='checkmark') continue;
