@@ -25,7 +25,7 @@ export async function recognizeHudNumbers(
   validText: (text: string, index: number) => boolean = () => true,
 ) {
   if (context === undefined) {
-    const result = await provider.recognizeNumbers(images);
+    const result = await provider.recognizeNumbers(images, false, true);
     return { ...result, evidenceIds: images.map(() => randomUUID()) };
   }
   let cache = caches.get(provider);
@@ -45,7 +45,11 @@ export async function recognizeHudNumbers(
     return samples[index] ? [] : [index];
   });
   if (changed.length) {
-    const result = await provider.recognizeNumbers(changed.map((index) => images[index]));
+    const result = await provider.recognizeNumbers(
+      changed.map((index) => images[index]),
+      false,
+      true,
+    );
     changed.forEach((index, offset) => {
       const sample = {
         key: keys[index],

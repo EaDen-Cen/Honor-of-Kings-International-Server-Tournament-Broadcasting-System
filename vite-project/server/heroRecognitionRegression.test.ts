@@ -3,7 +3,40 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {readFile} from 'node:fs/promises';
 import heroes from '../src/components/HeroList.js';
-import {recognizeImage,recognizeClientFrame} from './capture.js';
+import {prepareHeroTemplates,recognizeImage,recognizeClientFrame} from './capture.js';
+
+test('pruned top five match exhaustive dot products, including ties', async () => {
+  const catalog = await prepareHeroTemplates();
+  for (const flat of [false, true]) {
+    // A 7x7 input has exactly one capture view; score all template views independently.
+    const source = Buffer.from(Array.from({ length: 7 * 7 * 3 }, (_, i) => flat ? 90 : (i * 113) % 251));
+    const frame = await sharp(source, { raw: { width: 7, height: 7, channels: 3 } }).png().toBuffer();
+    const pixels: Buffer = await sharp(frame).resize(32, 32, { fit: 'fill' }).removeAlpha().raw().toBuffer();
+    for (const shape of ['square', 'circle'] as const) {
+      const kept = Array.from(pixels).filter((_, offset) => {
+        if (shape === 'square') return true;
+        const p = Math.floor(offset / 3), x = p % 32, y = Math.floor(p / 32);
+        return ((x - 15.5) / 16) ** 2 + ((y - 15.5) / 16) ** 2 <= 1 && !(x >= 32 * .58 && y >= 32 * .58);
+      });
+      const mean = kept.reduce((sum, value) => sum + value, 0) / kept.length;
+      const centered = kept.map(v => v - mean);
+      const norm = Math.max(1, Math.sqrt(centered.reduce((sum, v) => sum + v * v, 0)));
+      const unit = centered.map(v => v / norm);
+      const expected = catalog.map(hero => {
+        let score = 0;
+        for (const { features, penalty } of hero[shape]) {
+          const dot = features.values.reduce((sum, v, index) => sum + v * unit[index], 0);
+          score = Math.max(score, dot - penalty);
+        }
+        return { heroId: hero.heroId, confidence: Math.min(score, 1) };
+      }).sort((a, b) => b.confidence - a.confidence);
+      assert.deepEqual(await recognizeImage(frame, undefined, shape), expected.slice(0, 5));
+      const otherHeroes = expected.slice(-8).map(item => item.heroId);
+      assert.deepEqual(await recognizeImage(frame, otherHeroes, shape),
+        expected.filter(item => otherHeroes.includes(item.heroId)).slice(0,5));
+    }
+  }
+});
 
 test('reported Flowborn support versus Lady Sun confusion: image matcher retains support identity (synthetic crop)',async()=>{
   const hero=heroes.find(h=>h.chineseName==='元流之子（辅助）')!,sun=heroes.find(h=>h.englishName==='Lady Sun')!;
