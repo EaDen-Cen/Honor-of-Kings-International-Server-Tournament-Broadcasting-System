@@ -150,37 +150,35 @@ async function run(events: number) {
           })
         : undefined;
       // Dispatch the image before the operator action, without waiting for its OCR response.
-      if (hud) await pause(5);
-      const start = performance.now();
-      ws.send(payload);
+      const beforeSend = hud ? pause(5) : Promise.resolve();
       const socket = ws;
+      const action = beforeSend.then(async () => {
+        const start = performance.now();
+        socket.send(payload);
+        const snapshot = await receive();
+        assert.equal(snapshot.type, 'match_state_update');
+        assert.equal(snapshot.revision, ++revision);
+        assert.equal(snapshot.state.blueScore, delta > 0 ? 1 : 0);
+        const ack = await receive();
+        const elapsed = performance.now() - start;
+        assert.deepEqual(ack, { type: 'ack', id });
+        if (i >= warmup && hud && !hudReturned) confirmedWhileOcrPending++;
+        return { snapshot, elapsed };
+      });
       const ping = duringHud
-        ? (async () => {
+        ? beforeSend.then(async () => {
             await pause(2);
             const sent = performance.now();
             const pong = once(socket, 'pong', { signal });
             socket.ping();
             await pong;
             return performance.now() - sent;
-          })()
+          })
         : undefined;
-      const snapshot = await receive();
-      assert.equal(snapshot.type, 'match_state_update');
-      assert.equal(snapshot.revision, ++revision);
-      assert.equal(snapshot.state.blueScore, delta > 0 ? 1 : 0);
-      const ack = await receive();
-      const elapsed = performance.now() - start;
+      const [{ snapshot, elapsed }, hudMs, pingMs] = await Promise.all([action, hud, ping]);
       if (i < warmup) maxWarmupAckMs = Math.max(maxWarmupAckMs, elapsed);
-      assert.deepEqual(ack, { type: 'ack', id });
-      if (i >= warmup && hud && !hudReturned) confirmedWhileOcrPending++;
-      if (hud) {
-        const duration = await hud;
-        if (i >= warmup) hudTimes.push(duration);
-      }
-      if (ping) {
-        const duration = await ping;
-        if (i >= warmup) pingTimes.push(duration);
-      }
+      if (i >= warmup && hudMs !== undefined) hudTimes.push(hudMs);
+      if (i >= warmup && pingMs !== undefined) pingTimes.push(pingMs);
       const persisted = JSON.parse(await readFile(file, 'utf8'));
       assert.equal(persisted.revision, revision);
       assert.equal(persisted.ids.at(-1), id);

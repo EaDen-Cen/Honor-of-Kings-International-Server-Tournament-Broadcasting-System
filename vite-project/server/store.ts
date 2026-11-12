@@ -223,6 +223,12 @@ export class Store {
   private readonly encodedHistory = new WeakMap<MatchState | Event, Buffer>();
   private pendingSave?: Promise<void>;
 
+  // Capture the queue as it stands when an export, backup, or shutdown starts.
+  // Rejected actions leave the last durable revision available to readers.
+  async waitForPendingWrites() {
+    await this.pendingSave?.catch(() => {});
+  }
+
   // Only immutable historical entries may reuse their bytes across revisions.
   private encodeSave({ history, events, ...current }: Data) {
     const parts: Buffer[] = [Buffer.from(JSON.stringify(current).slice(0, -1))];
@@ -1082,9 +1088,10 @@ export class Store {
       }
       this.publish(next, action);
     })();
-    this.pendingSave = writing;
-    return writing.finally(() => {
-      if (this.pendingSave === writing) this.pendingSave = undefined;
+    const finished = writing.finally(() => {
+      if (this.pendingSave === finished) this.pendingSave = undefined;
     });
+    this.pendingSave = finished;
+    return finished;
   }
 }

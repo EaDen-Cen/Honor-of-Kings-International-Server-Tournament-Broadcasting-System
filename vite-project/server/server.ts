@@ -1353,6 +1353,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === '/api/match-export' && req.method === 'GET') {
+        await store.waitForPendingWrites();
         json(200, archiveData(dataFile, uploadDirectory, false));
         return;
       }
@@ -1366,6 +1367,7 @@ const server = createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         try {
+          await store.waitForPendingWrites();
           json(201, { file: recovery.create(true) });
         } catch {
           diagnostics.record('backup_failed');
@@ -1698,6 +1700,7 @@ const server = createServer(async (req, res) => {
                 : await previewTeamLibrary(body.bundle, presets),
             );
           } else if (body.previewId !== undefined) {
+            await store.waitForPendingWrites();
             json(
               200,
               pendingTeamImport.confirm(body.previewId, owner, body.conflict, () =>
@@ -1706,6 +1709,7 @@ const server = createServer(async (req, res) => {
             );
           } else {
             // Preserve a point-in-time backup before replacing any existing roster.
+            await store.waitForPendingWrites();
             recovery.create(true);
             json(
               200,
@@ -1950,6 +1954,7 @@ interface Client {
   window: number;
 }
 const clients = new Map<WebSocket, Client>();
+let stopping = false;
 const snapshotPayloads = new Map<Role, { version: string; payload: string }>();
 function update(ws: WebSocket, force = false) {
   const c = clients.get(ws);
@@ -2026,6 +2031,7 @@ wss.on('connection', (ws, req) => {
       }
       if (c.role !== 'control') throw new Error('当前页面仅供查看，无法修改比赛');
       if (message.type !== 'action') throw new Error('不支持此消息类型');
+      if (stopping) throw new Error('服务器正在停止');
       await store.applyDurably(message.id, message.revision, message.action);
       strictVoting?.observe(store.data.state);
       // Authoritative mutations supersede in-flight cloud interpretations.
@@ -2076,13 +2082,23 @@ server.listen(
 );
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
+    if (stopping) return;
+    stopping = true;
     diagnostics.record('server_stop');
     clearInterval(recoveryTimer);
     clearInterval(storageTimer);
     void playerRecognition.close();
     clearInterval(tick);
     clearInterval(heartbeat);
-    for (const ws of clients.keys()) ws.close(1001, '服务器正在停止');
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
+    const connectionsClosed = new Promise<void>((done) => {
+      server.close(() => done());
+    });
+    void store.waitForPendingWrites().then(async () => {
+      for (const ws of clients.keys()) ws.close(1001, '服务器正在停止');
+      await Promise.race([
+        connectionsClosed,
+        new Promise<void>((done) => setTimeout(done, 2000).unref()),
+      ]);
+      process.exit(0);
+    });
   });
