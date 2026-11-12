@@ -16,6 +16,7 @@ import {
 } from '../src/shared/postGame.js';
 import {
   decodeGameFrame,
+  decodeLiveHudFrame,
   frameHasVisualContent,
   recognizeLiveHud,
   recognizeLiveHudCrops,
@@ -61,6 +62,7 @@ import { DiscordVoting } from './discordVoting.js';
 import { PostGameCarousel } from './postGameCarousel.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
 import { operatorPreferenceKey } from '../src/shared/operatorPreferences.js';
+import { mapWithConcurrency } from '../src/shared/mapWithConcurrency.js';
 import { uploadPortrait, servePortrait } from './portraits.js';
 import {
   captureRegion,
@@ -68,6 +70,7 @@ import {
   localCaptureRequest,
   prepareHeroTemplates,
   recognizeClientFrame,
+  recognizePortraitCandidates,
   recognizeLineup,
   recognizeScreen,
 } from './capture.js';
@@ -1149,7 +1152,9 @@ const server = createServer(async (req, res) => {
           });
           return;
         }
-        const frame = await decodeGameFrame(input.image, input.region);
+        const frame = url.pathname.endsWith('live-hud')
+          ? await decodeLiveHudFrame(input.image, input.region)
+          : await decodeGameFrame(input.image, input.region);
         if (!(await frameHasVisualContent(frame))) {
           json(422, {
             error:
@@ -1157,7 +1162,7 @@ const server = createServer(async (req, res) => {
           });
           return;
         }
-        if (url.pathname.endsWith('live-hud')) {
+        if (!Buffer.isBuffer(frame)) {
           if (input.context !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
@@ -1471,7 +1476,11 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    if (url.pathname === '/api/recognize-frame' || url.pathname === '/api/v1/recognition/frame') {
+    if (
+      url.pathname === '/api/recognize-frame' ||
+      url.pathname === '/api/v1/recognition/frame' ||
+      url.pathname === '/api/v1/recognition/portraits'
+    ) {
       if (req.method !== 'POST') {
         json(405, { error: 'POST required' });
         return;
@@ -1503,20 +1512,59 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Stale capture' });
           return;
         }
+        const scope = JSON.stringify([store.data.revision, store.data.state.heroPool]);
+        if (url.pathname === '/api/v1/recognition/portraits') {
+          const crops = input.crops;
+          if (!Array.isArray(crops) || crops.length < 1 || crops.length > 10) {
+            json(400, { error: 'Expected 1–10 portrait crops' });
+            return;
+          }
+          const results = await mapWithConcurrency(crops, 2, async (crop) => {
+            if (res.destroyed || input.revision !== store.data.revision)
+              throw new Error('Stale portrait batch');
+            const read = await recognizeAiWithFallback(
+              crop.image,
+              crop.allowedHeroIds,
+              () =>
+                crop.lockImage === undefined
+                  ? recognizePortraitCandidates(crop.image, crop.allowedHeroIds)
+                  : recognitionProvider.recognize({ ...crop, shape: 'square' }),
+              scope,
+              crop.slot,
+            );
+            return {
+              candidates: read.candidates,
+              lockCue: 'lockCue' in read ? read.lockCue : undefined,
+            };
+          });
+          if (input.revision !== store.data.revision)
+            json(409, { error: 'State changed during capture' });
+          else json(200, { results });
+          return;
+        }
         const result = await recognizeAiWithFallback(
           input.image,
           input.allowedHeroIds,
           () => recognitionProvider.recognize(input),
-          JSON.stringify([store.data.revision, store.data.state.heroPool]),
+          scope,
+          input.slot,
         );
         if (input.revision !== store.data.revision) {
           json(409, { error: 'State changed during capture' });
           return;
         }
         const omitPreview = input.omitEchoPreview === true && result.preview === input.image;
-        json(200, omitPreview ? { ...result, preview: undefined } : result);
-      } catch {
-        json(400, { error: 'Browser frame recognition failed' });
+        json(200, {
+          ...result,
+          preview: omitPreview ? undefined : result.preview,
+          portraitBatch: true,
+        });
+      } catch (error) {
+        if (!res.destroyed && !res.headersSent) {
+          if (error instanceof Error && error.message === 'Stale portrait batch')
+            json(409, { error: 'State changed during capture' });
+          else json(400, { error: 'Browser frame recognition failed' });
+        }
       }
       return;
     }

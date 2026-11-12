@@ -23,6 +23,7 @@
     "simulator:server": "vite --host 127.0.0.1 --strictPort",
     "simulator:stage": "vite --open /tools/bp-simulator",
     "benchmark:recognition": "node --import tsx scripts/benchmark-recognition.ts",
+    "benchmark:recognition:http": "node --import tsx scripts/benchmark-recognition-http.ts",
     "benchmark:portrait-upload": "node --import tsx scripts/benchmark-portrait-upload.ts",
     "benchmark:action-ack": "node --import tsx scripts/benchmark-action-ack.ts",
     "recovery": "node --env-file-if-exists=.env --import tsx scripts/recovery.ts",

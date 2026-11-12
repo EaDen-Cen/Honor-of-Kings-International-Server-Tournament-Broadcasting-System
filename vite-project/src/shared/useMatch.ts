@@ -11,6 +11,7 @@ interface Session {
   token: string;
   stopped: boolean;
   ready: boolean;
+  peakAckMs?: number;
   socket?: WebSocket;
   snapshot?: Snapshot;
   pending?: { id: string; action: Action; timer: ReturnType<typeof setTimeout>; sentAt: number };
@@ -27,7 +28,7 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
   const [status, setStatus] = useState('Connecting');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [acknowledged, setAcknowledged] = useState<{ id: string; action: Action; elapsedMs: number }>();
+  const [acknowledged, setAcknowledged] = useState<{ id: string; action: Action; elapsedMs: number; peakMs: number }>();
   const sessionRef = useRef<Session>();
   const desiredScope = useRef({ role, token });
   desiredScope.current = { role, token };
@@ -120,7 +121,9 @@ export function useMatch(role: Role, token: string, onToken?: (token: string) =>
             setError(msg.error);
             if (msg.id === session.pending?.id) { cancelPending(session); setPending(false); }
           } else if (msg.type === 'ack' && msg.id === session.pending?.id) {
-            setAcknowledged({ id: msg.id, action: session.pending.action, elapsedMs: Math.round(performance.now() - session.pending.sentAt) });
+            const elapsedMs = Math.round(performance.now() - session.pending.sentAt);
+            session.peakAckMs = Math.max(session.peakAckMs ?? 0, elapsedMs);
+            setAcknowledged({ id: msg.id, action: session.pending.action, elapsedMs, peakMs: session.peakAckMs });
             cancelPending(session); setPending(false);
           }
         };

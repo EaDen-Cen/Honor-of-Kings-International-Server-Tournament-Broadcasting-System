@@ -1152,6 +1152,9 @@
 }
 
 .capture-review {
+  position:static;
+  width:100%;
+  box-sizing:border-box;
   overflow-anchor:none;
 }
 

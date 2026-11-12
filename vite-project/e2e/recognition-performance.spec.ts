@@ -124,7 +124,11 @@ test('final hero swaps keep two-read validation without a 1.6-second polling pen
           const canvas = document.createElement('canvas');
           canvas.width = 1920;
           canvas.height = 1080;
-          canvas.getContext('2d')!.fillRect(0, 0, 1920, 1080);
+          const paint = () => {
+            canvas.getContext('2d')!.fillRect(0, 0, 1920, 1080);
+            requestAnimationFrame(paint);
+          };
+          paint();
           return canvas.captureStream(30);
         },
       });

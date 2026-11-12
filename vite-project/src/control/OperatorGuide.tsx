@@ -9,14 +9,14 @@ export function OperatorGuide({
   state,
   connected,
   pending,
-  ackMs,
+  ack,
   onTeams,
   onSettings,
 }: {
   state: MatchState;
   connected: boolean;
   pending: boolean;
-  ackMs?: number;
+  ack?: { elapsedMs: number; peakMs: number };
   onTeams: () => void;
   onSettings: () => void;
 }) {
@@ -91,9 +91,12 @@ export function OperatorGuide({
       <p role="status" aria-live="polite">
         {hint}
       </p>
-      {ackMs !== undefined && (
+      {ack && (
         <p>
-          {zh ? '上次操作从发送到服务器确认' : 'Last action sent to acknowledgement'} · {ackMs} ms
+          {zh ? '上次操作从发送到服务器确认' : 'Last action sent to acknowledgement'} ·{' '}
+          {ack.elapsedMs} ms
+          {' / '}
+          {zh ? '本次会话最高' : 'Session maximum'} · {ack.peakMs} ms
         </p>
       )}
       {state.draftMode !== 'blind' && state.bpInputMode === 'screen' && !state.committedGameId && (

@@ -352,7 +352,7 @@ export default function BroadcastApp() {
           editTools={<><button disabled={disabled || !snapshot?.canUndo} onClick={()=>send({type:'undo'})}>{t('undo')}</button><button onClick={()=>setShowTeamSettings(true)}>{t('teamSettings')}</button></>}
           panels={{
           preparation: <div id="preparation-tools"><button onClick={()=>setShowRules(true)}>{lang==='zh'?'逐局规则':'Game Rules Manager'}</button><StartupPreflight state={state} token={token} connected={connected} onSummary={setPreflightSummary}/></div>,
-          help: <><OperatorGuide state={state} connected={connected} pending={pending} ackMs={acknowledged?.elapsedMs} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} /><section className="panel"><h2>HOK Broadcast · 1.0.0</h2><p>{lang==='zh'?'快捷键与自定义按键位于设置中心；开播诊断位于赛前准备。拖动标签停靠，标签上的浮动按钮可在网页内悬浮，关闭面板不会停止后台采集。':'Shortcuts are in Settings; diagnostics in Preparation. Drag tabs to dock. Float stays inside this page; closing a panel keeps capture running.'}</p><a href="https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/main/docs/guides/operator-guide.md" target="_blank" rel="noreferrer">{lang==='zh'?'操作指南':'Operator guide'}</a></section></>,
+          help: <><OperatorGuide state={state} connected={connected} pending={pending} ack={acknowledged} onTeams={() => setShowTeamSettings(true)} onSettings={() => setShowSettings(true)} /><section className="panel"><h2>HOK Broadcast · 1.0.0</h2><p>{lang==='zh'?'快捷键与自定义按键位于设置中心；开播诊断位于赛前准备。拖动标签停靠，标签上的浮动按钮可在网页内悬浮，关闭面板不会停止后台采集。':'Shortcuts are in Settings; diagnostics in Preparation. Drag tabs to dock. Float stays inside this page; closing a panel keeps capture running.'}</p><a href="https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/main/docs/guides/operator-guide.md" target="_blank" rel="noreferrer">{lang==='zh'?'操作指南':'Operator guide'}</a></section></>,
           monitor: <div className="control-monitor">
           {state.draftMode==='blind'?<Board state={state} lang={lang} compact/>:<DirectLineup state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error} mode="draft" renderBoard={onCorrect=><Board state={state} lang={lang} compact onCorrect={onCorrect}/>} />}
           <section className="operator-bar panel">
@@ -382,8 +382,8 @@ export default function BroadcastApp() {
            {state.draftMode!=='blind'&&<DraftHeroCorrection state={state} disabled={disabled} send={send} />}
           {state.draftMode==='blind' ? <BlindGamePanel state={state} disabled={disabled} send={send} acknowledged={acknowledged} error={error}/> : state.bpInputMode === 'screen'
             ? <div className="screen-recognition-workspace">
-              <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled} send={send} /></Suspense>
-              <details className="manual-picker-fallback" onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
+              <Suspense fallback={<p>{t('connectingServer')}</p>}><ScreenInput state={state} revision={snapshot!.revision} token={token} disabled={disabled || manualFallbackOpen} send={send} /></Suspense>
+              <details className="manual-picker-fallback" open={manualFallbackOpen} onToggle={event=>setManualFallbackOpen(event.currentTarget.open)}>
                 <summary>{t('manualFallbackTitle')}</summary>
                 <p className="muted">{t('manualFallbackHint')}</p>
                 <ControlHeroPicker state={state} disabled={disabled} active={manualFallbackOpen && !showRules && !showAccess && !showSettings && !showTeamSettings && !showHeroArtEditor} send={send} acknowledged={acknowledged} />

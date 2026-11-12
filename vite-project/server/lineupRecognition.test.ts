@@ -1,8 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { solveLineupTeam, planTrustedLineupUpdate, type SlotResult } from '../src/control/lineupRecognition.js';
+import { solveLineupTeam, planTrustedLineupUpdate, observeLineup, lineupPlaybackFrame, type SlotResult } from '../src/control/lineupRecognition.js';
 
 const picks=[11,22,33,44,55];
+
+test('rechecking a frozen lineup or dropping a decoded frame cannot confirm a swap', () => {
+  const initial = { signature: '', count: 0 };
+  const firstFrame = lineupPlaybackFrame({ totalVideoFrames: 32, droppedVideoFrames: 2 });
+  const first = observeLineup(initial, 'swap', firstFrame);
+  assert.equal(first.count, 1);
+  assert.equal(observeLineup(first, 'swap', firstFrame).count, 1);
+  assert.equal(observeLineup(first, 'swap', lineupPlaybackFrame({ totalVideoFrames: 33, droppedVideoFrames: 3 })).count, 1);
+  assert.equal(observeLineup(first, 'swap', 31).count, 2);
+  assert.equal(observeLineup(first, 'different swap', 31).count, 1);
+  assert.equal(observeLineup(first, 'swap', 1).count, 1);
+  assert.equal(observeLineup(initial, 'swap', 31).count, 1);
+});
+
+test('two automatic scans without a verifiable video frame never confirm a swap', () => {
+  assert.equal(lineupPlaybackFrame(undefined), undefined);
+  assert.equal(lineupPlaybackFrame({ totalVideoFrames: 0, droppedVideoFrames: 0 }), undefined);
+  const first = observeLineup({ signature: '', count: 0 }, 'swap', undefined);
+  assert.equal(observeLineup(first, 'swap', undefined).count, 1);
+  const identified = observeLineup(first, 'swap', 10);
+  assert.equal(identified.count, 1);
+  assert.equal(observeLineup(identified, 'swap', undefined).count, 1);
+});
 function slots(order:number[],primary=.95,secondary=.1,pool=picks):SlotResult[]{
   return order.map((heroId,playerIndex)=>({side:'blue',playerIndex,preview:'',candidates:pool.map(id=>({heroId:id,confidence:id===heroId?primary:secondary}))}));
 }

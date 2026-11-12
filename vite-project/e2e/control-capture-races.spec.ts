@@ -2,6 +2,7 @@ import { openDockPanel } from './dockNavigation';
 import { test, expect, type Page } from './fixtures';
 import { harness } from './harness';
 import { initialState, phases } from '../src/shared/types';
+import heroes from '../src/components/HeroList';
 
 async function mockWindow(page:Page,lineupAuto=false){
   await page.addInitScript(({lineupAuto})=>{
@@ -44,6 +45,66 @@ test('a late BP response cannot repopulate the candidate from a previous phase',
     await expect(bp.getByRole('button',{name:'Review current top candidate',exact:true})).toBeDisabled();
     await expect(bp.locator('dialog')).toHaveCount(0);
   }finally{release();h.close();}
+});
+
+test('candidate review and a delayed BP upload leave the director in control', async ({page,baseURL}) => {
+  const h = await harness(baseURL);
+  let release = () => {};
+  try {
+    await h.send({type:'settings',settings:{...initialState(),language:'eng',bpInputMode:'screen'}});
+    await mockWindow(page);
+    let calls = 0, replied = 0;
+    await page.route('**/api/recognize-frame', async route => {
+      const sample = ++calls;
+      if (sample >= 3) await new Promise<void>(resolve => {release = resolve;});
+      await route.fulfill({json:{candidates:[{heroId:heroes[0].id,confidence:.99}],lockCue:'padlock'}});
+      replied = sample;
+    });
+    await page.goto('/control');
+    await page.getByRole('button',{name:'Choose game window',exact:true}).click();
+    const bp = page.locator('.screen-input');
+    const scan = bp.getByRole('button',{name:'Recognize now',exact:true});
+    for (let i = 0; i < 2; i++) {
+      await scan.click();
+      await expect(scan).toBeEnabled();
+    }
+    await scan.click();
+    await expect.poll(() => calls).toBe(3);
+    const delay = page.locator('.delay-controls input');
+    await delay.fill('17');
+    release();
+    const review = bp.getByRole('dialog',{name:'Review recognition'});
+    await expect(review).toBeVisible();
+    expect(await review.evaluate(el => el.matches(':modal'))).toBe(false);
+    await expect(delay).toBeFocused();
+    await delay.press('End');
+    await delay.press('8');
+    await expect(delay).toHaveValue('178');
+    await review.getByRole('button',{name:'Reject / keep watching'}).click();
+
+    await scan.click();
+    await expect.poll(() => calls).toBe(4);
+    await page.locator('.score-setting.blue button').last().click();
+    await expect.poll(() => h.state().blueScore).toBe(1);
+    const manual = page.locator('.manual-picker-fallback');
+    await manual.locator('summary').click();
+    const search = manual.getByLabel('Search heroes',{exact:true});
+    await search.fill(heroes[1].englishName);
+    await manual.getByRole('button',{name:heroes[1].englishName,exact:true}).click();
+    await expect.poll(() => h.state().blueBans).toEqual([heroes[1].id]);
+    expect(replied).toBe(3);
+    release();
+    await expect.poll(() => replied).toBe(4);
+    await expect(review).toHaveCount(0);
+    expect(h.state().currentPhase).toBe(1);
+    expect(h.state().redBans).toEqual([]);
+    await expect(scan).toBeDisabled();
+    await manual.locator('summary').click();
+    await expect(scan).toBeEnabled();
+  } finally {
+    release();
+    h.close();
+  }
 });
 
 test('pausing automatic hero swaps invalidates an already running ten-slot scan',async({page,baseURL})=>{

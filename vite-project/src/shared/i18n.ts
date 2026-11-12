@@ -160,7 +160,7 @@ const messages = {
   captureManualCandidateHint: { zh:'当英雄已经锁定但自动锁定判断没有触发时，用当前扫描结果中的最高相似度英雄组打开人工确认。', eng:'If the hero is already locked but automatic lock detection did not trigger, review the highest-similarity hero group from the latest scan.' },
   captureManualCandidateOpened: { zh:'已使用当前最高相似度候选打开人工确认。', eng:'Opened manual review with the latest top candidate(s).' },
   manualFallbackTitle: { zh:'手动英雄选择（备用）', eng:'Manual hero picker (fallback)' },
-  manualFallbackHint: { zh:'屏幕识别正常时可保持收起；需要人工修正或临时手动录入时再展开。', eng:'Keep this collapsed while screen recognition is working. Expand it only for manual correction or fallback entry.' },
+  manualFallbackHint: { zh:'展开后由你手动录入本局 BP。收起后恢复之前的屏幕识别设置。', eng:'Opening the picker pauses BP recognition for manual entry. Close it to resume the previous recognition settings.' },
   captureCalibrateExplicitSlots: { zh:'18 槽位独立校准', eng:'18-slot independent calibration' },
   captureExplicitCalibrationHint: { zh:'先点击一个 B1–B4 或 P1–P5，再到游戏预览中直接框住该英雄头像区域。不同槽位可使用完全不同的大小和位置。', eng:'Choose B1–B4 or P1–P5, then drag directly over that exact hero portrait in the game preview. Every slot can have a different size and position.' },
   captureExplicitSlot: { zh:'{side} {action} {number}', eng:'{side} {action} {number}' },

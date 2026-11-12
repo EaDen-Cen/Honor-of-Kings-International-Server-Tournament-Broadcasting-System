@@ -1,5 +1,11 @@
 import { playerAtSlot } from '../shared/playerSlots';
 import { apiURL } from '../shared/config';
+import { mapWithConcurrency } from '../shared/mapWithConcurrency';
+import {
+  observePortraitBatchSupport,
+  recognizesPortraitBatches,
+  recognizePortraitBatch,
+} from './portraitBatch';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heroForState } from '../shared/heroData';
 import type { Action, MatchState, Side } from '../shared/types';
@@ -9,7 +15,7 @@ import {
   type CaptureSlotKey,
   type CaptureSlots,
 } from './bpCaptureLayout';
-import { regionToPixels, type NormalizedCaptureRegion } from './windowCaptureGeometry';
+import { capturePortraitImage } from './capturePortraitImage';
 import {
   getSharedWindowCaptureStream,
   connectSharedBpWindow,
@@ -18,6 +24,9 @@ import {
 import {
   solveLineupTeam as solveTeam,
   planTrustedLineupUpdate,
+  lineupPlaybackFrame,
+  observeLineup,
+  type LineupObservation,
   type Candidate,
   type SlotResult,
 } from './lineupRecognition';
@@ -54,55 +63,6 @@ interface LineupSubmission {
 
 function pickKey(side: Side, index: number) {
   return `${side}Pick${index + 1}` as CaptureSlotKey;
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const output = new Array<R>(items.length);
-  let cursor = 0,
-    failed = false;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (!failed) {
-      const index = cursor++;
-      if (index >= items.length) return;
-      try {
-        output[index] = await worker(items[index]);
-      } catch (error) {
-        failed = true;
-        throw error;
-      }
-    }
-  });
-  await Promise.all(runners);
-  return output;
-}
-
-function captureFrame(video: HTMLCanvasElement, region: NormalizedCaptureRegion) {
-  const pixels = regionToPixels(region, video.width, video.height);
-  const maxSide = 256;
-  const scale = Math.min(1, maxSide / Math.max(pixels.width, pixels.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(32, Math.round(pixels.width * scale));
-  canvas.height = Math.max(32, Math.round(pixels.height * scale));
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Canvas unavailable');
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = 'high';
-  context.drawImage(
-    video,
-    pixels.x,
-    pixels.y,
-    pixels.width,
-    pixels.height,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
-  );
-  return canvas.toDataURL('image/jpeg', 0.94);
 }
 
 export function LineupAssignments({
@@ -143,7 +103,7 @@ export function LineupAssignments({
   const mounted = useRef(true);
   const applying = useRef<{ signature: string; at: number }>({ signature: '', at: 0 });
   const rejectedSignature = useRef('');
-  const stableRef = useRef({ signature: '', count: 0 });
+  const stableRef = useRef<LineupObservation>({ signature: '', count: 0 });
   const busyRef = useRef(false);
   const nextScanDelay = useRef(500);
   const activeScan = useRef<AbortController>();
@@ -380,14 +340,13 @@ export function LineupAssignments({
     async (side: Side, index: number, frame: HTMLCanvasElement, signal: AbortSignal) => {
       signal.throwIfAborted();
       const key = pickKey(side, index);
-      const image = captureFrame(frame, slots[key]);
+      const image = capturePortraitImage(frame, slots[key], 'jpeg');
       const response = await fetch(`${apiURL}/api/recognize-frame`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image,
           omitEchoPreview: true,
-          // Diagnostic label only; the server still validates heroes/revision.
           slot: key,
           revision,
           allowedHeroIds: state[`${side}Picks`],
@@ -397,6 +356,7 @@ export function LineupAssignments({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(zh ? '换英雄识别失败。' : 'Hero-swap recognition failed.');
+      observePortraitBatchSupport(data);
       return {
         side,
         playerIndex: index,
@@ -408,7 +368,7 @@ export function LineupAssignments({
   );
 
   const scan = useCallback(
-    async (forceApply = false) => {
+    async (forceApply = false, presentedFrame?: number) => {
       if (
         busyRef.current ||
         disabled ||
@@ -417,6 +377,8 @@ export function LineupAssignments({
         state.bpInputMode !== 'screen' ||
         !videoReady
       )
+        return;
+      if (!forceApply && presentedFrame !== undefined && stableRef.current.frame === presentedFrame)
         return;
       busyRef.current = true;
       setBusy(true);
@@ -445,9 +407,31 @@ export function LineupAssignments({
         );
         // Final-lineup swaps are not frame-critical. Keep only two recognition
         // requests in flight to avoid CPU spikes while OBS is encoding.
-        const scanned = await mapWithConcurrency(work, 2, (item) =>
-          recognizeSlot(item.side, item.index, frame, controller.signal),
-        );
+        let scanned: SlotResult[];
+        if (recognizesPortraitBatches()) {
+          const hostname = new URL(apiURL || location.href, location.href).hostname;
+          const loopback = /^(?:localhost\.?|127\.\d+\.\d+\.\d+|\[::1\])$/i.test(hostname);
+          const crops = work.map(({ side, index }) => ({
+            slot: pickKey(side, index),
+            image: capturePortraitImage(
+              frame,
+              slots[pickKey(side, index)],
+              loopback ? 'png' : 'jpeg',
+            ),
+            allowedHeroIds: state[`${side}Picks`],
+          }));
+          const results = await recognizePortraitBatch(crops, revision, token, controller.signal);
+          scanned = work.map(({ side, index }, i) => ({
+            side,
+            playerIndex: index,
+            preview: crops[i].image,
+            candidates: results[i].candidates,
+          }));
+        } else {
+          scanned = await mapWithConcurrency(work, 2, (item) =>
+            recognizeSlot(item.side, item.index, frame, controller.signal),
+          );
+        }
         if (
           !mounted.current ||
           controller.signal.aborted ||
@@ -495,13 +479,13 @@ export function LineupAssignments({
           return;
         }
         const signature = `${plan.blue.join(',')}|${plan.red.join(',')}`;
-        const previous = stableRef.current;
-        const count = previous.signature === signature ? previous.count + 1 : 1;
-        stableRef.current = { signature, count };
+        stableRef.current = observeLineup(stableRef.current, signature, presentedFrame);
+        const { count } = stableRef.current;
         const changed = plan.changedBlue || plan.changedRed;
         // Confirm a suspected swap promptly; idle scans remain bounded to avoid
         // competing with OBS encoding. Two independent reads are still required.
-        nextScanDelay.current = changed && count < 2 ? 120 : 500;
+        const canVerifyFrames = presentedFrame !== undefined || !!video.requestVideoFrameCallback;
+        nextScanDelay.current = changed && count < 2 && canVerifyFrames ? 0 : 500;
         const quality = (team: typeof blue) =>
           team ? `${Math.round(team.average * 100)}%/${Math.round(team.minimum * 100)}%` : '—';
         const checked = [
@@ -516,6 +500,12 @@ export function LineupAssignments({
             ? `换英雄检测 · 蓝均值/最低 ${quality(blue)} · 红均值/最低 ${quality(red)} · 稳定 ${count}/2${changed ? ' · 可信变更：' + checked : ''}${unknown ? ' · 不可靠一方保留原阵容' : ''}`
             : `Swap scan · blue avg/min ${quality(blue)} · red avg/min ${quality(red)} · stable ${count}/2${changed ? ' · trusted change: ' + checked : ''}${unknown ? ' · retaining uncertain side' : ''}`,
         );
+        if (changed && !forceApply && !canVerifyFrames)
+          setMessage(
+            zh
+              ? '此浏览器未提供可验证的视频帧号，请核对阵容后手动应用。'
+              : 'This browser cannot identify new video frames. Review the lineup and apply it manually.',
+          );
         const shouldApply =
           changed &&
           (forceApply || (auto && count >= 2)) &&
@@ -563,7 +553,7 @@ export function LineupAssignments({
         if (mounted.current) setBusy(false);
       }
     },
-    [applyLineups, auto, disabled, recognizeSlot, state, videoReady, zh],
+    [applyLineups, auto, disabled, recognizeSlot, revision, slots, state, token, videoReady, zh],
   );
 
   useEffect(() => {
@@ -586,16 +576,39 @@ export function LineupAssignments({
       return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
+    const video = videoRef.current;
+    let nextFrame: number | undefined;
     // Schedule after completion, rather than skipping a whole 1.6 s interval
     // when a real frame takes longer to process than a simulator frame.
-    const run = async () => {
-      await scan();
-      if (active) timer = setTimeout(() => void run(), nextScanDelay.current);
+    const run = async (presentedFrame?: number) => {
+      await scan(false, presentedFrame);
+      if (!active) return;
+      if (nextScanDelay.current === 0 && video?.requestVideoFrameCallback) {
+        readFrame();
+      } else {
+        timer = setTimeout(readFrame, nextScanDelay.current || 33);
+      }
     };
-    void run();
+    const readFrame = () => {
+      if (video?.requestVideoFrameCallback) {
+        nextFrame = video.requestVideoFrameCallback(
+          (_now, frame) => void run(frame.presentedFrames),
+        );
+      } else {
+        void run(lineupPlaybackFrame(video?.getVideoPlaybackQuality?.()));
+      }
+    };
+    // Inspect an already displayed frame even when capture has stopped advancing.
+    // For callback-based capture only callback IDs can confirm later observations.
+    void run(
+      video?.requestVideoFrameCallback
+        ? undefined
+        : lineupPlaybackFrame(video?.getVideoPlaybackQuality?.()),
+    );
     return () => {
       active = false;
       clearTimeout(timer);
+      if (nextFrame !== undefined) video?.cancelVideoFrameCallback(nextFrame);
     };
   }, [
     auto,
