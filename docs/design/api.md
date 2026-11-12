@@ -2,6 +2,8 @@
 
 BP 入口 `/api/recognize-frame` 可以复用圆形 Ban 的输入作为锁定标记，支持新版客户端请求省去与输入相同的预览，旧客户端继续取得完整预览。测识别接口时记录上传、响应字节和耗时，测比赛操作时以对应 WebSocket ACK 为终点。[传输验证](../validation/upload-latency.md)
 
+单图接口在成功响应中用 `portraitBatch: true` 声明批量能力。Control 可通过 `POST /api/v1/recognition/portraits` 发送 `{revision,crops:[{image,slot?,allowedHeroIds?,lockImage?}]}`。每批 1–10 个来自同帧的方形头像，最多 4 MiB。服务端最多并行处理本批中的两格，按照请求顺序返回 `results`。提供锁标裁图的项会返回 `lockCue`，导播端本地预览原图。两种入口都校验权限、屏幕输入模式及请求前后的 revision。可选 AI 按受支持的 Ban/Pick 槽位取消旧图，跨槽共用预算和并发限制。旧版服务继续接受逐格请求。候选需经审核或满足自动提交条件才推进 BP。
+
 除公开健康检查与登录入口外，比赛和识别接口使用 `Authorization: Bearer <角色 token>`。Control 可修改比赛，Caster / Overlay 只读；Caster 的 BP、比分与比赛进度保持延迟，队伍/赛事资料与展示配置实时更新（字段边界见 `server/store.ts` 的 `casterViewState`）。
 
 | 接口 | 方法 | 用途 |
