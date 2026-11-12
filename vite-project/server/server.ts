@@ -1989,7 +1989,7 @@ wss.on('connection', (ws, req) => {
     clearTimeout(authTimeout);
     clients.delete(ws);
   });
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     const c = clients.get(ws)!;
     let id: unknown;
     try {
@@ -2026,7 +2026,7 @@ wss.on('connection', (ws, req) => {
       }
       if (c.role !== 'control') throw new Error('当前页面仅供查看，无法修改比赛');
       if (message.type !== 'action') throw new Error('不支持此消息类型');
-      store.apply(message.id, message.revision, message.action);
+      await store.applyDurably(message.id, message.revision, message.action);
       strictVoting?.observe(store.data.state);
       // Authoritative mutations supersede in-flight cloud interpretations.
       aiRecognition.invalidate();

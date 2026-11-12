@@ -5,6 +5,7 @@ import { liveCaptureKeys, type LiveCaptureKey } from '../src/shared/gameCapture.
 import { nextLiveGameStats, liveGameContext, trustedLiveUpdates } from '../src/shared/liveGame.js';
 import { validPlayerSlotOrder } from '../src/shared/playerSlots.js';
 import { existsSync, mkdirSync, readFileSync, renameSync, openSync, writeFileSync, fsyncSync, closeSync } from 'node:fs';
+import { mkdir, open, rename } from 'node:fs/promises';
 import type { TeamPresetStore } from './teamPresets.js';
 import { dirname } from 'node:path';
 import { allPoolHeroes, heroAllowed, isBanCount, defaultBansForMode } from '../src/shared/heroPool.js';
@@ -219,6 +220,30 @@ function validateRecordedHistory(state: MatchState) {
 export class Store {
   data: Data;
   private neutralResetAt: number;
+  private readonly encodedHistory = new WeakMap<MatchState | Event, Buffer>();
+  private pendingSave?: Promise<void>;
+
+  // Only immutable historical entries may reuse their bytes across revisions.
+  private encodeSave({ history, events, ...current }: Data) {
+    const parts: Buffer[] = [Buffer.from(JSON.stringify(current).slice(0, -1))];
+    const comma = Buffer.from(',');
+    for (const [key, rows] of [['history', history], ['events', events]] as const) {
+      parts.push(Buffer.from(`,"${key}":[`));
+      for (const [index, row] of rows.entries()) {
+        let encoded = this.encodedHistory.get(row);
+        if (!encoded) {
+          encoded = Buffer.from(JSON.stringify(row));
+          this.encodedHistory.set(row, encoded);
+        }
+        if (index) parts.push(comma);
+        parts.push(encoded);
+      }
+      parts.push(Buffer.from(']'));
+    }
+    parts.push(Buffer.from('}'));
+    return Buffer.concat(parts);
+  }
+
   constructor(private file?: string, private clock = Date.now, private presets?: TeamPresetStore) {
     this.neutralResetAt = this.clock();
     let loaded: Data | LegacyData | undefined;
@@ -273,7 +298,7 @@ export class Store {
         : {}),
     };
   }
-  apply(id: string, revision: number, action: Action) {
+  private prepare(id: string, revision: number, action: Action) {
     if (typeof id !== 'string' || !/^[a-zA-Z0-9-]{8,100}$/.test(id)) throw new Error('操作编号无效，请刷新页面后重试');
     if (this.data.ids.includes(id)) return;
     if (revision !== this.data.revision) throw new Error('比赛状态已更新，请确认当前选禁结果后重试');
@@ -1005,19 +1030,61 @@ export class Store {
       next.events=next.events.filter((event,index)=>!['live_game_ocr','live_objective_ocr'].includes(event.type)||event.timestamp>cutoff||index===lastOld);
     }
     next.ids = [...next.ids.slice(-999), id];
-    // Commit durable state before acknowledging or broadcasting. Failure leaves memory unchanged.
+    return next;
+  }
+
+  private publish(next: Data, action: Action) {
+    this.data = next;
+    if(['undo','reset','reset_match','next_game'].includes(action.type))this.neutralResetAt=this.clock();
+  }
+
+  apply(id: string, revision: number, action: Action) {
+    if (this.pendingSave) throw new Error('比赛操作正在保存，请稍后重试');
+    const next = this.prepare(id,revision,action);
+    if (!next) return;
     if (this.file) {
       try {
         mkdirSync(dirname(this.file), { recursive: true });
         const temporary = `${this.file}.tmp`;
         const fd = openSync(temporary, 'w');
-        try { writeFileSync(fd, JSON.stringify(next)); fsyncSync(fd); } finally { closeSync(fd); }
+        try { writeFileSync(fd, this.encodeSave(next)); fsyncSync(fd); } finally { closeSync(fd); }
         renameSync(temporary, this.file);
       } catch (cause) {
         throw new Error('比赛状态保存失败，本次操作未生效，请联系导播检查服务器存储后重试', { cause });
       }
     }
-    this.data = next;
-    if(['undo','reset','reset_match','next_game'].includes(action.type))this.neutralResetAt=this.clock();
+    this.publish(next, action);
+  }
+
+  /** The server can continue serving requests while the disk flushes. Recheck
+   * the revision inside the queue and publish only once the rename succeeds. */
+  applyDurably(id: string, revision: number, action: Action) {
+    const previous = this.pendingSave;
+    const writing = (async () => {
+      if (previous) await previous.catch(() => {});
+      const next = this.prepare(id, revision, action);
+      if (!next) return;
+      if (this.file) {
+        try {
+          await mkdir(dirname(this.file), { recursive: true });
+          const temporary = this.file + '.tmp';
+          const handle = await open(temporary, 'w');
+          try {
+            await handle.writeFile(this.encodeSave(next));
+            await handle.sync();
+          } finally {
+            await handle.close();
+          }
+          await rename(temporary, this.file);
+        } catch (cause) {
+          throw new Error('比赛状态保存失败，本次操作未生效，请联系导播检查服务器存储后重试', { cause });
+        }
+      }
+      this.publish(next, action);
+    })();
+    this.pendingSave = writing;
+    return writing.finally(() => {
+      if (this.pendingSave === writing) this.pendingSave = undefined;
+    });
   }
 }
