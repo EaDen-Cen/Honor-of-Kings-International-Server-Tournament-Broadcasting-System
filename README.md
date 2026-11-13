@@ -1,5 +1,7 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
+此开发分支的 BP 识别在构建时预生成完整英雄头像特征，服务重启后直接读取。用源码安装时，在 `vite-project` 运行 `npm run build` 即可。[Windows 启动与更新](docs/guides/windows-launcher.md)
+
 上传性能改进已通过 #117 合入 main（`751b2c8`）。后续分支增加了 OCR 在途时的手动接管、末手换英雄核对和本次会话最高操作确认耗时。可按同一流程在导播机上复测。[操作与测量记录](docs/validation/responsive-recognition.md)
 
 #117 基于已包含 #115 空间维护与 OCR 修复、#116 国际服英雄审计的 `a6a1af1`。BP 图片、GHUD 远程采样、队伍资料导入和头像预览的基线数据见[上传与动作延迟验证](docs/validation/upload-latency.md)。

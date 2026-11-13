@@ -8,6 +8,8 @@ From `vite-project`, double-click `start-broadcast.bat`.
 
 首次使用或更新源码后可以直接运行启动器：它会根据 `package-lock.json` 检查依赖并执行生产构建。下文 `artifacts/` 路径均相对于 `vite-project/`。
 
+构建也会准备 BP 全部头像匹配特征，保存在 `server/generated/portrait-templates.bin`。下次服务启动时读取这一个文件。原图或特征算法更新后重新构建即可。单独生成可运行 `npm run portrait:prepare`。缺包、损坏或版本不符时仍可使用原图识别，首次准备会更久。
+
 It will:
 1. verify Node/npm/cloudflared, prepare dependencies and build;
 2. reuse this checkout's server and tunnel when already running;
