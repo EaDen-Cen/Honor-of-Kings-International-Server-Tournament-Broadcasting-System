@@ -5,8 +5,15 @@ import { fileURLToPath } from 'node:url';
 import type { IncomingMessage } from 'node:http';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
 import heroes from '../src/components/HeroList.js';
+import type { Hero } from '../src/data/heroTypes.js';
 import sharp from 'sharp';
 import { detectDraftLockCue } from './draftCueDetection.js';
+import {
+  readPortraitPack,
+  writePortraitPack,
+  type HeroTemplate,
+  type PortraitView,
+} from './portraitTemplatePack.js';
 
 type MatchShape = 'square' | 'circle';
 
@@ -90,8 +97,6 @@ function features(pixels: Buffer, shape: MatchShape) {
   };
 }
 
-type PortraitFeatures = ReturnType<typeof features>;
-type PortraitView = { features: PortraitFeatures; penalty: number };
 async function perceptualFingerprint(
   source: Buffer,
   region?: { left: number; top: number; width: number; height: number },
@@ -235,8 +240,12 @@ export function trustedRemoteHeroImage(value: string) {
   }
 }
 
-async function heroTemplateSource(imageLink: string) {
-  if (imageLink.startsWith('/')) return readFile(new URL(`../public${imageLink}`, import.meta.url));
+const publicDirectory = new URL('../public/', import.meta.url);
+export const portraitPackPath = new URL('./generated/portrait-templates.bin', import.meta.url);
+type TemplateHero = Pick<Hero, 'id' | 'imageLink' | 'recognitionImageLink'>;
+
+async function heroTemplateSource(imageLink: string, publicRoot = publicDirectory) {
+  if (imageLink.startsWith('/')) return readFile(new URL('.' + imageLink, publicRoot));
   if (!trustedRemoteHeroImage(imageLink))
     throw new Error(`Untrusted remote hero portrait: ${imageLink}`);
 
@@ -258,41 +267,84 @@ async function heroTemplateSource(imageLink: string) {
   }
 }
 
-let templates:
-  | Promise<
-      {
-        heroId: number;
-        square: PortraitView[];
-        circle: PortraitView[];
-      }[]
-    >
-  | undefined;
-/** Build both shape catalogs once, before a live capture needs its first result. */
-export function prepareHeroTemplates() {
-  templates ??= Promise.all(
-    heroes.map(async (h) => {
+const templateLink = (hero: TemplateHero) => hero.recognitionImageLink || hero.imageLink;
+
+async function buildTemplate(heroId: number, image: Buffer): Promise<HeroTemplate> {
+  const views = await portraitViews(image, 'square', true);
+  return { heroId, square: featureViews(views, 'square'), circle: featureViews(views, 'circle') };
+}
+
+async function localHeroTemplates(
+  packFile: URL,
+  roster: readonly TemplateHero[],
+  publicRoot: URL,
+  write: boolean,
+) {
+  const local = roster.filter((hero) => templateLink(hero).startsWith('/'));
+  const images = await Promise.all(
+    local.map((hero) => heroTemplateSource(templateLink(hero), publicRoot)),
+  );
+  // Bump the recipe when the masks, view generation, penalties or projections change.
+  const key = createHash('sha256').update(JSON.stringify(['portrait-features-v1', sharp.versions]));
+  for (const [i, hero] of local.entries()) {
+    key.update(JSON.stringify([hero.id, templateLink(hero)]));
+    key.update(createHash('sha256').update(images[i]).digest());
+  }
+  const sourceKey = key.digest();
+  const pack = await readPortraitPack(
+    packFile,
+    sourceKey,
+    local.map((hero) => hero.id),
+    portraitSize ** 2 * 3,
+    circleOffsets.length,
+    projections.square.weights.length,
+  );
+  if (pack) return { ...pack, source: 'pack' as const };
+  const catalog = await Promise.all(local.map((hero, i) => buildTemplate(hero.id, images[i])));
+  const bytes = write ? await writePortraitPack(packFile, sourceKey, catalog) : 0;
+  return { catalog, bytes, source: 'images' as const };
+}
+
+export async function writeHeroTemplatePack(
+  packFile = portraitPackPath,
+  roster: readonly TemplateHero[] = heroes,
+  publicRoot = publicDirectory,
+) {
+  const { catalog, bytes, source } = await localHeroTemplates(packFile, roster, publicRoot, true);
+  return { heroes: catalog.length, bytes, reused: source === 'pack' };
+}
+
+export async function loadHeroTemplates(
+  packFile = portraitPackPath,
+  roster: readonly TemplateHero[] = heroes,
+  publicRoot = publicDirectory,
+) {
+  const { catalog, source } = await localHeroTemplates(packFile, roster, publicRoot, false);
+  if (catalog.length === roster.length) return { catalog, source };
+
+  // A new hero can temporarily have only a remote official portrait. Keep its
+  // existing retry/skip behavior independent of the offline pack.
+  const byId = new Map(catalog.map((row) => [row.heroId, row]));
+  const rows = await Promise.all(
+    roster.map(async (hero) => {
+      const local = byId.get(hero.id);
+      if (local) return local;
+      const link = templateLink(hero);
       try {
-        const templateLink = h.recognitionImageLink || h.imageLink;
-        const source = await heroTemplateSource(templateLink);
-        const views = await portraitViews(source, 'square', true);
-        return {
-          heroId: h.id,
-          square: featureViews(views, 'square'),
-          circle: featureViews(views, 'circle'),
-        };
+        return await buildTemplate(hero.id, await heroTemplateSource(link, publicRoot));
       } catch (error) {
-        // Existing local portraits are a release invariant and must still fail
-        // loudly. A newly released hero may temporarily use an official remote
-        // image until the scheduled sync can commit a local /heroesImg asset.
-        // If that remote source is unavailable, skip only that template so the
-        // rest of Auto BP remains usable and the hero can still be entered
-        // manually.
-        if (trustedRemoteHeroImage(h.recognitionImageLink || h.imageLink)) return undefined;
+        if (trustedRemoteHeroImage(link)) return undefined;
         throw error;
       }
     }),
-  )
-    .then((rows) => rows.filter((row): row is NonNullable<typeof row> => Boolean(row)))
+  );
+  return { catalog: rows.filter((row): row is HeroTemplate => !!row), source };
+}
+
+let templates: Promise<HeroTemplate[]> | undefined;
+export function prepareHeroTemplates() {
+  templates ??= loadHeroTemplates()
+    .then(({ catalog }) => catalog)
     .catch((error) => {
       templates = undefined;
       throw error;
