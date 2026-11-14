@@ -1,6 +1,6 @@
 # HOK Broadcast 项目里程碑
 
-- **2026-11-12 / PR #118 开发分支**　构建时准备完整方形与圆形英雄头像特征，运行时校验并加载。保留服务器原图重建路径。[Windows 使用方法](docs/guides/windows-launcher.md) · [模板准备对照](docs/research/bettergi-vision.md)
+- **2026-11-13 / #118 已合入 main（`0c34891`）**　导播可在识别期间接管，末手换英雄可从同队五格核对。构建时准备完整方形与圆形英雄头像特征，运行时校验并加载。[Windows 使用方法](docs/guides/windows-launcher.md) · [末手确认耗时](docs/validation/responsive-recognition.md)
 
 - **2026-11-12**　#117 已合入 main（`751b2c8`）。后续开发覆盖 OCR 期间的手动操作、末手锁定后立即换英雄，以及操作确认的最大延迟。[并发操作与末手回归](docs/validation/responsive-recognition.md)
 
