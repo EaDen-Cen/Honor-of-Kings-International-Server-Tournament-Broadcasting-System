@@ -579,12 +579,13 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
               nextFrame=freeze();nextTime=metadata.mediaTime;
             });
           };
-          if(presentedTime!==undefined && video.requestVideoFrameCallback) observeNext(presentedTime);
+          if(presentedTime!==undefined && typeof video.requestVideoFrameCallback==='function') observeNext(presentedTime);
         }
         const readTargets=async(items:typeof turnTargets):Promise<RecognitionResponse[]>=>{
-          if(!useBatch || (!lastPick && items.length===1)){
+          const readSingles=()=>mapWithConcurrency(items,2,item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal,frame,slot:item.key}));
+          if(!useBatch || !canTryPortraitBatches() || (!lastPick && items.length===1)){
             if(lastPick) indicateRecognition();
-            return mapWithConcurrency(items,2,item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal,frame,slot:item.key}));
+            return readSingles();
           }
           const previous=previousFinalFrame.current;
           const crops=items.map(item=>{
@@ -597,7 +598,13 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           const found=crops.map(crop=>lastPick ? recentPickReads.current.find(read=>read.image===crop.image && read.lockImage===crop.lockImage)?.result : undefined);
           const missing=crops.filter((_,i)=>!found[i]);
           if(lastPick && missing.length) indicateRecognition();
-          const reads=missing.length ? await recognizePortraitBatch(missing,revision,token,request.signal) : [];
+          let reads;
+          try{
+            reads=missing.length ? await recognizePortraitBatch(missing,revision,token,request.signal) : [];
+          }catch(error){
+            if(current() && !request.signal.aborted && !canTryPortraitBatches()) return readSingles();
+            throw error;
+          }
           let next=0;
           const results=crops.map((crop,i)=>found[i]??{...reads[next++],preview:crop.image});
           if(current()){

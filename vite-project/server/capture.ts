@@ -216,8 +216,9 @@ async function portraitViews(
       penalty: template && spec.scale < 0.7 ? 0.08 + (0.6 - spec.scale) * 0.5 : 0,
     });
   }
-  // The catalog already processes heroes concurrently; live crops can overlap native resizes.
-  return mapWithConcurrency(variants, template ? 1 : 3, async ({ region, penalty }) => ({
+  // Bound large-image decoding and catalog memory while overlapping small live crop resizes.
+  const concurrency = !template && width * height <= 262144 ? 3 : 1;
+  return mapWithConcurrency(variants, concurrency, async ({ region, penalty }) => ({
     pixels: await portraitPixels(viewSource(), region),
     penalty,
   }));
