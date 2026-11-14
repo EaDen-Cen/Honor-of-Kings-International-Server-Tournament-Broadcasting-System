@@ -160,6 +160,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const pickSlotStability=useRef<Record<string,HeroRecognitionStability>>({});
   const recentPickReads=useRef<Array<{image:string;lockImage?:string;result:RecognitionResponse}>>([]);
   const previousFinalFrame=useRef<{frame:HTMLCanvasElement;crops:PickCrop[]}>();
+  const warmFinal=useRef<{controller:AbortController;crops:PickCrop[]}>();
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const lastPick=phase?.action==='pick' && state[`${phase.team}Picks`].length===4 && state[phase.team==='blue'?'redPicks':'bluePicks'].length===5;
@@ -334,6 +335,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     captureGeneration.current++;captureRequest.current.cancel();busyRef.current=false;setBusy(false);
     lastAutoFrame.current={at:-Infinity,time:-1};
     previousFinalFrame.current=undefined;
+    warmFinal.current?.controller.abort();warmFinal.current=undefined;
     heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
     pickSlotStability.current={};pickLocks.current={};
     setResult(undefined);setManualResult(undefined);setGroupSelected({});setCandidateStatus('');
@@ -383,10 +385,12 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     element?.addEventListener('resize',resize);
     const pendingSelection=selection;
     const pendingCapture=captureRequest;
+    const pendingWarm=warmFinal;
     return()=>{
       mounted.current=false;attachment++;unsubscribe();element?.removeEventListener('resize',resize);
       pendingSelection.current?.abort();pendingSelection.current=undefined;
       pendingCapture.current.cancel();
+      pendingWarm.current?.controller.abort();
       if(element)element.srcObject=null;
     };
   },[resetCapture]);
@@ -559,6 +563,24 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           if(!emptyFinalSlot(still,turnTargets[0].region)) return false;
           pickSlotStability.current={};pickLocks.current={};
           setManualResult(undefined);setCandidateStatus(t('captureWaiting'));setMessage(t('captureWaitingForFrame'));
+          if(useBatch && !warmFinal.current){
+            if(teamTargets.slice(0,4).every(item=>!emptyFinalSlot(still,item.region))){
+              const crops=teamTargets.slice(0,4).map(item=>({slot:item.key,...captureCrop(item.region,'square',still)}));
+              previousFinalFrame.current={frame:still,crops};
+              const missing=crops.filter(crop=>!recentPickReads.current.some(read=>read.image===crop.image && read.lockImage===crop.lockImage));
+              const controller=new AbortController();
+              warmFinal.current={controller,crops:missing};
+              if(missing.length){
+                // This primes exact local reads once; it never advances stability or blocks the next video frame.
+                const timeout=setTimeout(()=>controller.abort(),25000);
+                void recognizePortraitBatch(missing,revision,token,controller.signal).then(reads=>{
+                  if(!mounted.current || controller.signal.aborted || signature!==captureContext.current || source!==streamRef.current) return;
+                  const warmed=missing.map((crop,i)=>({...crop,result:{...reads[i],preview:crop.image}}));
+                  recentPickReads.current=[...recentPickReads.current,...warmed].slice(-10);
+                }).catch(()=>{}).finally(()=>clearTimeout(timeout));
+              }
+            }
+          }
           return true;
         };
         if(lastPick){
@@ -597,6 +619,12 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           // Only unrestricted local reads can be reused across slots. Each current frame still supplies both images.
           const found=crops.map(crop=>lastPick ? recentPickReads.current.find(read=>read.image===crop.image && read.lockImage===crop.lockImage)?.result : undefined);
           const missing=crops.filter((_,i)=>!found[i]);
+          const warming=warmFinal.current?.crops;
+          if(warming?.length){
+            // If priming is in flight, match changed portraits first. Identical ones share server jobs.
+            const warmingIndex=(crop:PickCrop)=>Number(warming.some(other=>other.image===crop.image && other.lockImage===crop.lockImage));
+            missing.sort((a,b)=>warmingIndex(a)-warmingIndex(b));
+          }
           if(lastPick && missing.length) indicateRecognition();
           let reads;
           try{
@@ -605,8 +633,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             if(current() && !request.signal.aborted && !canTryPortraitBatches()) return readSingles();
             throw error;
           }
-          let next=0;
-          const results=crops.map((crop,i)=>found[i]??{...reads[next++],preview:crop.image});
+          const results=crops.map((crop,i)=>found[i]??{...reads[missing.indexOf(crop)],preview:crop.image});
           if(current()){
             recentPickReads.current=[...recentPickReads.current.filter(read=>!crops.some(crop=>crop.image===read.image && crop.lockImage===read.lockImage)),
               ...crops.map((crop,i)=>({...crop,result:results[i]}))].slice(-10);
