@@ -4,12 +4,69 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import type { Worker, createWorker } from 'tesseract.js';
-import { recognizeLiveHud, recognizeLiveHudCrops } from './gameDataRecognition.js';
+import {
+  decodeGameFrame,
+  decodeLiveHudFrame,
+  extractLiveHudCrops,
+  frameHasVisualContent,
+  recognizeLiveHud,
+  recognizeLiveHudCrops,
+} from './gameDataRecognition.js';
 import { PlayerRecognitionProvider } from './playerRecognition.js';
 import { liveCaptureKeys, liveCaptureRects, pixelRect } from '../src/shared/gameCapture.js';
 import { broadcastArtwork } from '../src/shared/broadcastArtwork.js';
 import assets from '../src/data/broadcastArtAssets.js';
 import heroes from '../src/components/HeroList.js';
+
+test('shared full-frame pixels preserve content checks, orientation, alpha and calibrated crops', async () => {
+  const fixture = JSON.parse(
+    await readFile(new URL('./fixtures/game-data-screenshots.json', import.meta.url), 'utf8'),
+  );
+  const original = Buffer.from(fixture.hud, 'base64');
+  const cases = [
+    { type: 'png', bytes: await sharp(original).ensureAlpha(0.5).png().toBuffer() },
+    {
+      type: 'jpeg',
+      bytes: await sharp(original)
+        .resize(960, 540)
+        .withMetadata({ orientation: 6 })
+        .jpeg()
+        .toBuffer(),
+    },
+    {
+      type: 'png',
+      bytes: await sharp({ create: { width: 960, height: 540, channels: 3, background: '#000' } })
+        .png()
+        .toBuffer(),
+    },
+  ];
+  for (const { type, bytes } of cases) {
+    const image = 'data:image/' + type + ';base64,' + bytes.toString('base64');
+    const encoded = await decodeGameFrame(image);
+    const decoded = await decodeLiveHudFrame(image);
+    assert.equal(await frameHasVisualContent(decoded), await frameHasVisualContent(encoded));
+    assert.deepEqual(
+      await extractLiveHudCrops(decoded, liveCaptureRects),
+      await extractLiveHudCrops(encoded, liveCaptureRects),
+    );
+  }
+});
+
+test('the whole-frame blank guard preserves the original channel and variance boundary', async () => {
+  for (const spread of [0, 8, 9, 10, 11, 255]) {
+    const rgba = Buffer.alloc(24 * 32 * 4);
+    for (let i = 0; i < rgba.length; i += 4) {
+      rgba[i] = i % 8 ? spread : 0;
+      rgba[i + 1] = i % 8 ? 255 : 0;
+      rgba[i + 3] = 127;
+    }
+    const frame = await sharp(rgba, { raw: { width: 24, height: 32, channels: 4 } })
+      .png()
+      .toBuffer();
+    const measured = await sharp(frame).stats();
+    assert.equal(await frameHasVisualContent(frame), measured.channels[0].stdev >= 5);
+  }
+});
 
 test('small lossless HUD transport keeps exactly the full-frame OCR inputs and rejects invalid crops', async () => {
   const fixture = JSON.parse(
@@ -125,6 +182,7 @@ test('numeric worker warm-up is shared and weak HUD cells are not recognized twi
     await provider.prepare();
     await Promise.all([provider.prepareNumbers(), provider.prepareNumbers()]);
     assert.equal(created, 2, 'one player worker and one resident numeric worker');
+    assert.equal(reads, 1, 'concurrent warm-ups prime the resident numeric worker only once');
     const image =
       'data:image/png;base64,' +
       (
@@ -133,7 +191,7 @@ test('numeric worker warm-up is shared and weak HUD cells are not recognized twi
           .toBuffer()
       ).toString('base64');
     const result = await provider.recognizeNumbers(Array(7).fill(image));
-    assert.equal(reads, 8, 'one page and one isolated retry per weak field');
+    assert.equal(reads, 9, 'one warm-up, one page and one isolated retry per weak field');
     assert.deepEqual(result.confidences, Array(7).fill(0.9));
   } finally {
     await provider.close();

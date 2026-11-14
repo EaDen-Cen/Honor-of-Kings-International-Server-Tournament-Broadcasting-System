@@ -16,6 +16,7 @@ import {
 } from '../src/shared/postGame.js';
 import {
   decodeGameFrame,
+  decodeLiveHudFrame,
   frameHasVisualContent,
   recognizeLiveHud,
   recognizeLiveHudCrops,
@@ -61,6 +62,7 @@ import { DiscordVoting } from './discordVoting.js';
 import { PostGameCarousel } from './postGameCarousel.js';
 import { recognizeSettlementGoldCurve } from './settlementGoldCurve.js';
 import { operatorPreferenceKey } from '../src/shared/operatorPreferences.js';
+import { mapWithConcurrency } from '../src/shared/mapWithConcurrency.js';
 import { uploadPortrait, servePortrait } from './portraits.js';
 import {
   captureRegion,
@@ -68,6 +70,7 @@ import {
   localCaptureRequest,
   prepareHeroTemplates,
   recognizeClientFrame,
+  recognizePortraitCandidates,
   recognizeLineup,
   recognizeScreen,
 } from './capture.js';
@@ -1149,7 +1152,9 @@ const server = createServer(async (req, res) => {
           });
           return;
         }
-        const frame = await decodeGameFrame(input.image, input.region);
+        const frame = url.pathname.endsWith('live-hud')
+          ? await decodeLiveHudFrame(input.image, input.region)
+          : await decodeGameFrame(input.image, input.region);
         if (!(await frameHasVisualContent(frame))) {
           json(422, {
             error:
@@ -1157,7 +1162,7 @@ const server = createServer(async (req, res) => {
           });
           return;
         }
-        if (url.pathname.endsWith('live-hud')) {
+        if (!Buffer.isBuffer(frame)) {
           if (input.context !== context) {
             json(409, { error: 'Game changed; capture again' });
             return;
@@ -1353,6 +1358,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       if (url.pathname === '/api/match-export' && req.method === 'GET') {
+        await store.waitForPendingWrites();
         json(200, archiveData(dataFile, uploadDirectory, false));
         return;
       }
@@ -1366,6 +1372,7 @@ const server = createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         try {
+          await store.waitForPendingWrites();
           json(201, { file: recovery.create(true) });
         } catch {
           diagnostics.record('backup_failed');
@@ -1469,7 +1476,11 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    if (url.pathname === '/api/recognize-frame' || url.pathname === '/api/v1/recognition/frame') {
+    if (
+      url.pathname === '/api/recognize-frame' ||
+      url.pathname === '/api/v1/recognition/frame' ||
+      url.pathname === '/api/v1/recognition/portraits'
+    ) {
       if (req.method !== 'POST') {
         json(405, { error: 'POST required' });
         return;
@@ -1501,20 +1512,59 @@ const server = createServer(async (req, res) => {
           json(409, { error: 'Stale capture' });
           return;
         }
+        const scope = JSON.stringify([store.data.revision, store.data.state.heroPool]);
+        if (url.pathname === '/api/v1/recognition/portraits') {
+          const crops = input.crops;
+          if (!Array.isArray(crops) || crops.length < 1 || crops.length > 10) {
+            json(400, { error: 'Expected 1–10 portrait crops' });
+            return;
+          }
+          const results = await mapWithConcurrency(crops, 2, async (crop) => {
+            if (res.destroyed || input.revision !== store.data.revision)
+              throw new Error('Stale portrait batch');
+            const read = await recognizeAiWithFallback(
+              crop.image,
+              crop.allowedHeroIds,
+              () =>
+                crop.lockImage === undefined
+                  ? recognizePortraitCandidates(crop.image, crop.allowedHeroIds)
+                  : recognitionProvider.recognize({ ...crop, shape: 'square' }),
+              scope,
+              crop.slot,
+            );
+            return {
+              candidates: read.candidates,
+              lockCue: 'lockCue' in read ? read.lockCue : undefined,
+            };
+          });
+          if (input.revision !== store.data.revision)
+            json(409, { error: 'State changed during capture' });
+          else json(200, { results });
+          return;
+        }
         const result = await recognizeAiWithFallback(
           input.image,
           input.allowedHeroIds,
           () => recognitionProvider.recognize(input),
-          JSON.stringify([store.data.revision, store.data.state.heroPool]),
+          scope,
+          input.slot,
         );
         if (input.revision !== store.data.revision) {
           json(409, { error: 'State changed during capture' });
           return;
         }
         const omitPreview = input.omitEchoPreview === true && result.preview === input.image;
-        json(200, omitPreview ? { ...result, preview: undefined } : result);
-      } catch {
-        json(400, { error: 'Browser frame recognition failed' });
+        json(200, {
+          ...result,
+          preview: omitPreview ? undefined : result.preview,
+          portraitBatch: true,
+        });
+      } catch (error) {
+        if (!res.destroyed && !res.headersSent) {
+          if (error instanceof Error && error.message === 'Stale portrait batch')
+            json(409, { error: 'State changed during capture' });
+          else json(400, { error: 'Browser frame recognition failed' });
+        }
       }
       return;
     }
@@ -1698,6 +1748,7 @@ const server = createServer(async (req, res) => {
                 : await previewTeamLibrary(body.bundle, presets),
             );
           } else if (body.previewId !== undefined) {
+            await store.waitForPendingWrites();
             json(
               200,
               pendingTeamImport.confirm(body.previewId, owner, body.conflict, () =>
@@ -1706,6 +1757,7 @@ const server = createServer(async (req, res) => {
             );
           } else {
             // Preserve a point-in-time backup before replacing any existing roster.
+            await store.waitForPendingWrites();
             recovery.create(true);
             json(
               200,
@@ -1950,6 +2002,7 @@ interface Client {
   window: number;
 }
 const clients = new Map<WebSocket, Client>();
+let stopping = false;
 const snapshotPayloads = new Map<Role, { version: string; payload: string }>();
 function update(ws: WebSocket, force = false) {
   const c = clients.get(ws);
@@ -1989,7 +2042,7 @@ wss.on('connection', (ws, req) => {
     clearTimeout(authTimeout);
     clients.delete(ws);
   });
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     const c = clients.get(ws)!;
     let id: unknown;
     try {
@@ -2026,7 +2079,8 @@ wss.on('connection', (ws, req) => {
       }
       if (c.role !== 'control') throw new Error('当前页面仅供查看，无法修改比赛');
       if (message.type !== 'action') throw new Error('不支持此消息类型');
-      store.apply(message.id, message.revision, message.action);
+      if (stopping) throw new Error('服务器正在停止');
+      await store.applyDurably(message.id, message.revision, message.action);
       strictVoting?.observe(store.data.state);
       // Authoritative mutations supersede in-flight cloud interpretations.
       aiRecognition.invalidate();
@@ -2076,13 +2130,23 @@ server.listen(
 );
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
+    if (stopping) return;
+    stopping = true;
     diagnostics.record('server_stop');
     clearInterval(recoveryTimer);
     clearInterval(storageTimer);
     void playerRecognition.close();
     clearInterval(tick);
     clearInterval(heartbeat);
-    for (const ws of clients.keys()) ws.close(1001, '服务器正在停止');
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 2000).unref();
+    const connectionsClosed = new Promise<void>((done) => {
+      server.close(() => done());
+    });
+    void store.waitForPendingWrites().then(async () => {
+      for (const ws of clients.keys()) ws.close(1001, '服务器正在停止');
+      await Promise.race([
+        connectionsClosed,
+        new Promise<void>((done) => setTimeout(done, 2000).unref()),
+      ]);
+      process.exit(0);
+    });
   });

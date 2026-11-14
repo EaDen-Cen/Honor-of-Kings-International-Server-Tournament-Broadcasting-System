@@ -6,6 +6,30 @@
 
 核查日期：2026-11-08。HOK 基线为 main `6b5abd9`（#113，包含 BO7/逐局规则/盲选）；此文是源码研究与迁移判断，不是 BetterGI 或 PaddleOCR 在 HOK 上的性能实测。
 
+## 2026-11-12 补测：加载与比赛中的识别
+
+本次对照取 BetterGI 的 `cc3099a` 和 HOK 的 `0bed851`。BetterGI 的自动拾取先找拾取键，根据缩放定位文字行，检查聊天或设置图标等干扰。Paddle 路径在字框清晰时直接识别文字行，边界提取失败时才在局部区域运行检测。Paddle 服务构造时还用一张图完成一次推理预热。源码能说明实际工作量，两个程序在这台机器上的同图速度差仍需另测。[拾取流程](https://github.com/babalae/better-genshin-impact/blob/cc3099a1a8e6470bdbd649dd232aa06011cd60a0/BetterGenshinImpact/GameTask/AutoPick/AutoPickTrigger.cs#L316-L474) · [服务初始化](https://github.com/babalae/better-genshin-impact/blob/cc3099a1a8e6470bdbd649dd232aa06011cd60a0/BetterGenshinImpact/Core/Recognition/OCR/Paddle/PaddleOcrService.cs#L139-L159)
+
+HOK 启动时已经在后台准备英雄模板；数字 OCR 预热要等选手 ID 模型就绪。BP 头像和勾号是图像匹配。数字、选手 ID 用文字 OCR。[服务启动](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/0bed851/vite-project/server/server.ts#L84-L96) · [模板生成](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/blob/0bed851/vite-project/server/capture.ts#L261-L300)
+
+Windows / Node 24.14.1，在独立进程中交错测试三种准备方式，每种三次。计时从开始准备模板到 120 个英雄的方形和圆形特征可用。所有英雄 ID、视图顺序、浮点特征、分块特征和匹配惩罚的校验值一致。生成临时包的写盘时间在计时外。系统文件缓存未清空。
+
+| 头像模板准备方式 | 新增文件 | 中位数 | 最慢 |
+| --- | ---: | ---: | ---: |
+| 现有方式，每次从原图生成 | 0 | 1405.86 ms | 1421.47 ms |
+| 读取预生成的 32×32 RGB 裁图，再计算特征 | 5.69 MiB | 256.76 ms | 258.05 ms |
+| 直接读取全部浮点特征 | 81.50 MiB | 70.80 ms | 74.02 ms |
+
+另做了三对联合实验，从启动头像、选手 ID 和数字识别的准备工作，到三者全部就绪。现有顺序中位 2630.85 ms；小裁图包配合并行预热中位 1475.82 ms。两项调整合计节省约 1.16 秒。这项计时不含 Node 进程启动、页面挂载、第一张真实比赛图片、网络及 OBS。若将小包接入发行版，应随图像内容和算法版本失效，缺失或校验失败时回退原有模板生成流程。
+
+### 实际采用的完整特征包
+
+PR #118 的实现采用完整 Float64 特征包。Windows 构建产物为 85,460,183 字节。启动时校验识别原图、特征算法版本和完整包内容，在读取后一块数据的同时校验前一块。缺失或损坏时仍按原图生成，重新构建可恢复磁盘包。
+
+同机正式入口 `prepareHeroTemplates()` 从开始调用至 120 名英雄就绪，原图基线三次中位 1473.76 ms、最高 1895.74 ms。完整包七次为 96.82、99.43、97.92、98.58、97.56、106.78、102.90 ms，中位 98.58 ms，最高 106.78 ms。全部方形及圆形特征的校验值一致；两名英雄四个裁框的前五候选与各项分数逐项相同。测试每次新建 Node 进程，操作系统文件缓存未清空。捕获首张画面、比赛中推理、操作确认和 OBS 渲染的延迟独立计量。
+
+末手回放中，三次持续监控的第一次同队批量读取结束，到发出下一次独立核验请求，分别经过 29、38、40 ms。该间隔包含浏览器调度、采帧和编码。可试在前一次请求处理期间只记下最新呈现帧，返回后立即复核，维持最多一个请求在途，并检验冻结帧、换源和人工接管。对于局内顶栏，可把仅识别文本行的候选引擎与现有数字 OCR 放在同批七字段裁图上对照，同时看准确率、实际播错次数和最慢一帧。[HOK 回放与测试边界](../validation/responsive-recognition.md) · [BetterGI 单行及批量接口](https://github.com/babalae/better-genshin-impact/blob/cc3099a1a8e6470bdbd649dd232aa06011cd60a0/BetterGenshinImpact/Core/Recognition/OCR/Paddle/PaddleOcrService.cs#L206-L229)
+
 ## 固定的源码版本
 
 BetterGI 仓库 `babalae/better-genshin-impact`，本次查阅的提交为 [`a9e08fc0b275f244633e02618db88190826e06e5`](https://github.com/babalae/better-genshin-impact/commit/a9e08fc0b275f244633e02618db88190826e06e5)，提交时间 2026-11-07 06:30:11 UTC，查询时默认分支为 `refactor/20260930`。下面链接都固定到该提交，不能把旧版教程或方法名当作当前实现。

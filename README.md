@@ -1,6 +1,10 @@
 # HOK Broadcast · 王者荣耀赛事 BP 导播系统
 
-当前主分支已合入 #115 的空间维护与 OCR 修复，以及 #116 的国际服英雄审计（2026-11-09，120 项）。本轮开发基于 `a6a1af1`。在 Control 的「帮助 → 操作指南 / 版本」可查看最近一次比赛操作确认耗时。BP 图片、GHUD 远程采样、队伍资料导入和头像预览的对比数据与复测命令见[上传与动作延迟验证](docs/validation/upload-latency.md)。
+此开发分支的 BP 识别在构建时预生成完整英雄头像特征，服务重启后直接读取。用源码安装时，在 `vite-project` 运行 `npm run build` 即可。[Windows 启动与更新](docs/guides/windows-launcher.md)
+
+上传性能改进已通过 #117 合入 main（`751b2c8`）。后续分支增加了 OCR 在途时的手动接管、末手换英雄核对和本次会话最高操作确认耗时。可按同一流程在导播机上复测。[操作与测量记录](docs/validation/responsive-recognition.md)
+
+#117 基于已包含 #115 空间维护与 OCR 修复、#116 国际服英雄审计的 `a6a1af1`。BP 图片、GHUD 远程采样、队伍资料导入和头像预览的基线数据见[上传与动作延迟验证](docs/validation/upload-latency.md)。
 
 > **2026-11-08 / 维护与 OCR（#115 已合并）**：基于 main `6b5abd9`（#112 与 #113 已合并），保留 BO7、逐局规则和盲选；未采用已关闭 #114。新增设置中的只读空间统计、带来源证明的过期文件预览/清理与默认关闭的定期任务；修复失败 OCR 缓存和重复观测，时钟遮挡时按字段保留可信值。见 [空间工具](docs/guides/storage-maintenance.md)、[回放入口](docs/guides/hud-occlusion-replay.md)、[验证与缺样](docs/validation/storage-ocr-reliability.md)。旧无凭据文件及全部上传资料受保护。
 

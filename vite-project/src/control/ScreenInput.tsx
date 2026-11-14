@@ -1,4 +1,9 @@
 import { shouldAutoAcceptRecognition } from './recognitionAcceptance';
+import { capturePortraitImage } from './capturePortraitImage';
+import { swappedFinalPickIndex } from './finalPickRecovery';
+import { draftHeroUsed } from '../shared/draftRules';
+import { mapWithConcurrency } from '../shared/mapWithConcurrency';
+import { observePortraitBatchSupport, recognizesPortraitBatches, recognizePortraitBatch } from './portraitBatch';
 import { apiURL } from '../shared/config';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heroForState, heroesForState } from '../shared/heroData';
@@ -44,6 +49,7 @@ type SingleCaptureResult = {
 type PickGroupCaptureResult = {
   kind: 'pick-group';
   team:'blue'|'red';
+  recoveredFrom?:CaptureSlotKey;
   entries:Array<{
     key:CaptureSlotKey;
     candidates:HeroCandidate[];
@@ -132,7 +138,6 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const [selectedCapturePresetId,setSelectedCapturePresetId]=useState('');
   const [capturePresetName,setCapturePresetName]=useState('');
 
-  const dialog=useRef<HTMLDialogElement>(null);
   const videoRef=useRef<HTMLVideoElement>(null);
   const precisionWorkspace=useRef<HTMLDivElement>(null);
   const streamRef=useRef<MediaStream>();
@@ -145,15 +150,18 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const samples=useRef<Array<{phaseKey:string;region:NormalizedCaptureRegion;shape:string;image:string;lockImage:string;result:RecognitionResponse}>>([]);
 
   const busyRef=useRef(false);
+  const lastAutoFrame=useRef({ at: -Infinity, time: -1 });
   const dragStart=useRef<{x:number;y:number}|null>(null);
   const heroStability=useRef<HeroRecognitionStability>(freshHeroStability());
   const heroLockStability=useRef<HeroLockStability>(freshHeroLockStability());
   const pickLocks=useRef<Record<string,HeroLockStability>>({});
   const pickSlotStability=useRef<Record<string,HeroRecognitionStability>>({});
+  const checkingFinalSwap=useRef(false);
+  const swapCueSlot=useRef(-1);
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
-  const recognitionContext=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,state.draftMode,state.firstPickSide,state.banCount,autoWatch,state.recognitionAutoAccept,state.recognitionThreshold,slots]);
+  const recognitionContext=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,state.draftMode,state.firstPickSide,state.banCount,state.bluePicks,state.redPicks,state.blueBans,state.redBans,state.heroPool,autoWatch,state.recognitionAutoAccept,state.recognitionThreshold,slots]);
   captureContext.current=recognitionContext;
   const target=useMemo(()=>captureTargetForState(state,slots),[state,slots]);
   const turnTargets=useMemo(()=>captureTargetsForCurrentTurn(state,slots),[state,slots]);
@@ -321,10 +329,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const resetCapture=useCallback(()=>{
     captureGeneration.current++;captureRequest.current.cancel();busyRef.current=false;setBusy(false);
+    lastAutoFrame.current={at:-Infinity,time:-1};
     heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
-    pickSlotStability.current={};pickLocks.current={};
+    pickSlotStability.current={};pickLocks.current={};checkingFinalSwap.current=false;swapCueSlot.current=-1;
     setResult(undefined);setManualResult(undefined);setGroupSelected({});setCandidateStatus('');
-    if(dialog.current?.open)dialog.current.close();
   },[]);
 
   const stopWindowCapture=useCallback(()=>{
@@ -462,11 +470,6 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   },[recognitionContext,resetCapture]);
   useEffect(()=>{setMessage('');},[phaseKey]);
 
-  useEffect(()=>{
-    if(!result||!dialog.current||dialog.current.open) return;
-    dialog.current.showModal();
-  },[result]);
-
   const connectWindow=useCallback(async()=>{
     if(selection.current)return;
     if(!navigator.mediaDevices?.getDisplayMedia){setMessage(t('windowCaptureUnsupported'));return;}
@@ -482,40 +485,26 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     }
   },[t]);
 
-  const captureWindowFrame=useCallback((region?:NormalizedCaptureRegion)=>{
+  const captureWindowFrame=useCallback((region?:NormalizedCaptureRegion,frame?:HTMLCanvasElement)=>{
     const video=videoRef.current;
     if(!videoReady||!video||!video.videoWidth||!video.videoHeight||!streamRef.current?.getVideoTracks().some(track=>track.readyState==='live')) throw new Error(t('windowCaptureNotConnected'));
     const sourceRegion=region??target?.region;
     if(!sourceRegion) throw new Error(t('captureNoActiveSlot'));
-    const pixels=regionToPixels(sourceRegion,video.videoWidth,video.videoHeight);
-    const maxSide=384;
-    const scale=Math.min(1,maxSide/Math.max(pixels.width,pixels.height));
-    const canvas=document.createElement('canvas');
-    canvas.width=Math.max(1,Math.round(pixels.width*scale));
-    canvas.height=Math.max(1,Math.round(pixels.height*scale));
-    const context=canvas.getContext('2d');
-    if(!context) throw new Error('Canvas unavailable');
-    context.imageSmoothingEnabled=true;
-    context.imageSmoothingQuality='high';
-    context.drawImage(
-      video,
-      pixels.x,pixels.y,pixels.width,pixels.height,
-      0,0,canvas.width,canvas.height,
-    );
-    return canvas.toDataURL('image/png');
+    return capturePortraitImage(frame??video,sourceRegion);
   },[target?.region,t,videoReady]);
 
+  const captureCrop=useCallback((region:NormalizedCaptureRegion, shape:'square'|'circle', frame?:HTMLCanvasElement)=>({
+    image:captureWindowFrame(region,frame),
+    lockImage:shape==='circle' ? undefined : captureWindowFrame({
+      ...region,height:Math.min(1-region.y,region.height*1.30),
+    },frame),
+  }),[captureWindowFrame]);
   const recognizeWindowRegion=useCallback(async(
     region:NormalizedCaptureRegion,
-    options?:{allowedHeroIds?:number[];shape?:'square'|'circle';signal?:AbortSignal},
+    options?:{allowedHeroIds?:number[];shape?:'square'|'circle';signal?:AbortSignal;frame?:HTMLCanvasElement;slot?:CaptureSlotKey},
   )=>{
     const version=captureGeneration.current,context=recognitionContext;
-    const image=captureWindowFrame(region);
-    // Keep the portrait matcher on the calibrated artwork. The separate cue
-    // crop includes the checkmark that projects below the Pick portrait.
-    const lockImage = options?.shape === 'circle' ? undefined : captureWindowFrame({
-      ...region, height: Math.min(1 - region.y, region.height * 1.30),
-    });
+    const {image,lockImage}=captureCrop(region,options?.shape??'square',options?.frame);
     const response=await fetch(`${apiURL}/api/recognize-frame`,{
       method:'POST',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
@@ -525,6 +514,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         omitEchoPreview: true,
         revision,
         allowedHeroIds:options?.allowedHeroIds,
+        slot:options?.slot,
         shape:options?.shape??'square',
       }),
       signal:options?.signal,
@@ -532,10 +522,11 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     const payload = await response.json();
     if(!mounted.current||version!==captureGeneration.current||context!==captureContext.current)throw new Error(zh?'BP 阶段、采集源或选框已变化，请重新读取。':'BP phase, source or calibration changed; scan again.');
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
+    observePortraitBatchSupport(payload);
     const data: RecognitionResponse = { ...payload, preview: payload.preview ?? image };
     samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage:lockImage??image,result:data}];
     return data;
-  },[captureWindowFrame,phaseKey,recognitionContext,revision,t,token,zh]);
+  },[captureCrop,phaseKey,recognitionContext,revision,t,token,zh]);
 
   const capture=useCallback(async()=>{
     if(busyRef.current||disabled||!phase||state.committedGameId) return;
@@ -547,13 +538,53 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     const current=()=>mounted.current&&request.isCurrent()&&signature===captureContext.current&&source===streamRef.current;
     try{
       if(phase.action==='pick'){
-        const responses=await Promise.all(turnTargets.map(item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal})));
+        const knownPicks=state[`${phase.team}Picks`];
+        const lastPick=turnTargets.length===1 && knownPicks.length===4 && state[phase.team==='blue'?'redPicks':'bluePicks'].length===5;
+        let checkingSwap=lastPick && checkingFinalSwap.current;
+        const teamTargets=lastPick ? Array.from({length:5},(_,slotIndex)=>{
+          const key=`${phase.team}Pick${slotIndex+1}` as CaptureSlotKey;
+          return {...turnTargets[0],key,slotIndex,region:slots[key]};
+        }) : turnTargets;
+        let targets=checkingSwap ? teamTargets : turnTargets;
+        let frame:HTMLCanvasElement|undefined;
+        if(lastPick){
+          const video=videoRef.current;
+          if(!video?.videoWidth || !video.videoHeight) return;
+          frame=document.createElement('canvas');
+          frame.width=video.videoWidth;frame.height=video.videoHeight;
+          const canvas=frame.getContext('2d');
+          if(!canvas) throw new Error('Canvas unavailable');
+          canvas.drawImage(video,0,0);
+        }
+        const readTargets=async(items:typeof turnTargets):Promise<RecognitionResponse[]>=>{
+          if(items.length===1 || !recognizesPortraitBatches()){
+            return mapWithConcurrency(items,2,item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal,frame,slot:item.key}));
+          }
+          const crops=items.map(item=>({slot:item.key,...(checkingSwap && item.slotIndex!==swapCueSlot.current && item.slotIndex!==4
+            ? {image:captureWindowFrame(item.region,frame),lockImage:undefined}
+            : captureCrop(item.region,'square',frame))}));
+          const reads=await recognizePortraitBatch(crops,revision,token,request.signal);
+          const results=reads.map((read,i)=>({...read,preview:crops[i].image}));
+          if(current()){
+            samples.current=[...samples.current,...items.map((item,i)=>({phaseKey,region:item.region,shape:'square',
+              image:crops[i].image,lockImage:crops[i].lockImage??crops[i].image,result:results[i]}))].slice(-18);
+          }
+          return results;
+        };
+        let responses=await readTargets(targets);
+        if(lastPick && !checkingSwap && current() && knownPicks.includes(responses[0].candidates?.[0]?.heroId??-1)){
+          // Reuse this exact video frame and its P5 read; a swap can disappear before the next scan.
+          checkingSwap=true;
+          swapCueSlot.current=knownPicks.indexOf(responses[0].candidates![0].heroId);
+          targets=teamTargets;
+          responses=[...await readTargets(teamTargets.slice(0,4)),responses[0]];
+        }
         if(!current()||request.signal.aborted) return;
 
-        const scanned=turnTargets.map((item,index)=>{
+        let scanned=targets.map((item,index)=>{
           const data=responses[index];
           const candidates=data.candidates??[];
-          const stabilityKey=`${phaseKey}:${item.key}`;
+          const stabilityKey=`${phaseKey}:${item.key}:${checkingSwap}`;
           const evidence=updateHeroRecognitionStability(
             pickSlotStability.current[item.key]??freshHeroStability(),
             stabilityKey,
@@ -561,13 +592,39 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           );
           pickSlotStability.current[item.key]=evidence.stability;
           const lock=updateHeroLockStability(pickLocks.current[item.key]??freshHeroLockStability(),{
-            phaseKey:stabilityKey,heroId:evidence.top?.heroId,candidateReady:evidence.accepted,
+            phaseKey:stabilityKey,heroId:evidence.top?.heroId,candidateReady:evidence.requiredScans>0,
             action:'pick',lockCue:data.lockCue,
           });
           pickLocks.current[item.key]=lock.stability;
           return {item,data,candidates,evidence,lock};
         });
 
+        let recoveredFrom:CaptureSlotKey|undefined;
+        let scores=scanned.map(entry=>entry.evidence.top?.confidence??0);
+        const lastObserved=scanned.at(-1)?.evidence.top?.heroId;
+        if(lastPick && lastObserved!==undefined && knownPicks.includes(lastObserved)){
+          checkingFinalSwap.current=true;
+          const index=checkingSwap ? swappedFinalPickIndex(state,phase.team,
+            scanned.map(entry=>entry.evidence.accepted ? entry.evidence.top?.heroId : undefined)) : undefined;
+          if(index===undefined){
+            setManualResult(undefined);setCandidateStatus(t('captureWaiting'));
+            setMessage(zh?'末手位置显示已选英雄，正在核对同队五个位置。画面不足时请手动录入。':'The last slot shows an earlier pick. Checking all five teammates; use manual entry if the picture is incomplete.');
+            return;
+          }
+          recoveredFrom=scanned[index].item.key;
+          swapCueSlot.current=index;
+          scanned=[{...scanned[index],item:turnTargets[0]}];
+        }else if(checkingSwap){
+          // The last slot returned to the normal pick layout.
+          checkingFinalSwap.current=false;
+          scanned=scanned.slice(-1);
+          scores=scanned.map(entry=>entry.evidence.top?.confidence??0);
+        }
+        if(scanned.some(entry=>entry.evidence.top && draftHeroUsed(state,entry.evidence.top.heroId))){
+          setManualResult(undefined);setCandidateStatus(t('captureNoCandidate'));
+          setMessage(zh?'当前头像已被选用或禁用，请核对画面或手动录入。':'The visible hero was already picked or banned. Check the picture or enter the pick manually.');
+          return;
+        }
         const allStable=scanned.length>0&&scanned.every(entry=>entry.evidence.accepted&&entry.evidence.top);
         const heroIds=scanned.map(entry=>entry.evidence.top?.heroId).filter((id):id is number=>id!==undefined);
         const distinctHeroes=heroIds.length===scanned.length&&new Set(heroIds).size===heroIds.length;
@@ -575,6 +632,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           setManualResult({
             kind:'pick-group',
             team:phase.team,
+            recoveredFrom,
             entries:scanned.map(entry=>({
               key:entry.item.key,
               candidates:entry.candidates,
@@ -607,6 +665,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         }
 
         if(!scanned.every(entry=>entry.lock.locked)) {
+          if(recoveredFrom){
+            setMessage(zh?'同队五格连续核对出末手候选，但画面缺少连续锁定勾号。请点击人工核对候选。':'Two team reads identified the missing final pick. The lock marker is unconfirmed; open manual candidate review.');
+            return;
+          }
           setMessage(zh?'英雄已稳定，等待每个当前 Pick 头像底部的勾号连续出现两帧。请确保识别框包含勾号。':'Hero stable; waiting for two scans of the bottom checkmark on every current Pick portrait. Include the mark in the capture box.');
           return;
         }
@@ -615,7 +677,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
           entry.item.key,
           entry.evidence.top!.heroId,
         ]));
-        if (shouldAutoAcceptRecognition(state.recognitionAutoAccept,state.recognitionThreshold,scanned.map(entry=>entry.evidence.top!.confidence))) {
+        if (shouldAutoAcceptRecognition(state.recognitionAutoAccept,state.recognitionThreshold,scores)) {
           send({type:'draft_pick_group', team:phase.team, heroIds:scanned.map(entry=>entry.evidence.top!.heroId)});
           return;
         }
@@ -623,6 +685,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         setResult({
           kind:'pick-group',
           team:phase.team,
+          recoveredFrom,
           entries:scanned.map(entry=>({
             key:entry.item.key,
             candidates:entry.candidates,
@@ -636,7 +699,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       }
 
       if(!target) throw new Error(t('captureNoActiveSlot'));
-      const data=await recognizeWindowRegion(target.region,{shape:'circle',signal:request.signal});
+      const data=await recognizeWindowRegion(target.region,{shape:'circle',signal:request.signal,slot:target.key});
       if(!current()||request.signal.aborted) return;
 
       const candidates=data.candidates??[];
@@ -697,15 +760,31 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     }finally{
       if(request.finish()){busyRef.current=false;if(mounted.current)setBusy(false);}
     }
-  },[captureSlotLabel,disabled,label,phase,phaseKey,recognizeWindowRegion,state.committedGameId,state.recognitionAutoAccept,state.recognitionThreshold,send,t,target,turnTargets,zh]);
+  },[captureSlotLabel,captureCrop,captureWindowFrame,disabled,label,phase,phaseKey,recognizeWindowRegion,revision,token,state,slots,send,t,target,turnTargets,zh]);
 
   useEffect(()=>{
     if(!autoWatch||result||disabled||!phase||state.committedGameId||busy||!videoReady) return;
-    // Fast BP can expose a lock cue for well under a second. 250 ms keeps two
-    // independent confirmation scans possible without overlapping requests;
-    // busyRef still guarantees only one recognition job runs at a time.
-    const timer=setTimeout(()=>{void capture();},250);
-    return()=>clearTimeout(timer);
+    const video=videoRef.current;
+    if(!video) return;
+    const read=(now:number,mediaTime:number)=>{
+      if(mediaTime===lastAutoFrame.current.time || now-lastAutoFrame.current.at<30) return false;
+      lastAutoFrame.current={at:now,time:mediaTime};
+      void capture();
+      return true;
+    };
+    if(typeof video.requestVideoFrameCallback==='function'){
+      const onFrame: VideoFrameRequestCallback=(now,frame)=>{
+        if(!read(now,frame.mediaTime)) handle=video.requestVideoFrameCallback(onFrame);
+      };
+      let handle=video.requestVideoFrameCallback(onFrame);
+      return()=>video.cancelVideoFrameCallback(handle);
+    }
+    const timer=window.setInterval(()=>{
+      const quality=video.getVideoPlaybackQuality?.();
+      const frame=quality ? quality.totalVideoFrames-quality.droppedVideoFrames : video.currentTime;
+      if(read(performance.now(),frame)) window.clearInterval(timer);
+    },33);
+    return()=>window.clearInterval(timer);
   },[autoWatch,busy,capture,disabled,phase,result,state.committedGameId,videoReady]);
 
   const pointerDown=(event:React.PointerEvent<HTMLDivElement>)=>{
@@ -730,7 +809,6 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   };
 
   const closeReview=()=>{
-    if(dialog.current?.open) dialog.current.close();
     setResult(undefined);
   };
 
@@ -1015,11 +1093,13 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
       </div>
     </details>
 
-    {result&&<dialog ref={dialog} className="library-dialog capture-review" aria-label={zh?'确认识别结果':'Review recognition'} onCancel={event=>{event.preventDefault();closeReview();}}>
+    {result&&<dialog open className="library-dialog capture-review" aria-label={zh?'确认识别结果':'Review recognition'}
+      onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();closeReview();}}}>
       {result.kind==='pick-group'?<>
         <h2>{zh?(result.entries.length>1?'确认同时选人结果':'确认 Pick 结果'):(result.entries.length>1?'Review simultaneous picks':'Review pick')}</h2>
         <p>{zh?'Pick 以各当前英雄头像底部的勾号为锁定依据。人工打开候选时请自行检查游戏是否已锁定。':'Each current Pick requires its own bottom checkmark. When opening candidates manually, verify the in-game lock yourself.'}</p>
         <div className="pick-group-review">
+          {result.recoveredFrom&&<p>{zh?`末手位置已换入队友英雄。下图来自${captureSlotLabel(result.recoveredFrom)}，确认后仅补记最后一手 Pick。`:`A teammate swapped into the final slot. The image is from ${captureSlotLabel(result.recoveredFrom)}. Confirm to record the final pick.`}</p>}
           {result.entries.map(entry=><div className="pick-group-review-entry" key={entry.key}>
             <strong>{captureSlotLabel(entry.key)}</strong>
             <label>{zh?'候选英雄':'Candidate'}

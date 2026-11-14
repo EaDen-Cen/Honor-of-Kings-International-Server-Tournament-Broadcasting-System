@@ -9,9 +9,14 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { Store } from '../server/store.js';
+import { liveGameContext } from '../src/shared/liveGame.js';
 
 // Pass a second checkout's vite-project as the sole argument to run the very same client against it.
-const project = resolve(process.argv[2] ?? fileURLToPath(new URL('../', import.meta.url)));
+const args = process.argv.slice(2);
+const duringHud = args.includes('--during-hud');
+const project = resolve(
+  args.find((arg) => arg !== '--during-hud') ?? fileURLToPath(new URL('../', import.meta.url)),
+);
 const port = 3128,
   warmup = 8,
   samples = 40;
@@ -22,6 +27,7 @@ async function run(events: number) {
   const file = join(directory, 'match.json'),
     token = randomUUID();
   const seed = new Store().data;
+  if (duringHud) seed.state.draftGameNumber = seed.state.gameNumber;
   seed.revision = events;
   seed.events = Array.from({ length: events }, (_, i) => ({
     id: `fixture-${String(i).padStart(5, '0')}`,
@@ -89,6 +95,23 @@ async function run(events: number) {
     assert.equal(auth.revision, events);
     let revision = auth.revision;
     const timings: number[] = [];
+    let maxWarmupAckMs = 0;
+    const hudTimes: number[] = [];
+    const pingTimes: number[] = [];
+    let confirmedWhileOcrPending = 0;
+    const hudBody =
+      duringHud &&
+      JSON.stringify({
+        image:
+          'data:image/png;base64,' +
+          JSON.parse(
+            await readFile(
+              new URL('../server/fixtures/game-data-screenshots.json', import.meta.url),
+              'utf8',
+            ),
+          ).hud,
+        context: liveGameContext(auth.state),
+      });
     // Both servers normally prepare recognition assets at startup. Keep that work out of the timed samples.
     const options = { headers: { Authorization: 'Bearer ' + token }, signal };
     const base = 'http://127.0.0.1:' + port;
@@ -110,15 +133,52 @@ async function run(events: number) {
         revision,
         action: { type: 'score', team: 'blue', delta },
       });
-      const start = performance.now();
-      ws.send(payload);
-      const snapshot = await receive();
-      assert.equal(snapshot.type, 'match_state_update');
-      assert.equal(snapshot.revision, ++revision);
-      assert.equal(snapshot.state.blueScore, delta > 0 ? 1 : 0);
-      const ack = await receive();
-      const elapsed = performance.now() - start;
-      assert.deepEqual(ack, { type: 'ack', id });
+      const hudStart = performance.now();
+      let hudReturned = false;
+      const hud = hudBody
+        ? fetch(base + '/api/v1/recognition/live-hud', {
+            method: 'POST',
+            headers: { ...options.headers, 'Content-Type': 'application/json' },
+            body: hudBody,
+            signal,
+          }).then(async (response) => {
+            const data = await response.json();
+            assert.equal(response.status, 200, data.error);
+            assert.equal(data.candidates.length, 7);
+            hudReturned = true;
+            return performance.now() - hudStart;
+          })
+        : undefined;
+      // Dispatch the image before the operator action, without waiting for its OCR response.
+      const beforeSend = hud ? pause(5) : Promise.resolve();
+      const socket = ws;
+      const action = beforeSend.then(async () => {
+        const start = performance.now();
+        socket.send(payload);
+        const snapshot = await receive();
+        assert.equal(snapshot.type, 'match_state_update');
+        assert.equal(snapshot.revision, ++revision);
+        assert.equal(snapshot.state.blueScore, delta > 0 ? 1 : 0);
+        const ack = await receive();
+        const elapsed = performance.now() - start;
+        assert.deepEqual(ack, { type: 'ack', id });
+        if (i >= warmup && hud && !hudReturned) confirmedWhileOcrPending++;
+        return { snapshot, elapsed };
+      });
+      const ping = duringHud
+        ? beforeSend.then(async () => {
+            await pause(2);
+            const sent = performance.now();
+            const pong = once(socket, 'pong', { signal });
+            socket.ping();
+            await pong;
+            return performance.now() - sent;
+          })
+        : undefined;
+      const [{ snapshot, elapsed }, hudMs, pingMs] = await Promise.all([action, hud, ping]);
+      if (i < warmup) maxWarmupAckMs = Math.max(maxWarmupAckMs, elapsed);
+      if (i >= warmup && hudMs !== undefined) hudTimes.push(hudMs);
+      if (i >= warmup && pingMs !== undefined) pingTimes.push(pingMs);
       const persisted = JSON.parse(await readFile(file, 'utf8'));
       assert.equal(persisted.revision, revision);
       assert.equal(persisted.ids.at(-1), id);
@@ -136,6 +196,14 @@ async function run(events: number) {
       samples,
       p50Ms: percentile(0.5),
       p95Ms: percentile(0.95),
+      maxMs: percentile(1),
+      maxWarmupAckMs: Number(maxWarmupAckMs.toFixed(2)),
+      overBudget: timings.filter((ms) => ms >= 100).length,
+      ...(duringHud && {
+        confirmedWhileOcrPending,
+        maxHudRequestMs: Math.round(Math.max(...hudTimes)),
+        maxPingMs: Number(Math.max(...pingTimes).toFixed(2)),
+      }),
     };
   } finally {
     ws?.terminate();

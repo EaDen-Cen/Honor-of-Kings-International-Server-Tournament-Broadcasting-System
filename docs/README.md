@@ -1,6 +1,6 @@
 # 文档总索引
 
-导播点击提交后等待时间过长，先核对 Control 的持久化 ACK。识别面板另有裁图上传、服务器处理和预览回传。复现命令与各阶段测量见[上传与动作延迟验证](validation/upload-latency.md)。
+导播点击提交后等待时间过长，可在 Control 查看最近和本次会话最高操作确认耗时。图片上传、识别、末手确认和最终阵容确认分别计时。[上传与动作延迟](validation/upload-latency.md) · [OCR 期间操作与末手回放](validation/responsive-recognition.md)
 
 本地维护与 OCR：[空间占用/安全清理](guides/storage-maintenance.md)、[同批遮挡回放](guides/hud-occlusion-replay.md)、[BetterGI 源码研究](research/bettergi-vision.md)、[架构](architecture/storage-ocr-reliability.md)、[验证](validation/storage-ocr-reliability.md)。
 

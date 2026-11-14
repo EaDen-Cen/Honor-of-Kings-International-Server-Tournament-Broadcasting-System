@@ -1,5 +1,7 @@
 # 导播操作确认、采集上传与队伍资料传输（2026-11-10）
 
+这批改动已通过 #117 合入 main（`751b2c8`）。并行 OCR、磁盘同步长尾和末手快速换英雄的后续测量见[响应性验证](responsive-recognition.md)。
+
 本轮从 main `a6a1af1` 开发。#115 的空间维护和逐字段 OCR 已合入 `29d2212`。当时唯一开放的 #116 已按原提交合并，涉及两名英雄的图片资料。合并前本机运行 `npm run hero:validate` 和英雄同步测试，120 个国际服英雄的映射、引用和本地图片校验通过，26 项测试通过。#116 的两个工作流在合并时显示 `action_required`，随后均以 `failure` 结束。GitHub 返回的任务列表为空，无法从运行日志判定原因。[Broadcast system checks](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions/runs/42697087431) · [Hero data sync](https://github.com/EaDen-Cen/Honor-of-Kings-International-Server-Tournament-Broadcasting-System/actions/runs/42697087458)
 
 ## 在导播机上测量

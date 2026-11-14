@@ -152,6 +152,52 @@ test('changing same-stream image cancels obsolete work; pool and context do not 
   await tick();
   assert.equal(service.diagnostics().busy, false);
 });
+test('weak portraits share the AI budget while only the same slot supersedes an active frame', async (t) => {
+  let now = 10000;
+  const signals: AbortSignal[] = [];
+  let finish!: (value: Awaited<ReturnType<VisionTransport>>) => void;
+  const service = new AiRecognitionService(
+    (_url, _headers, _body, signal) => {
+      signals.push(signal);
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    },
+    () => now,
+  );
+  service.configure(config);
+  t.mock.method(aiRecognition, 'hero', service.hero.bind(service));
+  const read = (frame: string, slot: string) =>
+    recognizeAiWithFallback(frame, [7], local, 'game-3-revision-42', slot);
+  const frame2 = 'data:image/png;base64,ZnJhbWUy';
+  await read(image, 'bluePick1');
+  await read(frame2, 'redPick1');
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].aborted, false);
+  finish(reply({ heroId: 7, confidence: 0.99 }));
+  await tick();
+  assert.equal((await read(image, 'bluePick1')).candidates[0].confidence, 0.95);
+
+  now += 1500;
+  await read(frame2, 'redPick1');
+  assert.equal(signals.length, 2);
+  await read(image, 'redPick1');
+  assert.equal(signals[1].aborted, true);
+  finish(reply({ heroId: 7, confidence: 1 }));
+  await tick();
+  assert.equal(service.diagnostics().cached, 1);
+  assert.equal(service.diagnostics().busy, false);
+});
+test('clients with missing or unsupported portrait slots keep the legacy AI scope', async (t) => {
+  const call = t.mock.method(aiRecognition, 'hero', () => undefined);
+  for (const slot of [undefined, 'redPick6', { slot: 'redPick1' }]) {
+    await recognizeAiWithFallback(image, [7], local, 'revision-42', slot);
+  }
+  assert.deepEqual(
+    call.mock.calls.map(({ arguments: args }) => args[2]),
+    Array(3).fill('revision-42'),
+  );
+});
 test('429 and failures do not queue work, cooldown and TTL expire', async () => {
   let now = 0,
     calls = 0;

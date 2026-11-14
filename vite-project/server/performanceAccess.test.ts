@@ -9,7 +9,7 @@ import { draftHeroGroupKey, draftHeroUsed, draftRestriction } from '../src/share
 import { randomizeSimulatorSlots, simulatorSlotForPhase, simulatorSlotKey } from '../src/simulator/bpSimulatorModel.js';
 import { shouldAutoAcceptRecognition } from '../src/control/recognitionAcceptance.js';
 import { AccessStore } from './access.js';
-import { recognizeClientFrame } from './capture.js';
+import { recognizeClientFrame, recognizePortraitCandidates } from './capture.js';
 import { Store } from './store.js';
 
 test('password persists, rotates all role tokens, rejects old tokens and never stores plaintext',()=>{
@@ -63,6 +63,21 @@ test('exact-frame cache preserves evidence and isolates allowed pools, shape and
   assert.deepEqual(await recognizeClientFrame(image,[heroes[0].id]),expected);
   assert.deepEqual((await recognizeClientFrame(image,[])).candidates,[]);
   assert((await recognizeClientFrame(image,[heroes[1].id],'circle')).candidates.every(candidate=>candidate.heroId===heroes[1].id));
+});
+
+test('identical final-lineup requests coalesce and a new candidate domain is scored independently', async () => {
+  const image = 'data:image/png;base64,' + readFileSync(new URL('../public' + heroes[0].imageLink, import.meta.url)).toString('base64');
+  const pool = heroes.slice(0, 6).map(hero => hero.id);
+  const simultaneous = await Promise.all(Array.from({length: 8}, () => recognizePortraitCandidates(image, pool)));
+  assert.equal(simultaneous[0].candidates[0].heroId, heroes[0].id);
+  simultaneous[0].candidates.length = 0;
+  const again = await recognizePortraitCandidates(image, [...pool].reverse());
+  assert.deepEqual(again, simultaneous[1]);
+  assert.deepEqual((await recognizePortraitCandidates(image, [])).candidates, []);
+  assert.deepEqual((await recognizePortraitCandidates(image, [heroes[1].id])).candidates.map(item => item.heroId), [heroes[1].id]);
+  const sharp = (await import('sharp')).default;
+  const large = await sharp({create:{width:2001,height:2000,channels:3,background:'#222'}}).png().toBuffer();
+  await assert.rejects(recognizePortraitCandidates('data:image/png;base64,' + large.toString('base64'), pool), /dimensions/);
 });
 
 test('snapshot cache version changes when delayed event becomes due without a new action',()=>{

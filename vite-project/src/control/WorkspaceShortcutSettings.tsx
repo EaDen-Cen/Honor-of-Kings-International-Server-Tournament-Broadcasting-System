@@ -24,7 +24,7 @@ export function WorkspaceShortcutSettings({ zh }: { zh: boolean }) {
         event.defaultPrevented ||
         event.repeat ||
         event.isComposing ||
-        document.querySelector('[role="dialog"], dialog[open]')
+        document.querySelector('[role="dialog"], dialog:modal')
       )
         return;
       const target = event.target;

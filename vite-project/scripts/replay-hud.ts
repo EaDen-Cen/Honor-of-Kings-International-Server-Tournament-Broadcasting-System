@@ -3,14 +3,13 @@ import { resolve, dirname } from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { PlayerRecognitionProvider } from '../server/playerRecognition.js';
-import { recognizeLiveHudCrops } from '../server/gameDataRecognition.js';
+import { extractLiveHudCrops, recognizeLiveHudCrops } from '../server/gameDataRecognition.js';
 import { Store } from '../server/store.js';
 import { liveGameContext, trustedLiveUpdates, type LiveHudSample } from '../src/shared/liveGame.js';
 import {
   liveCaptureKeys,
   liveCaptureRects,
   validLiveCaptureRects,
-  pixelRect,
   type LiveCaptureKey,
 } from '../src/shared/gameCapture.js';
 const option = (key: string) => {
@@ -75,7 +74,11 @@ function baselineCache(clock: () => number) {
         });
       const changed = values.flatMap((_, index) => (samples[index] ? [] : [index]));
       if (changed.length) {
-        const r = await provider.recognizeNumbers(changed.map((i) => values[i]));
+        const r = await provider.recognizeNumbers(
+          changed.map((i) => values[i]),
+          false,
+          true,
+        );
         changed.forEach((index, offset) => {
           const s = {
             key: values[index],
@@ -141,18 +144,7 @@ try {
       const meta = await sharp(bytes, { limitInputPixels: 9000000 }).metadata();
       if (meta.width !== 1920 || !meta.height || meta.height < 100 || meta.height > 1080)
         throw Error('Replay expects 1920-wide normalized frames or top strips >=100px');
-      const crops = await Promise.all(
-        liveCaptureKeys.map(
-          async (key) =>
-            'data:image/png;base64,' +
-            (
-              await sharp(bytes)
-                .extract(pixelRect(regions[key], 1920, 1080))
-                .png()
-                .toBuffer()
-            ).toString('base64'),
-        ),
-      );
+      const crops = await extractLiveHudCrops(bytes, regions);
       const result = await recognizeLiveHudCrops(
         crops,
         mode === 'before' ? baseline : provider,
@@ -212,6 +204,7 @@ try {
         candidates: sample.candidates,
         updates,
         expected: f.expected,
+        recognitionMs: result.elapsedMs,
         elapsedMs,
       });
       previous = sample;
@@ -230,6 +223,7 @@ try {
       ),
       recoveries,
       p95PipelineMs: percentile(timings),
+      maxPipelineMs: Math.max(...timings),
       trace,
     });
   }
@@ -297,6 +291,7 @@ try {
           fields: r.fields,
           recoveries: r.recoveries,
           p95PipelineMs: r.p95PipelineMs,
+          maxPipelineMs: r.maxPipelineMs,
         })),
       },
       null,

@@ -14,6 +14,8 @@ npm run build
 npm run server
 ```
 
+构建会准备服务器使用的完整方形 Pick 和圆形 Ban 头像特征。只更新识别原图时也可单独执行 `npm run portrait:prepare`，再重启服务。包缺失或校验失败时，服务器会从原图生成本次运行的模板。
+
 英雄公共构图同步：
 
 ```powershell

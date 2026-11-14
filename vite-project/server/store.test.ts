@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -111,6 +112,77 @@ test('disk failure never advances authoritative state', () => {
   const original = structuredClone(s.data);
   Object.defineProperty(s, 'file', { value: join(folder, 'unavailable\0', 'state.json') });
   assert.throws(() => pick(s, 46)); assert.deepEqual(s.data, original);
+});
+
+test('durable live writes order competing revisions, retry IDs and preserve the entire v2 save', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'hok-durable-'));
+  try {
+    const file = join(dir, 'match.json');
+    const store = new Store(file);
+    const id = randomUUID();
+    const action: Action = { type: 'score', team: 'blue', delta: 1 };
+    const first = store.applyDurably(id, 0, action);
+    const retry = store.applyDurably(id, 0, action);
+    const stale = assert.rejects(store.applyDurably(randomUUID(), 0, action), /比赛状态已更新/);
+    assert.equal(store.snapshot('control').revision, 0);
+    await Promise.all([first, retry, stale]);
+    assert.equal(store.data.revision, 1);
+    for (const next of [{ type: 'undo' }, { type: 'delay', seconds: 0 }] as const) {
+      await store.applyDurably(randomUUID(), store.data.revision, next);
+      assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), JSON.parse(JSON.stringify(store.data)));
+    }
+    assert.deepEqual(new Store(file).data, store.data);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a failed asynchronous save leaves the revision available for retry', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'hok-durable-error-'));
+  try {
+    const file = join(dir, 'match.json');
+    const store = new Store(file);
+    const id = randomUUID();
+    const action: Action = { type: 'score', team: 'blue', delta: 1 };
+    // A directory at the destination makes the atomic rename fail.
+    mkdirSync(file);
+    await assert.rejects(store.applyDurably(id, 0, action), /比赛状态保存失败/);
+    assert.equal(store.data.revision, 0);
+    rmSync(file, { recursive: true });
+    await store.applyDurably(id, 0, action);
+    assert.equal(new Store(file).data.revision, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('clients keep reading the old revision until a slow disk really flushes', { timeout: 5000 }, async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'hok-slow-flush-'));
+  const file = join(dir, 'match.json');
+  const handle = await open(join(dir, 'probe'), 'w');
+  const prototype = Object.getPrototypeOf(handle);
+  const sync = prototype.sync;
+  await handle.close();
+  let entered!: () => void, resume!: () => void;
+  const flushing = new Promise<void>(resolve => { entered = resolve; });
+  const hold = new Promise<void>(resolve => { resume = resolve; });
+  t.mock.method(prototype, 'sync', async function (this: typeof handle) {
+    entered();
+    await hold;
+    await sync.call(this);
+  });
+  const store = new Store(file);
+  const write = store.applyDurably(randomUUID(), 0, { type: 'score', team: 'blue', delta: 1 });
+  try {
+    await flushing;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(store.snapshot('overlay').revision, 0);
+  } finally {
+    resume();
+    await write;
+    assert.equal(new Store(file).data.state.blueScore, 1);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('invalid saved envelopes fail explicitly without replacing the existing match', () => {

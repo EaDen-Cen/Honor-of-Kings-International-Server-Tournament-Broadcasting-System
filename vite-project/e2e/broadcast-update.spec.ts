@@ -30,6 +30,23 @@ test('Ban recognition sends one crop and omits only its echoed preview when requ
     expect(preview).toBe(image);
     expect(evidence.candidates[0].heroId).toBe(hero.id);
     expect(after.payload).toEqual(evidence);
+    expect(evidence.portraitBatch).toBe(true);
+    const batch='/api/v1/recognition/portraits';
+    const crops=[{image,allowedHeroIds:[hero.id]},{image,lockImage:image,allowedHeroIds:[hero.id]}];
+    const portraitRead=await read({...body,shape:'square'});
+    const group=await request.post(batch,{headers,data:{crops,revision}});
+    expect(group.ok()).toBe(true);
+    const groupData=await group.json();
+    expect(groupData.results).toEqual([
+      {candidates:portraitRead.payload.candidates},
+      {candidates:portraitRead.payload.candidates,lockCue:portraitRead.payload.lockCue},
+    ]);
+    for (const [options,status] of [
+      [{data:{crops,revision}},403],
+      [{headers,data:{crops,revision:revision+1}},409],
+      [{headers,data:{crops:Array(11).fill(crops[0]),revision}},400],
+      [{headers,data:{crops:[{image:'invalid'}],revision}},400],
+    ] as const) expect((await request.post(batch,options)).status()).toBe(status);
     const size = (value: typeof body) => Buffer.byteLength(JSON.stringify(value));
     expect(size(compact)).toBeLessThan(size(legacy) * 0.55);
     expect(after.bytes).toBeLessThan(before.bytes * 0.1);

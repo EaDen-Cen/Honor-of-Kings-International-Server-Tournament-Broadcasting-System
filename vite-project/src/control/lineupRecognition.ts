@@ -14,6 +14,34 @@ export interface SolvedTeam {
   minimum: number;
 }
 
+export interface LineupObservation {
+  signature: string;
+  count: number;
+  frame?: number;
+}
+
+export function observeLineup(
+  previous: LineupObservation,
+  signature: string,
+  frame?: number,
+): LineupObservation {
+  // Only a later presented frame in the same capture context can confirm a swap.
+  if (frame === undefined || !Number.isSafeInteger(frame) || frame < 0) return { signature, count: 1 };
+  if (previous.signature !== signature || previous.frame === undefined || frame < previous.frame)
+    return { signature, frame, count: 1 };
+  const count = frame === previous.frame ? previous.count : Math.min(2, previous.count + 1);
+  return { signature, frame, count };
+}
+
+export function lineupPlaybackFrame(quality?: {
+  totalVideoFrames: number;
+  droppedVideoFrames: number;
+}): number | undefined {
+  if (!quality) return;
+  const presented = quality.totalVideoFrames - quality.droppedVideoFrames;
+  return Number.isSafeInteger(presented) && presented > 0 ? presented : undefined;
+}
+
 function permutations(values:number[]):number[][] {
   if(values.length<=1) return [values];
   return values.flatMap((value,index)=>

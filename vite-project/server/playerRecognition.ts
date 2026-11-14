@@ -1,5 +1,5 @@
 import { locateBadgeLabel } from './playerLabelRegion.js';
-import sharp from 'sharp';
+import sharp, { type Region } from 'sharp';
 import { createWorker, OEM, PSM, type Worker } from 'tesseract.js';
 import { resolve } from 'node:path';
 import { existsSync, copyFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -23,6 +23,7 @@ export interface PlayerOcrCandidate {
 interface DecodedCrop {
   input: Buffer;
   darkBackground: boolean;
+  region?: Region;
 }
 
 /** Resident offline language workers; ID crops are batched into OCR pages. */
@@ -134,11 +135,15 @@ export class PlayerRecognitionProvider {
         const meta = await sharp(input, { limitInputPixels: 1000000 }).metadata();
         if (!meta.width || !meta.height || meta.width > 2048 || meta.height > 512)
           throw new Error('ID crop too large');
-        const stats = await sharp(input)
-          .flatten({ background: '#fff' })
-          .greyscale()
-          .normalize()
-          .stats();
+        // stats() reads the original first channel and also computes unused entropy,
+        // sharpness and dominant colour. Most screen crops are unprofiled 8-bit RGB.
+        if (meta.space === 'srgb' && meta.depth === 'uchar' && !meta.hasProfile) {
+          const red = await sharp(input).extractChannel(0).raw().toBuffer();
+          let sum = 0;
+          for (const value of red) sum += value;
+          return { input, darkBackground: sum < 135 * red.length };
+        }
+        const stats = await sharp(input).stats();
         return { input, darkBackground: (stats.channels[0]?.mean ?? 255) < 135 };
       }),
     );
@@ -167,16 +172,22 @@ export class PlayerRecognitionProvider {
     width: number,
     variant: PlayerOcrCandidate['variant'],
   ) {
-    // Materialize contrast BEFORE adding the 608px padding. Otherwise Sharp's
-    // percentile normalization measures mostly padding and erases dim strokes.
-    const contrast = await sharp(crop.input)
-      .flatten({ background: '#fff' })
-      .greyscale()
-      .normalize()
-      .png()
-      .toBuffer();
-    let ink = sharp(contrast);
-    if (variant !== 'soft' && variant !== 'yellow' && variant !== 'label')
+    // Normalize before padding so faint strokes survive the resize.
+    const image = sharp(crop.input);
+    if (crop.region) image.extract(crop.region);
+    const contrast = image.flatten({ background: '#fff' }).greyscale().normalize();
+    if (variant === 'soft') {
+      const { data, info } = await contrast.raw().toBuffer({ resolveWithObject: true });
+      if (crop.darkBackground) {
+        for (let i = 0; i < data.length; i++) data[i] = 255 - data[i];
+      }
+      return sharp(data, { raw: { width: info.width, height: info.height, channels: 1 } })
+        .resize(width - 32, 40, { fit: 'contain', background: '#fff' })
+        .png()
+        .toBuffer();
+    }
+    let ink = sharp(await contrast.png().toBuffer());
+    if (variant !== 'yellow' && variant !== 'label')
       ink = ink.threshold(variant === 'threshold170' || variant === 'label170' ? 170 : 190);
     if (crop.darkBackground) ink = ink.negate({ alpha: false });
     const prepared = await ink.png().toBuffer();
@@ -190,7 +201,7 @@ export class PlayerRecognitionProvider {
    * Scaling the entire strip to 40px used to shrink dim glyphs into a few pixels.
    * Use the source luminance, not normalized background gradients, to find ink.
    */
-  private async localizePlayerInk(crop: DecodedCrop): Promise<DecodedCrop> {
+  private async localizePlayerInk(crop: DecodedCrop, deferExtract = false): Promise<DecodedCrop> {
     const { data, info } = await sharp(crop.input)
       .flatten({ background: '#fff' })
       .greyscale()
@@ -230,12 +241,11 @@ export class PlayerRecognitionProvider {
     top = Math.max(0, top - 2);
     right = Math.min(info.width - 1, right + 2);
     bottom = Math.min(info.height - 1, bottom + 2);
+    const region = { left, top, width: right - left + 1, height: bottom - top + 1 };
+    if (deferExtract) return { ...crop, region };
     return {
       ...crop,
-      input: await sharp(crop.input)
-        .extract({ left, top, width: right - left + 1, height: bottom - top + 1 })
-        .png()
-        .toBuffer(),
+      input: await sharp(crop.input).extract(region).png().toBuffer(),
     };
   }
 
@@ -321,8 +331,7 @@ export class PlayerRecognitionProvider {
     };
   }
 
-  private async readPage(crops: Buffer[], rowHeight = 64, worker = this.worker) {
-    const width = 640;
+  private async readPage(crops: Buffer[], rowHeight = 64, worker = this.worker, width = 640) {
     const page = await sharp({
       create: { width, height: rowHeight * crops.length, channels: 3, background: '#fff' },
     })
@@ -368,8 +377,8 @@ export class PlayerRecognitionProvider {
   }
 
   /** Numeric tables use bounded batches and a separate alphabet from player IDs. */
-  async recognizeNumbers(images: string[], tableText = false) {
-    return this.recognizeCells(images, tableText, '0123456789.,:/%kK+万');
+  async recognizeNumbers(images: string[], tableText = false, compactHud = false) {
+    return this.recognizeCells(images, tableText, '0123456789.,:/%kK+万', compactHud);
   }
   async recognizeGrades(images: string[]) {
     return this.recognizeCells(images, false, 'SABCD+');
@@ -379,7 +388,12 @@ export class PlayerRecognitionProvider {
   async prepareNumbers() {
     if (this.status === 'ready') await this.prepareNumericWorker();
   }
-  private async recognizeCells(images: string[], tableText: boolean, alphabet: string) {
+  private async recognizeCells(
+    images: string[],
+    tableText: boolean,
+    alphabet: string,
+    compactHud = false,
+  ) {
     if (this.status !== 'ready' || !this.worker) throw new Error('OCR provider is not ready');
     if (this.numericBusy) throw new Error('Numeric OCR is busy');
     if (
@@ -428,15 +442,33 @@ export class PlayerRecognitionProvider {
             }),
           )
         : decoded;
-      const localized = await Promise.all(numeric.map((crop) => this.localizePlayerInk(crop)));
+      const localized = await Promise.all(
+        numeric.map((crop) => this.localizePlayerInk(crop, true)),
+      );
+      // Keep the same glyph scale and border but skip the blank sides of narrow number rows.
+      const width = compactHud
+        ? Math.min(
+            640,
+            32 +
+              2 *
+                Math.ceil(
+                  20 *
+                    Math.max(
+                      ...localized.map(({ region }) =>
+                        region ? region.width / region.height : 16,
+                      ),
+                    ),
+                ),
+          )
+        : 640;
       const crops = await Promise.all(
-        localized.map((crop) => this.preparePlayerVariant(crop, 640, 'soft')),
+        localized.map((crop) => this.preparePlayerVariant(crop, width, 'soft')),
       );
       await worker.setParameters({
         tessedit_char_whitelist: alphabet,
         tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
       });
-      const result = await this.readPage(crops, 64, worker);
+      const result = await this.readPage(crops, 64, worker, width);
       // Batch segmentation can drop a solitary 1 or a small decimal point.
       // Retry only weak cells as isolated lines, keeping OCR cost bounded.
       const weak = result.confidences.flatMap((confidence, index) =>
@@ -499,6 +531,12 @@ export class PlayerRecognitionProvider {
           errorHandler: () => {},
         }));
         await worker.setParameters({ user_defined_dpi: '150', preserve_interword_spaces: '1' });
+        // Loading traineddata leaves the first inference cold. Prime it once
+        // during model preparation, before publishing this worker as ready.
+        const warmup = Buffer.from(
+          '<svg width="96" height="48"><rect width="96" height="48" fill="white"/><text x="8" y="36" font-family="sans-serif" font-size="32">02:10</text></svg>',
+        );
+        await worker.recognize(await sharp(warmup).png().toBuffer());
         this.numericWorker = worker;
         return worker;
       } finally {

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { allPoolHeroes } from '../src/shared/heroPool.js';
+import { captureSlotKeys } from '../src/control/bpCaptureLayout.js';
 import { publicAiAddress, visionTransport, type VisionTransport } from './aiTransport.js';
 import type { AiBudget } from './aiBudget.js';
 export type AiVendor =
@@ -412,10 +413,21 @@ export const setAiConfig = (input: unknown) => aiRecognition.configure(input);
  * conflicting local candidate or manufactures a lock/phase transition. */
 export async function recognizeAiWithFallback<
   T extends { candidates: { heroId: number; confidence: number }[] },
->(image: string, ids: number[] | undefined, local: () => Promise<T>, scope = 'legacy'): Promise<T> {
+>(
+  image: string,
+  ids: number[] | undefined,
+  local: () => Promise<T>,
+  scope = 'legacy',
+  slot?: unknown,
+): Promise<T> {
   const result = await local();
   if (!ids?.length || result.candidates[0]?.confidence >= 0.85) return result;
-  const candidate = aiRecognition.hero(image, ids, scope);
+  const knownSlot = captureSlotKeys.find((key) => key === slot);
+  const candidate = aiRecognition.hero(
+    image,
+    ids,
+    knownSlot ? JSON.stringify([scope, knownSlot]) : scope,
+  );
   if (!candidate) return result;
   return fuseHeroCandidate(result, candidate);
 }

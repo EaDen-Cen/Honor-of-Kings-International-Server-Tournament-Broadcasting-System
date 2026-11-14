@@ -16,6 +16,7 @@
   },
   "include": [
     "server/**/*.ts",
+    "scripts/prepare-portrait-pack.ts",
     "scripts/hero-sync/**/*.ts",
     "src/shared/types.ts",
     "src/shared/draftTurns.ts",

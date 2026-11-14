@@ -1,6 +1,6 @@
 import { recognizeHudNumbers } from './hudOcrCache.js';
 import { fusePostGame, fusePlayers, fuseHud } from './aiFusion.js';
-import sharp from 'sharp';
+import sharp, { type OutputInfo } from 'sharp';
 import { createHash } from 'node:crypto';
 import {
   fullGameRect,
@@ -42,12 +42,34 @@ const settlementIds = new WeakMap<
   >
 >();
 
-/** Stop nearly blank frames before producing false OCR evidence. */
-export async function frameHasVisualContent(frame: Buffer): Promise<boolean> {
-  const result = await sharp(frame).resize(96, 54, { fit: 'fill' }).greyscale().stats();
-  return (result.channels[0]?.stdev ?? 0) >= 5;
+type GamePixels = { data: Buffer; info: OutputInfo };
+
+function firstChannelHasContent(data: Buffer, channels: number) {
+  const count = data.length / channels;
+  if (count < 2) return false;
+  let sum = 0,
+    squares = 0;
+  for (let i = 0; i < data.length; i += channels) {
+    const value = data[i];
+    sum += value;
+    squares += value * value;
+  }
+  return squares - (sum * sum) / count >= 25 * (count - 1);
 }
-export async function decodeGameFrame(image: unknown, region: unknown = fullGameRect) {
+
+/** Stop nearly blank frames before producing false OCR evidence. */
+export async function frameHasVisualContent(frame: Buffer | GamePixels): Promise<boolean> {
+  if (!Buffer.isBuffer(frame)) return firstChannelHasContent(frame.data, frame.info.channels);
+  const image = sharp(frame);
+  const meta = await image.metadata();
+  // stats() measures the original first channel; preserve its sample variance
+  // without computing entropy, dominant colour and sharpness across a full frame.
+  if (meta.space !== 'srgb' || meta.depth !== 'uchar' || meta.hasProfile)
+    return ((await image.stats()).channels[0]?.stdev ?? 0) >= 5;
+  const red = await image.extractChannel(0).raw().toBuffer();
+  return firstChannelHasContent(red, 1);
+}
+async function normalizedGameFrame(image: unknown, region: unknown) {
   if (
     typeof image !== 'string' ||
     image.length > 4 * 1024 * 1024 ||
@@ -66,7 +88,13 @@ export async function decodeGameFrame(image: unknown, region: unknown = fullGame
     Math.abs(bounds.width / bounds.height - 16 / 9) > 0.08
   )
     throw new Error('Select the 16:9 game content, excluding window borders');
-  return sharp(source).extract(bounds).resize(1920, 1080).png().toBuffer();
+  return sharp(source, { limitInputPixels: 9000000 }).extract(bounds).resize(1920, 1080);
+}
+export async function decodeGameFrame(image: unknown, region: unknown = fullGameRect) {
+  return (await normalizedGameFrame(image, region)).png().toBuffer();
+}
+export async function decodeLiveHudFrame(image: unknown, region: unknown = fullGameRect) {
+  return (await normalizedGameFrame(image, region)).raw().toBuffer({ resolveWithObject: true });
 }
 async function crop(frame: Buffer, region: CaptureRect) {
   return (
@@ -380,21 +408,41 @@ async function prepareLiveHudCrop(input: Buffer, key: LiveCaptureKey) {
     ).toString('base64')
   );
 }
-export async function recognizeLiveHud(
-  frame: Buffer,
-  provider: PlayerRecognitionProvider,
-  regions: Record<LiveCaptureKey, CaptureRect> = liveCaptureRects,
-  aiContext?: string,
+/** Decode the calibrated strip once when a client sends a full image. */
+export async function extractLiveHudCrops(
+  frame: Buffer | GamePixels,
+  regions: Record<LiveCaptureKey, CaptureRect>,
 ) {
-  const images = await Promise.all(
-    liveCaptureKeys.map(async (key) => {
-      const input = await sharp(frame)
-        .extract(pixelRect(regions[key], 1920, 1080))
+  const rects = liveCaptureKeys.map((key) => pixelRect(regions[key], 1920, 1080));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
+  const strip = { left: 0, top, width: 1920, height: bottom - top };
+  const { data, info } = Buffer.isBuffer(frame)
+    ? await sharp(frame).extract(strip).raw().toBuffer({ resolveWithObject: true })
+    : {
+        data: frame.data.subarray(
+          top * frame.info.width * frame.info.channels,
+          bottom * frame.info.width * frame.info.channels,
+        ),
+        info: { width: frame.info.width, height: strip.height, channels: frame.info.channels },
+      };
+  return Promise.all(
+    rects.map(async (rect) => {
+      const input = await sharp(data, { raw: info })
+        .extract({ ...rect, top: rect.top - top })
         .png()
         .toBuffer();
       return 'data:image/png;base64,' + input.toString('base64');
     }),
   );
+}
+export async function recognizeLiveHud(
+  frame: Buffer | GamePixels,
+  provider: PlayerRecognitionProvider,
+  regions: Record<LiveCaptureKey, CaptureRect> = liveCaptureRects,
+  aiContext?: string,
+) {
+  const images = await extractLiveHudCrops(frame, regions);
   const result = await recognizeLiveHudCrops(images, provider, regions, aiContext);
   const candidates = result.candidates;
   return {
