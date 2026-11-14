@@ -161,6 +161,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const recentPickReads=useRef<Array<{image:string;lockImage?:string;result:RecognitionResponse}>>([]);
   const previousFinalFrame=useRef<{frame:HTMLCanvasElement;crops:PickCrop[]}>();
   const warmFinal=useRef<{controller:AbortController;crops:PickCrop[]}>();
+  const finalObservationCount=useRef(-1);
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
   const lastPick=phase?.action==='pick' && state[`${phase.team}Picks`].length===4 && state[phase.team==='blue'?'redPicks':'bluePicks'].length===5;
@@ -335,6 +336,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     captureGeneration.current++;captureRequest.current.cancel();busyRef.current=false;setBusy(false);
     lastAutoFrame.current={at:-Infinity,time:-1};
     previousFinalFrame.current=undefined;
+    finalObservationCount.current=-1;
     warmFinal.current?.controller.abort();warmFinal.current=undefined;
     heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
     pickSlotStability.current={};pickLocks.current={};
@@ -558,6 +560,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         let targets=turnTargets;
         const useBatch=recognizesPortraitBatches() || (lastPick && presentedTime!==undefined && canTryPortraitBatches());
         let frame:HTMLCanvasElement|undefined, nextFrame:HTMLCanvasElement|undefined, nextTime:number|undefined;
+        let frameCount:number|undefined,nextCount:number|undefined;
         let observeNext:((after:number)=>void)|undefined;
         const waitingForFinalSlot=(still:HTMLCanvasElement)=>{
           if(!emptyFinalSlot(still,turnTargets[0].region)) return false;
@@ -593,12 +596,17 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
             canvas.drawImage(video,0,0);
             return still;
           };
+          const displayedFrameCount=()=>{
+            const quality=video.getVideoPlaybackQuality?.();
+            return quality ? quality.totalVideoFrames-quality.droppedVideoFrames : undefined;
+          };
           frame=freeze();
+          frameCount=displayedFrameCount();
           if(presentedTime!==undefined && waitingForFinalSlot(frame)) return;
           observeNext=(after)=>{
             secondFrameHandle=video.requestVideoFrameCallback((_,metadata)=>{
               if(!current() || metadata.mediaTime===after) return;
-              nextFrame=freeze();nextTime=metadata.mediaTime;
+              nextFrame=freeze();nextTime=metadata.mediaTime;nextCount=displayedFrameCount();
             });
           };
           if(presentedTime!==undefined && typeof video.requestVideoFrameCallback==='function') observeNext(presentedTime);
@@ -647,7 +655,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         // A different presentation may have arrived during the full-pool match.
         // Use that still immediately, including when the stream freezes right after the swap.
         if(frame && nextFrame && nextTime!==undefined && !sameFinalPickPixels(frame,nextFrame,targets.map(item=>item.region))){
-          frame=nextFrame;nextFrame=undefined;
+          frame=nextFrame;nextFrame=undefined;frameCount=nextCount;
           lastAutoFrame.current={at:performance.now(),time:nextTime};
           if(!current() || request.signal.aborted) return;
           pickSlotStability.current={};pickLocks.current={};
@@ -664,8 +672,19 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
         }
         if(!current()||request.signal.aborted) return;
 
+        if(lastPick && state.recognitionAutoAccept){
+          // Repeated clicks on a paused stream must not turn a single observation into an automatic action.
+          if(frameCount!==undefined && frameCount>0 && frameCount===finalObservationCount.current) return;
+          if(presentedTime===undefined && (!frameCount || frameCount<=0)){
+            pickSlotStability.current={};pickLocks.current={};
+          }
+          if(frameCount!==undefined) finalObservationCount.current=frameCount;
+        }
         const observedTwice=frame && nextFrame && nextTime!==undefined && sameFinalPickPixels(frame,nextFrame,targets.map(item=>item.region));
-        if(observedTwice) lastAutoFrame.current={at:performance.now(),time:nextTime!};
+        if(observedTwice){
+          lastAutoFrame.current={at:performance.now(),time:nextTime!};
+          if(nextCount!==undefined) finalObservationCount.current=nextCount;
+        }
         let scanned=targets.map((item,index)=>{
           const data=responses[index];
           const candidates=data.candidates??[];
@@ -862,6 +881,9 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     }
     const timer=window.setInterval(()=>{
       const quality=video.getVideoPlaybackQuality?.();
+      // A live stream's clock can advance with no new picture. At the final pick,
+      // unsupported browsers still offer manual candidate review without auto-accepting duplicates.
+      if(lastPick && !quality) return;
       const frame=quality ? quality.totalVideoFrames-quality.droppedVideoFrames : video.currentTime;
       read(performance.now(),frame);
     },33);

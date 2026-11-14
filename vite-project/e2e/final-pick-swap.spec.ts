@@ -381,6 +381,11 @@ for (const scenario of [
         );
         // Hold the actual video track still well beyond the two-observation window.
         await page.waitForTimeout(500);
+        const read = page.getByRole('button', { name: 'Recognize now', exact: true });
+        for (let i = 0; i < 2; i++) {
+          await read.click();
+          await expect(read).toBeEnabled();
+        }
         expect(h.state()[`${side}Picks`]).toEqual(picks[side].slice(0, 4));
         expect(
           await page.evaluate(() => performance.getEntriesByName('submitted-pick').length),
