@@ -11,7 +11,7 @@ test('window capture excludes cursor at selection and enforces supported track c
   Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getDisplayMedia:async(value:unknown)=>{selected=value;return stream;}}});
   try{
     assert.equal(await requestWindowCapture(),stream);
-    assert.deepEqual(selected,{video:{cursor:'never'},audio:false});
+    assert.deepEqual(selected,{video:{cursor:'never',frameRate:{ideal:60}},audio:false});
     assert.deepEqual(applied,{frameRate:30,cursor:{exact:'never'}});
     assert.equal(stopped,false);
     track.applyConstraints=async()=>{throw new Error('capture constraint failed');};

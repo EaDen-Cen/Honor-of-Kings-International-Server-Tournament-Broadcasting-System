@@ -97,6 +97,11 @@ test('a compact checkmark can be confirmed on its projecting team diamond only',
   const withStrip = async (pixels: Buffer) => frame(await base().composite([{input: pixels, top: 72, left: 0}]).png().toBuffer());
   const cue = await withStrip(strip);
   assert.equal((await recognizeClientFrame(frame(portrait), [], 'square', cue)).lockCue, 'checkmark');
+  const compact = await recognizeClientFrame(frame(portrait), [1,2], 'square', cue, true);
+  const full = await recognizeClientFrame(frame(portrait), [1,2], 'square', cue);
+  assert.deepEqual(compact, {candidates: full.candidates, lockCue: 'checkmark'});
+  assert.equal(typeof full.meanLuma, 'number');
+  assert.ok(full.fingerprint && full.lockFingerprint);
   assert.equal((await recognizeClientFrame(cue, [], 'square')).lockCue, 'none', 'same patch inside the portrait');
   assert.equal((await recognizeClientFrame(frame(portrait), [], 'circle', cue)).lockCue, 'none', 'Ban requires a padlock');
 
