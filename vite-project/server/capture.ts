@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 import type { IncomingMessage } from 'node:http';
 import { setImmediate as yieldToEvents } from 'node:timers/promises';
 import heroes from '../src/components/HeroList.js';
+import { mapWithConcurrency } from '../src/shared/mapWithConcurrency.js';
 import type { Hero } from '../src/data/heroTypes.js';
 import sharp from 'sharp';
 import { detectDraftLockCue } from './draftCueDetection.js';
+import { potentialPortraitViews } from './portraitSimilarity.js';
 import {
   readPortraitPack,
   writePortraitPack,
@@ -54,10 +56,9 @@ function projectionFor(shape: MatchShape) {
 const projections = { square: projectionFor('square'), circle: projectionFor('circle') };
 
 async function portraitPixels(
-  source: ReturnType<typeof sharp>,
+  image: ReturnType<typeof sharp>,
   region?: { left: number; top: number; width: number; height: number },
 ) {
-  let image = source.clone();
   if (region) image = image.extract(region);
   return image
     .resize(portraitSize, portraitSize, { fit: 'fill' })
@@ -143,7 +144,7 @@ async function portraitViews(
   shape: MatchShape = 'square',
   template = false,
 ) {
-  let image = sharp(source);
+  const image = sharp(source);
   const meta = await image.metadata();
   const width = meta.width || 0,
     height = meta.height || 0;
@@ -153,6 +154,7 @@ async function portraitViews(
 
   // Browser PNG crops share the same pixels across all zooms. Leave profiled,
   // HDR and JPEG sources on their original colour and shrink-on-load path.
+  let viewSource = () => sharp(source);
   if (
     meta.format === 'png' &&
     meta.space === 'srgb' &&
@@ -161,7 +163,7 @@ async function portraitViews(
     width * height <= 262144
   ) {
     const raw = await image.raw().toBuffer({ resolveWithObject: true });
-    image = sharp(raw.data, { raw: raw.info });
+    viewSource = () => sharp(raw.data, { raw: raw.info });
   }
 
   const minSide = Math.min(width, height);
@@ -190,12 +192,12 @@ async function portraitViews(
       }
     }
   }
-  const variants: { pixels: Buffer; penalty: number }[] = [];
+  const variants: { region?: Parameters<typeof portraitPixels>[1]; penalty: number }[] = [];
   // A rectangular Ban calibration describes an ellipse in source pixels.
   // Keep a full-frame view before square zoom views; otherwise minSide crops
   // discard the sides of a horizontally stretched portrait (or its top/bottom).
   if (shape === 'circle' && !template && width !== height) {
-    variants.push({ pixels: await portraitPixels(image), penalty: 0 });
+    variants.push({ penalty: 0 });
   }
   const seen = new Set<string>();
   for (const spec of specs) {
@@ -208,13 +210,17 @@ async function portraitViews(
     if (seen.has(key)) continue;
     seen.add(key);
     variants.push({
-      pixels: await portraitPixels(image, { left, top, width: side, height: side }),
+      region: { left, top, width: side, height: side },
       // A small facial fragment contains less identity evidence than a full
       // portrait. Penalize aggressive zoom so it cannot win by color alone.
       penalty: template && spec.scale < 0.7 ? 0.08 + (0.6 - spec.scale) * 0.5 : 0,
     });
   }
-  return variants;
+  // The catalog already processes heroes concurrently; live crops can overlap native resizes.
+  return mapWithConcurrency(variants, template ? 1 : 3, async ({ region, penalty }) => ({
+    pixels: await portraitPixels(viewSource(), region),
+    penalty,
+  }));
 }
 
 function featureViews(
@@ -403,25 +409,31 @@ async function matchPortrait(
       exact.get(hero.heroId) ??
       Math.max(0, dot(hero[shape][0].features.values, variants[0].features.values)),
   );
-  const minimum = eligible.length > 5 ? seeds.toSorted((a, b) => b - a)[4] : -1;
-  const best: { heroId: number; confidence: number }[] = [];
+  const order = seeds.map((_, index) => index).sort((a, b) => seeds[b] - seeds[a]);
+  const best: { index: number; confidence: number }[] = [];
   let nextYield = performance.now() + 4;
-  for (const [index, hero] of eligible.entries()) {
+  for (const index of order) {
+    const hero = eligible[index];
     if (performance.now() >= nextYield) {
       await yieldToEvents();
       nextYield = performance.now() + 4;
     }
-    const fifth = best[4]?.confidence ?? -1;
-    const cutoff = Math.max(minimum, fifth);
+    const cutoff = best[4]?.confidence ?? -1;
     let confidence = seeds[index];
     if (!exact.has(hero.heroId))
       for (const { features: template, penalty } of hero[shape]) {
-        for (const { features: frame } of variants) {
-          let bound = template.residual * frame.residual;
-          for (let i = 0; i < template.blocks.length; i++)
-            bound += template.blocks[i] * frame.blocks[i];
-          // Roundoff tolerance keeps tied candidates and threshold comparisons exact.
-          if (bound + 1e-7 < Math.max(confidence, cutoff) + penalty) continue;
+        const matches = potentialPortraitViews(
+          template,
+          variants,
+          Math.max(confidence, cutoff) + penalty,
+        );
+        if (matches === 0) continue;
+        for (let i = 0; i < variants.length; i++) {
+          const frame = variants[i].features;
+          if (matches === undefined) {
+            const bound = template.residual * frame.residual + dot(template.blocks, frame.blocks);
+            if (bound + 1e-7 < Math.max(confidence, cutoff) + penalty) continue;
+          } else if (!(matches & (1 << i))) continue;
           const score = dot(template.values, frame.values);
           confidence = Math.max(confidence, score - penalty);
         }
@@ -429,13 +441,13 @@ async function matchPortrait(
     confidence = Math.min(1, confidence);
     // Only retain an individual hero score once every unscored pair is bounded below it.
     if (confidence >= cutoff) exact.set(hero.heroId, confidence);
-    if (confidence > fifth) {
-      best.push({ heroId: hero.heroId, confidence });
-      best.sort((a, b) => b.confidence - a.confidence);
+    if (confidence >= cutoff) {
+      best.push({ index, confidence });
+      best.sort((a, b) => b.confidence - a.confidence || a.index - b.index);
       if (best.length > 5) best.pop();
     }
   }
-  return best;
+  return best.map(({ index, confidence }) => ({ heroId: eligible[index].heroId, confidence }));
 }
 
 type Candidates = Awaited<ReturnType<typeof matchPortrait>>;
@@ -616,20 +628,36 @@ export async function recognizePortraitCandidates(
   );
   return { candidates };
 }
-type Evidence = {
+type FrameDiagnostics = {
   fingerprint: string;
   lockFingerprint: string;
   meanLuma: number;
+};
+type PickEvidence = {
   lockCue: 'checkmark' | 'padlock' | 'none';
   candidates: { heroId: number; confidence: number }[];
 };
-const evidenceCache = new Map<string, Promise<Evidence>>();
+const evidenceCache = new Map<string, Promise<PickEvidence & Partial<FrameDiagnostics>>>();
 let activeRecognitions = 0;
+export function recognizeClientFrame(
+  value: unknown,
+  allowedHeroIds: unknown,
+  shape: unknown,
+  lockImage: unknown,
+  pickEvidenceOnly: true,
+): Promise<PickEvidence>;
+export function recognizeClientFrame(
+  value: unknown,
+  allowedHeroIds?: unknown,
+  shape?: unknown,
+  lockImage?: unknown,
+): Promise<PickEvidence & FrameDiagnostics & { preview: string }>;
 export async function recognizeClientFrame(
   value: unknown,
   allowedHeroIds?: unknown,
   shape: unknown = 'square',
   lockImage?: unknown,
+  pickEvidenceOnly = false,
 ) {
   const buffer = decodeClientCapture(value);
   const cueBuffer = lockImage === undefined ? buffer : decodeClientCapture(lockImage);
@@ -638,7 +666,7 @@ export async function recognizeClientFrame(
   const key = createHash('sha256')
     .update(buffer)
     .update(cueBuffer)
-    .update(JSON.stringify([matchShape, allowed?.slice().sort((a, b) => a - b)]))
+    .update(JSON.stringify([matchShape, allowed?.slice().sort((a, b) => a - b), pickEvidenceOnly]))
     .digest('hex');
   const evidence = cached(evidenceCache, key, 64, async () => {
     if (activeRecognitions >= 4) throw new Error('Recognition busy');
@@ -667,17 +695,24 @@ export async function recognizeClientFrame(
           ? extended
           : detectDraftLockCue(buffer, matchShape === 'circle');
       };
-      const [fingerprint, lockFingerprint, meanLuma, lockCue, candidates] = await Promise.all([
-        frameFingerprint(buffer),
-        lockCueFingerprint(buffer),
-        frameMeanLuma(buffer),
+      const [lockCue, candidates, diagnostics] = await Promise.all([
         cueEvidence(),
         recognizeImage(buffer, allowed, matchShape, true),
+        pickEvidenceOnly
+          ? undefined
+          : Promise.all([
+              frameFingerprint(buffer),
+              lockCueFingerprint(buffer),
+              frameMeanLuma(buffer),
+            ]),
       ]);
-      return { fingerprint, lockFingerprint, meanLuma, lockCue, candidates };
+      if (!diagnostics) return { lockCue, candidates };
+      const [fingerprint, lockFingerprint, meanLuma] = diagnostics;
+      return { lockCue, candidates, fingerprint, lockFingerprint, meanLuma };
     } finally {
       activeRecognitions--;
     }
   });
-  return { preview: value as string, ...structuredClone(await evidence) };
+  const read = structuredClone(await evidence);
+  return pickEvidenceOnly ? read : { preview: value as string, ...read };
 }

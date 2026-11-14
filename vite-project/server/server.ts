@@ -1528,7 +1528,13 @@ const server = createServer(async (req, res) => {
               () =>
                 crop.lockImage === undefined
                   ? recognizePortraitCandidates(crop.image, crop.allowedHeroIds)
-                  : recognitionProvider.recognize({ ...crop, shape: 'square' }),
+                  : recognizeClientFrame(
+                      crop.image,
+                      crop.allowedHeroIds,
+                      'square',
+                      crop.lockImage,
+                      true,
+                    ),
               scope,
               crop.slot,
             );
