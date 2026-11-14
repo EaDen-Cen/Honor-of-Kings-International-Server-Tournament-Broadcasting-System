@@ -16,7 +16,7 @@ export function invalidateWindowCaptureSelection(){selectionVersion++;}
 export async function requestWindowCapture(signal?:AbortSignal):Promise<MediaStream>{
   if(signal?.aborted)throw new DOMException('Capture selection cancelled','AbortError');
   const version=++selectionVersion;
-  const video:CursorConstraints={cursor:'never'};
+  const video:CursorConstraints={cursor:'never',frameRate:{ideal:60}};
   const stream=await navigator.mediaDevices.getDisplayMedia({video,audio:false});
   try{
     if(signal?.aborted||version!==selectionVersion)throw new DOMException('Capture selection cancelled','AbortError');

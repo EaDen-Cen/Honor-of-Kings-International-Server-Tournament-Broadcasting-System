@@ -1,8 +1,9 @@
 import { apiURL } from '../shared/config';
 import type { CaptureSlotKey } from './bpCaptureLayout';
 
-let supported = false;
-export const recognizesPortraitBatches = () => supported;
+let supported: boolean | undefined;
+export const recognizesPortraitBatches = () => supported === true;
+export const canTryPortraitBatches = () => supported !== false;
 export function observePortraitBatchSupport(response: { portraitBatch?: boolean }) {
   supported = response.portraitBatch === true;
 }
@@ -43,5 +44,6 @@ export async function recognizePortraitBatch(
   const { results } = await response.json();
   if (!Array.isArray(results) || results.length !== crops.length)
     throw new Error('Incomplete portrait batch');
+  supported = true;
   return results as PortraitRead[];
 }

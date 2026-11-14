@@ -1,9 +1,10 @@
 import { shouldAutoAcceptRecognition } from './recognitionAcceptance';
 import { capturePortraitImage } from './capturePortraitImage';
 import { swappedFinalPickIndex } from './finalPickRecovery';
+import { emptyFinalSlot, lockRegion, sameFinalPickPixels } from './finalPickFrames';
 import { draftHeroUsed } from '../shared/draftRules';
 import { mapWithConcurrency } from '../shared/mapWithConcurrency';
-import { observePortraitBatchSupport, recognizesPortraitBatches, recognizePortraitBatch } from './portraitBatch';
+import { canTryPortraitBatches, observePortraitBatchSupport, recognizesPortraitBatches, recognizePortraitBatch } from './portraitBatch';
 import { apiURL } from '../shared/config';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { heroForState, heroesForState } from '../shared/heroData';
@@ -76,6 +77,7 @@ type RecognitionResponse = {
   meanLuma?:number;
   lockCue?:'checkmark'|'padlock'|'none';
 };
+type PickCrop = {slot:CaptureSlotKey;image:string;lockImage?:string};
 
 const freshHeroStability = (): HeroRecognitionStability => ({ phaseKey:'', heroId:null, count:0 });
 const SLOTS_STORAGE='hok-window-capture-slots-v3';
@@ -156,10 +158,11 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const heroLockStability=useRef<HeroLockStability>(freshHeroLockStability());
   const pickLocks=useRef<Record<string,HeroLockStability>>({});
   const pickSlotStability=useRef<Record<string,HeroRecognitionStability>>({});
-  const checkingFinalSwap=useRef(false);
-  const swapCueSlot=useRef(-1);
+  const recentPickReads=useRef<Array<{image:string;lockImage?:string;result:RecognitionResponse}>>([]);
+  const previousFinalFrame=useRef<{frame:HTMLCanvasElement;crops:PickCrop[]}>();
 
   const phase=phases(state.draftMode,state.firstPickSide,state.banCount)[state.currentPhase];
+  const lastPick=phase?.action==='pick' && state[`${phase.team}Picks`].length===4 && state[phase.team==='blue'?'redPicks':'bluePicks'].length===5;
   const phaseKey=`${state.draftGameNumber ?? state.gameNumber}:${state.currentPhase}:${phase?.team ?? 'done'}:${phase?.action ?? 'done'}`;
   const recognitionContext=JSON.stringify([phaseKey,disabled,token,state.committedGameId,state.bpInputMode,state.draftMode,state.firstPickSide,state.banCount,state.bluePicks,state.redPicks,state.blueBans,state.redBans,state.heroPool,autoWatch,state.recognitionAutoAccept,state.recognitionThreshold,slots]);
   captureContext.current=recognitionContext;
@@ -330,10 +333,12 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
   const resetCapture=useCallback(()=>{
     captureGeneration.current++;captureRequest.current.cancel();busyRef.current=false;setBusy(false);
     lastAutoFrame.current={at:-Infinity,time:-1};
+    previousFinalFrame.current=undefined;
     heroStability.current=freshHeroStability();heroLockStability.current=freshHeroLockStability();
-    pickSlotStability.current={};pickLocks.current={};checkingFinalSwap.current=false;swapCueSlot.current=-1;
+    pickSlotStability.current={};pickLocks.current={};
     setResult(undefined);setManualResult(undefined);setGroupSelected({});setCandidateStatus('');
   },[]);
+  useEffect(()=>{recentPickReads.current=[];},[state.draftGameNumber,state.gameNumber,state.heroPool,slots,token,windowInfo]);
 
   const stopWindowCapture=useCallback(()=>{
     selection.current?.abort();selection.current=undefined;setChoosing(false);
@@ -495,9 +500,7 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
 
   const captureCrop=useCallback((region:NormalizedCaptureRegion, shape:'square'|'circle', frame?:HTMLCanvasElement)=>({
     image:captureWindowFrame(region,frame),
-    lockImage:shape==='circle' ? undefined : captureWindowFrame({
-      ...region,height:Math.min(1-region.y,region.height*1.30),
-    },frame),
+    lockImage:shape==='circle' ? undefined : captureWindowFrame(lockRegion(region),frame),
   }),[captureWindowFrame]);
   const recognizeWindowRegion=useCallback(async(
     region:NormalizedCaptureRegion,
@@ -524,101 +527,142 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     if(!response.ok) throw new Error(t('windowCaptureRecognitionFailed'));
     observePortraitBatchSupport(payload);
     const data: RecognitionResponse = { ...payload, preview: payload.preview ?? image };
+    if(options?.shape==='square' && !options.allowedHeroIds && payload.portraitBatch===true && !recentPickReads.current.some(read=>read.image===image && read.lockImage===lockImage))
+      recentPickReads.current=[...recentPickReads.current.slice(-9),{image,lockImage,result:data}];
     samples.current=[...samples.current.slice(-17),{phaseKey,region,shape:options?.shape??'square',image,lockImage:lockImage??image,result:data}];
     return data;
   },[captureCrop,phaseKey,recognitionContext,revision,t,token,zh]);
 
-  const capture=useCallback(async()=>{
+  const capture=useCallback(async(presentedTime?:number)=>{
     if(busyRef.current||disabled||!phase||state.committedGameId) return;
     busyRef.current=true;
-    setBusy(true);
-    setMessage('');
+    const indicateRecognition=()=>{setBusy(true);setMessage('');};
+    // A cached automatic scan finishes in the same turn. Keep its current status visible.
+    if(!lastPick || presentedTime===undefined) indicateRecognition();
     const signature=captureContext.current,source=streamRef.current,request=captureRequest.current.start(25000);
     const context=signature;
     const current=()=>mounted.current&&request.isCurrent()&&signature===captureContext.current&&source===streamRef.current;
+    let secondFrameHandle:number|undefined;
+    const video=videoRef.current;
     try{
       if(phase.action==='pick'){
         const knownPicks=state[`${phase.team}Picks`];
-        const lastPick=turnTargets.length===1 && knownPicks.length===4 && state[phase.team==='blue'?'redPicks':'bluePicks'].length===5;
-        let checkingSwap=lastPick && checkingFinalSwap.current;
         const teamTargets=lastPick ? Array.from({length:5},(_,slotIndex)=>{
           const key=`${phase.team}Pick${slotIndex+1}` as CaptureSlotKey;
           return {...turnTargets[0],key,slotIndex,region:slots[key]};
         }) : turnTargets;
-        let targets=checkingSwap ? teamTargets : turnTargets;
-        let frame:HTMLCanvasElement|undefined;
+        let targets=turnTargets;
+        const useBatch=recognizesPortraitBatches() || (lastPick && presentedTime!==undefined && canTryPortraitBatches());
+        let frame:HTMLCanvasElement|undefined, nextFrame:HTMLCanvasElement|undefined, nextTime:number|undefined;
+        let observeNext:((after:number)=>void)|undefined;
+        const waitingForFinalSlot=(still:HTMLCanvasElement)=>{
+          if(!emptyFinalSlot(still,turnTargets[0].region)) return false;
+          pickSlotStability.current={};pickLocks.current={};
+          setManualResult(undefined);setCandidateStatus(t('captureWaiting'));setMessage(t('captureWaitingForFrame'));
+          return true;
+        };
         if(lastPick){
-          const video=videoRef.current;
           if(!video?.videoWidth || !video.videoHeight) return;
-          frame=document.createElement('canvas');
-          frame.width=video.videoWidth;frame.height=video.videoHeight;
-          const canvas=frame.getContext('2d');
-          if(!canvas) throw new Error('Canvas unavailable');
-          canvas.drawImage(video,0,0);
+          const freeze=()=>{
+            const still=document.createElement('canvas');
+            still.width=video.videoWidth;still.height=video.videoHeight;
+            const canvas=still.getContext('2d',{willReadFrequently:true});
+            if(!canvas) throw new Error('Canvas unavailable');
+            canvas.drawImage(video,0,0);
+            return still;
+          };
+          frame=freeze();
+          if(presentedTime!==undefined && waitingForFinalSlot(frame)) return;
+          observeNext=(after)=>{
+            secondFrameHandle=video.requestVideoFrameCallback((_,metadata)=>{
+              if(!current() || metadata.mediaTime===after) return;
+              nextFrame=freeze();nextTime=metadata.mediaTime;
+            });
+          };
+          if(presentedTime!==undefined && video.requestVideoFrameCallback) observeNext(presentedTime);
         }
         const readTargets=async(items:typeof turnTargets):Promise<RecognitionResponse[]>=>{
-          if(items.length===1 || !recognizesPortraitBatches()){
+          if(!useBatch || (!lastPick && items.length===1)){
+            if(lastPick) indicateRecognition();
             return mapWithConcurrency(items,2,item=>recognizeWindowRegion(item.region,{shape:'square',signal:request.signal,frame,slot:item.key}));
           }
-          const crops=items.map(item=>({slot:item.key,...(checkingSwap && item.slotIndex!==swapCueSlot.current && item.slotIndex!==4
-            ? {image:captureWindowFrame(item.region,frame),lockImage:undefined}
-            : captureCrop(item.region,'square',frame))}));
-          const reads=await recognizePortraitBatch(crops,revision,token,request.signal);
-          const results=reads.map((read,i)=>({...read,preview:crops[i].image}));
+          const previous=previousFinalFrame.current;
+          const crops=items.map(item=>{
+            const existing=previous?.crops.find(crop=>crop.slot===item.key);
+            if(existing && frame && previous && sameFinalPickPixels(previous.frame,frame,[item.region])) return existing;
+            return {slot:item.key,...captureCrop(item.region,'square',frame)};
+          });
+          if(frame) previousFinalFrame.current={frame,crops};
+          // Only unrestricted local reads can be reused across slots. Each current frame still supplies both images.
+          const found=crops.map(crop=>lastPick ? recentPickReads.current.find(read=>read.image===crop.image && read.lockImage===crop.lockImage)?.result : undefined);
+          const missing=crops.filter((_,i)=>!found[i]);
+          if(lastPick && missing.length) indicateRecognition();
+          const reads=missing.length ? await recognizePortraitBatch(missing,revision,token,request.signal) : [];
+          let next=0;
+          const results=crops.map((crop,i)=>found[i]??{...reads[next++],preview:crop.image});
           if(current()){
-            samples.current=[...samples.current,...items.map((item,i)=>({phaseKey,region:item.region,shape:'square',
+            recentPickReads.current=[...recentPickReads.current.filter(read=>!crops.some(crop=>crop.image===read.image && crop.lockImage===read.lockImage)),
+              ...crops.map((crop,i)=>({...crop,result:results[i]}))].slice(-10);
+            if(missing.length) samples.current=[...samples.current,...items.map((item,i)=>({phaseKey,region:item.region,shape:'square',
               image:crops[i].image,lockImage:crops[i].lockImage??crops[i].image,result:results[i]}))].slice(-18);
           }
           return results;
         };
+        if(lastPick && useBatch) targets=teamTargets;
         let responses=await readTargets(targets);
-        if(lastPick && !checkingSwap && current() && knownPicks.includes(responses[0].candidates?.[0]?.heroId??-1)){
-          // Reuse this exact video frame and its P5 read; a swap can disappear before the next scan.
-          checkingSwap=true;
-          swapCueSlot.current=knownPicks.indexOf(responses[0].candidates![0].heroId);
+        // A different presentation may have arrived during the full-pool match.
+        // Use that still immediately, including when the stream freezes right after the swap.
+        if(frame && nextFrame && nextTime!==undefined && !sameFinalPickPixels(frame,nextFrame,targets.map(item=>item.region))){
+          frame=nextFrame;nextFrame=undefined;
+          lastAutoFrame.current={at:performance.now(),time:nextTime};
+          if(!current() || request.signal.aborted) return;
+          pickSlotStability.current={};pickLocks.current={};
+          if(waitingForFinalSlot(frame)) return;
+          observeNext?.(nextTime);
+          responses=await readTargets(targets);
+        }
+        const checkingSwap=lastPick && knownPicks.includes(responses.at(-1)?.candidates?.[0]?.heroId??-1);
+        if(checkingSwap && targets!==teamTargets && current()){
           targets=teamTargets;
           responses=[...await readTargets(teamTargets.slice(0,4)),responses[0]];
+        }else if(lastPick && !checkingSwap){
+          targets=turnTargets;responses=responses.slice(-1);
         }
         if(!current()||request.signal.aborted) return;
 
+        const observedTwice=frame && nextFrame && nextTime!==undefined && sameFinalPickPixels(frame,nextFrame,targets.map(item=>item.region));
+        if(observedTwice) lastAutoFrame.current={at:performance.now(),time:nextTime!};
         let scanned=targets.map((item,index)=>{
           const data=responses[index];
           const candidates=data.candidates??[];
           const stabilityKey=`${phaseKey}:${item.key}:${checkingSwap}`;
-          const evidence=updateHeroRecognitionStability(
-            pickSlotStability.current[item.key]??freshHeroStability(),
-            stabilityKey,
-            candidates,
-          );
-          pickSlotStability.current[item.key]=evidence.stability;
-          const lock=updateHeroLockStability(pickLocks.current[item.key]??freshHeroLockStability(),{
+          const observeHero=(previous:HeroRecognitionStability)=>updateHeroRecognitionStability(previous,stabilityKey,candidates);
+          let evidence=observeHero(pickSlotStability.current[item.key]??freshHeroStability());
+          const observeLock=(previous:HeroLockStability)=>updateHeroLockStability(previous,{
             phaseKey:stabilityKey,heroId:evidence.top?.heroId,candidateReady:evidence.requiredScans>0,
             action:'pick',lockCue:data.lockCue,
           });
+          let lock=observeLock(pickLocks.current[item.key]??freshHeroLockStability());
+          if(observedTwice){
+            evidence=observeHero(evidence.stability);lock=observeLock(lock.stability);
+          }
+          pickSlotStability.current[item.key]=evidence.stability;
           pickLocks.current[item.key]=lock.stability;
           return {item,data,candidates,evidence,lock};
         });
 
         let recoveredFrom:CaptureSlotKey|undefined;
-        let scores=scanned.map(entry=>entry.evidence.top?.confidence??0);
-        const lastObserved=scanned.at(-1)?.evidence.top?.heroId;
-        if(lastPick && lastObserved!==undefined && knownPicks.includes(lastObserved)){
-          checkingFinalSwap.current=true;
-          const index=checkingSwap ? swappedFinalPickIndex(state,phase.team,
-            scanned.map(entry=>entry.evidence.accepted ? entry.evidence.top?.heroId : undefined)) : undefined;
+        const scores=scanned.map(entry=>entry.evidence.top?.confidence??0);
+        if(checkingSwap){
+          const index=swappedFinalPickIndex(state,phase.team,
+            scanned.map(entry=>entry.evidence.accepted ? entry.evidence.top?.heroId : undefined));
           if(index===undefined){
             setManualResult(undefined);setCandidateStatus(t('captureWaiting'));
             setMessage(zh?'末手位置显示已选英雄，正在核对同队五个位置。画面不足时请手动录入。':'The last slot shows an earlier pick. Checking all five teammates; use manual entry if the picture is incomplete.');
             return;
           }
           recoveredFrom=scanned[index].item.key;
-          swapCueSlot.current=index;
           scanned=[{...scanned[index],item:turnTargets[0]}];
-        }else if(checkingSwap){
-          // The last slot returned to the normal pick layout.
-          checkingFinalSwap.current=false;
-          scanned=scanned.slice(-1);
-          scores=scanned.map(entry=>entry.evidence.top?.confidence??0);
         }
         if(scanned.some(entry=>entry.evidence.top && draftHeroUsed(state,entry.evidence.top.heroId))){
           setManualResult(undefined);setCandidateStatus(t('captureNoCandidate'));
@@ -758,23 +802,26 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     }catch(error){
       if(current()) setMessage(request.signal.reason instanceof Error?request.signal.reason.message:error instanceof Error?error.message:'Capture failed');
     }finally{
+      if(secondFrameHandle!==undefined) video?.cancelVideoFrameCallback(secondFrameHandle);
       if(request.finish()){busyRef.current=false;if(mounted.current)setBusy(false);}
     }
-  },[captureSlotLabel,captureCrop,captureWindowFrame,disabled,label,phase,phaseKey,recognizeWindowRegion,revision,token,state,slots,send,t,target,turnTargets,zh]);
+  },[captureSlotLabel,captureCrop,disabled,label,lastPick,phase,phaseKey,recognizeWindowRegion,revision,token,state,slots,send,t,target,turnTargets,zh]);
 
+  const captureRef=useRef(capture);captureRef.current=capture;
+  const monitoring=autoWatch&&!result&&!disabled&&!!phase&&!state.committedGameId&&videoReady;
   useEffect(()=>{
-    if(!autoWatch||result||disabled||!phase||state.committedGameId||busy||!videoReady) return;
+    if(!monitoring) return;
     const video=videoRef.current;
     if(!video) return;
     const read=(now:number,mediaTime:number)=>{
-      if(mediaTime===lastAutoFrame.current.time || now-lastAutoFrame.current.at<30) return false;
+      if(busyRef.current || mediaTime===lastAutoFrame.current.time || (!lastPick && now-lastAutoFrame.current.at<30)) return;
       lastAutoFrame.current={at:now,time:mediaTime};
-      void capture();
-      return true;
+      void captureRef.current(mediaTime);
     };
     if(typeof video.requestVideoFrameCallback==='function'){
       const onFrame: VideoFrameRequestCallback=(now,frame)=>{
-        if(!read(now,frame.mediaTime)) handle=video.requestVideoFrameCallback(onFrame);
+        handle=video.requestVideoFrameCallback(onFrame);
+        read(now,frame.mediaTime);
       };
       let handle=video.requestVideoFrameCallback(onFrame);
       return()=>video.cancelVideoFrameCallback(handle);
@@ -782,10 +829,10 @@ export function ScreenInput({ state, revision, token, disabled, send }: { state:
     const timer=window.setInterval(()=>{
       const quality=video.getVideoPlaybackQuality?.();
       const frame=quality ? quality.totalVideoFrames-quality.droppedVideoFrames : video.currentTime;
-      if(read(performance.now(),frame)) window.clearInterval(timer);
+      read(performance.now(),frame);
     },33);
     return()=>window.clearInterval(timer);
-  },[autoWatch,busy,capture,disabled,phase,result,state.committedGameId,videoReady]);
+  },[monitoring,lastPick,phaseKey]);
 
   const pointerDown=(event:React.PointerEvent<HTMLDivElement>)=>{
     if(!calibratingSlot||!videoReady) return;
