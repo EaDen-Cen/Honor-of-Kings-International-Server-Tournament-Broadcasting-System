@@ -167,7 +167,8 @@ const heroSyncOverrides: Record<number, Partial<Hero>> = {
   },
   "41": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703970177236.jpg",
-    "campId": 119
+    "campId": 119,
+    "imageLink": "/heroesImg/sync-119-76cdaad2688edee3.png"
   },
   "42": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20221207/16703968511671.jpg",
@@ -315,7 +316,8 @@ const heroSyncOverrides: Record<number, Partial<Hero>> = {
   },
   "78": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240111/17049607313291.jpg",
-    "campId": 646
+    "campId": 646,
+    "imageLink": "/heroesImg/sync-646-316ea583b8ae42be.png"
   },
   "79": {
     "artLink": "https://world.honorofkings.com/zlkdatasys/ip/hero/en//image/20240206/17071859547198.jpeg",
